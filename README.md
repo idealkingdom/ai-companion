@@ -3,4 +3,4 @@ An AI assistant coding tool with simple interface and freedom to use with your o
 
 
 # Tech Stack
-Chat UI is written in Vanilla HTML, CSS and Javascript , no framework was used, incorporated few libraries like marked and highlight-js.
+Chat UI is written in Vanilla HTML, CSS and Javascript, No framework; Incorporated few libraries like marked and highlight-js.
