@@ -1,0 +1,133 @@
+{
+  "name": "ai-companion",
+  "displayName": "Spes ai-companion",
+  "description": "AI-powered code assistant that model is configurable and a chatbox",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.101.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Spes AI Companion Settings",
+      "properties": {
+        "aiCompanion.modelProvider": {
+          "type": "string",
+          "default": "OpenAI",
+          "enum": [
+            "OpenAI",
+            "Mistral",
+            "DeepSeek"
+          ],
+          "description": "API endpoint for the AI model"
+        },
+        "aiCompanion.accessToken": {
+          "type": "string",
+          "default": "",
+          "description": "Access token for authentication",
+          "markdownDescription": "Access token (e.g., Bearer token for OpenAI or similar services)",
+          "password": true
+        },
+        "aiCompanion.temperature": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Sampling temperature (0 = deterministic, 2 = more random)"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "ai-companion.loadHistory",
+        "category": "Spes AI Companion",
+        "title": "Open History",
+        "icon": "$(history)"
+      },
+      {
+        "command": "ai-companion.resetChat",
+        "category": "Spes AI Companion",
+        "title": "New Chat",
+        "icon": "$(plus)"
+      },
+      {
+        "command": "ai-companion.openSettings",
+        "category": "Spes AI Companion",
+        "title": "Settings",
+        "icon": "$(settings-gear)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "ai-companion",
+          "title": "Spes AI Companion",
+          "icon": "$(heart)"
+        }
+      ]
+    },
+    "views": {
+      "ai-companion": [
+        {
+          "type": "webview",
+          "id": "ai-companion",
+          "name": "Chat"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "ai-companion.resetChat",
+          "when": "view == ai-companion",
+          "group": "navigation"
+        },
+        {
+          "command": "ai-companion.loadHistory",
+          "when": "view == ai-companion",
+          "group": "navigation"
+        },
+        {
+          "command": "ai-companion.openSettings",
+          "when": "view == ai-companion",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.101.0",
+    "@typescript-eslint/eslint-plugin": "^8.31.1",
+    "@typescript-eslint/parser": "^8.31.1",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.25.1",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.8.3",
+    "webpack": "^5.99.7",
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "@langchain/community": "^0.3.48",
+    "@langchain/core": "^0.3.62",
+    "@langchain/langgraph": "^0.3.7",
+    "@langchain/openai": "^0.5.18"
+  }
+}
