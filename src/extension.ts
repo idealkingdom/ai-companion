@@ -15,8 +15,6 @@ import { ChatCore } from './chat/chat-core';
 
 
 
-
-
 // editor
 const editor = vscode.window.activeTextEditor;
 
@@ -33,7 +31,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register the webview view provider for the chatbox
     context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, provider)
+        vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, provider,{
+			webviewOptions: { retainContextWhenHidden: true}})
     );
     // Register the command to open the chat view
     context.subscriptions.push(

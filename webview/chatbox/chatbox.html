@@ -7,9 +7,7 @@
     <link rel="stylesheet" type="text/css" href="{{stylePath}}">
     <script src="{{scriptPath}}" defer></script>
 
-    <!-- Load marked-->
     <script src="{{markedScriptPath}}" ></script>
-    <!-- load highlighter-->
     <link rel="stylesheet" type="text/css" href="{{highlightStylePath}}">
     <script src="{{highlightScriptPath}}" ></script>
     <script src="{{highlightGoScriptPath}}" ></script>
@@ -19,37 +17,32 @@
     <script src="{{highlightCppScriptPath}}" ></script>
     <script src="{{highlightRustScriptPath}}" ></script>
     <script src="{{highlightRubyScriptPath}}" ></script>
-    <script src="{{highlightJavaScriptPath}}" ></script>   
-
-    <!-- mini script to fix placeholder shows in message input-->
-
-    
+    <script src="{{highlightJavaScriptPath}}" ></script>    
 </head>
 <body>
   <div class="chat-container">
     <main id="chatLog" data-chat-id="" class="chat-log">
       <div id="chatWelcomeMessage" class="chat-message-welcome">
         <h1>🤖</h1>
-         Ask your Companion anything to get started.
+          Ask your Companion anything to get started.
       </div>
       <div id="chatMessages" class="chat-messages">
-        <!-- <div class="system-message">
-          <div class="message-header"><span class="ai-icon">🤖</span></div>
-          <div class="message-content">
-            <span class="message-text">Hello! How can I assist you today?</span>
-            <div class="message-time">10:00 AM</div>
-          </div>
         </div>
-        
-
-        <div class="message-content user-message">
-          <span class="message-text">Hi Companion! This is an example of long user message</span>
-          <div class="message-time">10:01 AM</div>
-        </div> -->
-        
-      </div>
     </main>
-      <div class="editor-wrapper">
+    
+    <div class="editor-wrapper">
+      <div id="attachments-preview-container"></div>
+      
+      <div class="input-toolbar">
+        <button id="add-image-btn" class="toolbar-btn" title="Add Image">
+          🖼️ Add Image
+        </button>
+        <button id="add-file-btn" class="toolbar-btn" title="Add File Context">
+          📎 Add Context...
+        </button>
+      </div>
+      
+      <div class="input-area-container">
         <span
           data-placeholder="Ask AI Companion..."
           role="textbox"
@@ -59,14 +52,19 @@
           tabindex="0"
           aria-label="Ask AI Companion...">
         </span>
-      <div class="chat-tools">
-        <button id="sendButton" class="send-btn" type="submit" title="Send">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path d="M4 9h10M11 6l3 3-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+      
+        <div class="chat-tools">
+          <button id="sendButton" class="send-btn" type="submit" title="Send">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
         </div>
-      </button>
       </div>
+
+      <input type="file" id="image-upload-input" accept="image/*" multiple style="display: none;">
+
+    </div>
   </div>
 </body>
 </html>
