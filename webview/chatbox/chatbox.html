@@ -23,7 +23,7 @@
   <div class="chat-container">
     <main id="chatLog" data-chat-id="" class="chat-log">
       <div id="chatWelcomeMessage" class="chat-message-welcome">
-        <h1>🤖</h1>
+        <span class="logo"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bot-message-square-icon lucide-bot-message-square"><path d="M12 6V2H8"/><path d="M15 11v2"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M20 16a2 2 0 0 1-2 2H8.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 4 20.286V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/><path d="M9 11v2"/></svg></span>
           Ask your Companion anything to get started.
       </div>
       <div id="chatMessages" class="chat-messages">
@@ -33,14 +33,7 @@
     <div class="editor-wrapper">
       <div id="attachments-preview-container"></div>
       
-      <div class="input-toolbar">
-        <button id="add-image-btn" class="toolbar-btn" title="Add Image">
-          🖼️ Add Image
-        </button>
-        <button id="add-file-btn" class="toolbar-btn" title="Add File Context">
-          📎 Add Context...
-        </button>
-      </div>
+      
       
       <div class="input-area-container">
         <span
@@ -53,14 +46,34 @@
           aria-label="Ask AI Companion...">
         </span>
       
+
+        
+      </div>
+
+      <div class="input-toolbar">
+        <button id="add-image-btn" class="toolbar-btn" title="Add Image">
+          <span><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+          </svg></span>
+          Add Image
+        </button>
+        
+        <button id="add-file-btn" class="toolbar-btn" title="Add File Context">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+          </svg>
+          Attach Context
+        </button>
+      </div>
+
         <div class="chat-tools">
           <button id="sendButton" class="send-btn" type="submit" title="Send">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
-            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+        </svg>
           </button>
         </div>
-      </div>
+
 
       <input type="file" id="image-upload-input" accept="image/*" multiple style="display: none;">
 

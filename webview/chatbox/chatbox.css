@@ -48,16 +48,54 @@ body {
   justify-content: stretch;
 }
 
-/* Custom scrollbar */
+
+
+
+/* Custom scrollbar styling */
 ::-webkit-scrollbar {
-  width: 8px;
+  /* Thin out the scrollbar track */
+  width: 10px;
 }
+
+::-webkit-scrollbar-track {
+  /* Set track color to a subtle app background */
+  background: transparent;
+}
+
 ::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.3);
-  border-radius: 4px;
+  /* Darker, defined thumb */
+  background-color: var(--vscode-scrollbarSlider-background, #686868);
+  border-radius: 5px;
+  border: 2px solid var(--app-bg, #252526); /* Border to simulate padding/margin */
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(0, 0, 0, 0.5);
+  /* Lighter color on hover for feedback */
+  background-color: var(--vscode-scrollbarSlider-hoverBackground, #888888);
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Hide the corner where horizontal/vertical scrollbars meet */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+span.logo{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+
+span.logo svg{
+  width: 60px;
+  height: 60px;
 }
 
 .chat-container {
@@ -335,6 +373,7 @@ body {
 }
 
 .input-toolbar {
+  font-size: 0.8rem;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -361,7 +400,11 @@ body {
   opacity: 1;
   background: var(--vscode-list-hoverBackground, #e0e0e0);
 }
-
+/* Add this new rule to style the SVG inside the toolbar button */
+.toolbar-btn svg {
+  width: 16px;
+  height: 16px;
+}
 
 .input-area-container {
   position: relative;
@@ -378,7 +421,7 @@ body {
   box-sizing: border-box;
   background: var(--input-bg);
   color: var(--input-fg);
-  font-size: 1rem;
+  font-size: 0.8rem;
   font-family: var(--font-editor);
   border: 1px solid var(--border-color);
   padding: 12px 16px;
@@ -387,6 +430,8 @@ body {
   transition: border 0.2s ease, box-shadow 0.2s ease;
   overflow-y: auto;
   scrollbar-width: thin;
+
+  white-space: pre-wrap;
 }
 
 #messageInput:focus {
@@ -408,7 +453,7 @@ body {
 .chat-tools {
   position: absolute;
   right: 8px;
-  bottom: 8px;
+  bottom: 9px;
   z-index: 10;
   display: flex;
   align-items: center;
@@ -416,8 +461,7 @@ body {
 }
 
 .send-btn {
-  background: var(--user-msg-bg);
-  color: var(--user-msg-fg);
+  background: transparent;
   border: none;
   border-radius: 50%;
   padding: 0;
@@ -427,20 +471,20 @@ body {
   justify-content: center;
   width: 36px;
   height: 36px;
-  transition: background 0.2s ease, transform 0.1s ease;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 
 .send-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   display: block;
-  transform: translateX(1px); 
+  color: var(--vscode-foreground);
+
 }
 
 .send-btn:hover, .send-btn:focus {
-  background: var(--vscode-button-hoverBackground, #005a9e);
-  outline: none;
+  background: var(--vscode-toolbar-hoverBackground);
+  outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+  outline-offset: -1px;
 }
 
 .send-btn:active {
