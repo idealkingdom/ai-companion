@@ -1,6 +1,12 @@
 import { ChatOpenAI } from '@langchain/openai';
 import { outputChannel } from '../logger';
 
+/**
+ * This module provides functions to interact with AI services.
+ * It currently supports OpenAI's API for generating responses based on user input.
+ * 
+ * @module src/api/ai
+ */
 // Request with OpenAI provider
 export async function openAIRequest(message: string, model: string, accessToken: string, temperature: number): Promise<any> {
 
