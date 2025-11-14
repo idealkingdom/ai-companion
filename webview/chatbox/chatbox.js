@@ -8,16 +8,13 @@ const chatWelcomeMessage = document.getElementById("chatWelcomeMessage");
 const sendButton = document.getElementById('sendButton');
 const chatMessage = document.getElementById('messageInput');
 const attachmentsPreviewContainer = document.getElementById('attachments-preview-container');
-
-// NEW: Get new button elements
 const addImageBtn = document.getElementById('add-image-btn');
 const addFileBtn = document.getElementById('add-file-btn');
 const imageUploadInput = document.getElementById('image-upload-input');
 
-
 /**
- * Stores attached images as data:URLs
- * @type {string[]}
+ * Stores attached images as objects
+ * @type {Array<{dataUrl: string, name: string}>}
  */
 let attachedImages = [];
 
@@ -58,15 +55,10 @@ function scrollToBottom() {
     chatLog.scrollTop = chatLog.scrollHeight;
 }
 
-/**
- * Finds all <pre> blocks and adds a copy button if one doesn't exist.
- */
 function addAllCopyButtons() {
     const pres = document.querySelectorAll('.message-text pre');
     pres.forEach(pre => {
-      if (pre.querySelector('.copy-code-btn')) {
-        return; 
-      }
+      if (pre.querySelector('.copy-code-btn')) { return; }
   
       const copyButton = document.createElement('button');
       copyButton.className = 'copy-code-btn';
@@ -93,19 +85,16 @@ function addAllCopyButtons() {
     });
   }
 
-/**
- * Renders the image attachment "pills"
- */
 function renderAttachments() {
     attachmentsPreviewContainer.innerHTML = '';
     
-    attachedImages.forEach((imageDataUrl, index) => {
+    attachedImages.forEach((image, index) => {
         const pill = document.createElement('div');
         pill.className = 'attachment-pill';
         
         pill.innerHTML = `
-            <img src="${imageDataUrl}" class="attachment-image" alt="Attachment thumbnail">
-            <span class="attachment-name">Pasted Image</span>
+            <img src="${image.dataUrl}" class="attachment-image" alt="Attachment thumbnail">
+            <span class="attachment-name" title="${image.name}">${image.name}</span>
             <button class="remove-attachment" data-index="${index}" title="Remove image">&times;</button>
         `;
         
@@ -123,11 +112,7 @@ function renderAttachments() {
     attachmentsPreviewContainer.style.display = attachedImages.length > 0 ? 'flex' : 'none';
 }
 
-/**
- * NEW: Reusable function to process a FileList
- * @param {FileList} fileList - The list of files from an input or paste event
- */
-function handleImageFiles(fileList) {
+function handleImageFiles(fileList, source) {
     const files = Array.from(fileList);
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     
@@ -135,11 +120,45 @@ function handleImageFiles(fileList) {
         imageFiles.forEach(file => {
             const reader = new FileReader();
             reader.onload = (e) => {
-                attachedImages.push(e.target.result);
+                const name = (source === 'upload') ? file.name : 'Pasted Image';
+                
+                attachedImages.push({
+                    dataUrl: e.target.result,
+                    name: name
+                });
                 renderAttachments();
             };
             reader.readAsDataURL(file);
         });
+    }
+}
+
+function showLoadingIndicator() {
+    hideLoadingIndicator(); 
+
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'loading-indicator';
+    loadingDiv.id = 'loading-indicator';
+    
+    loadingDiv.innerHTML = `
+        <div class="message-content">
+            <span class="ai-icon">🤖</span>
+            <div class="loading-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    `;
+    
+    chatbox.appendChild(loadingDiv);
+    scrollToBottom();
+}
+
+function hideLoadingIndicator() {
+    const indicator = document.getElementById('loading-indicator');
+    if (indicator) {
+        indicator.remove();
     }
 }
 
@@ -152,10 +171,9 @@ function appendUserMessage(message, images = []){
     
   let imagesHTML = '';
   if (images.length > 0) {
-      imagesHTML = '<div class="message-images-container">';
-      images.forEach(imgDataUrl => {
-          // You should add CSS for .message-images-container and .message-image-attachment
-          imagesHTML += `<img src="${imgDataUrl}" style="max-width: 100%; height: auto; border-radius: 8px; margin-top: 8px;" alt="User attachment">`;
+      imagesHTML = '<div class="message-images-container" style="display: flex; flex-wrap: wrap; gap: 8px;">';
+      images.forEach(image => {
+          imagesHTML += `<img src="${image.dataUrl}" style="max-width: 150px; height: auto; border-radius: 8px; margin-top: 8px;" alt="${image.name}">`;
       });
       imagesHTML += '</div>';
   }
@@ -177,7 +195,6 @@ function appendUserMessage(message, images = []){
 
 function appendAIMessage(response) { 
   const parsedResponse = marked.parse(response);
-
   const systemResponseHTML = `<div class="system-message">
             <div class="message-content">
                 <div class="message-header"><span class="ai-icon">🤖</span> Companion</div>
@@ -186,6 +203,7 @@ function appendAIMessage(response) {
             </div>
             </div>`;
             
+  // *** BUGFIX: Changed .contents (which doesn't exist) to .contains ***
   if (!chatWelcomeMessage.classList.contains('hidden')) {
       chatWelcomeMessage.classList.add('hidden');
   }
@@ -203,13 +221,14 @@ function chatRequest(content){
     appendUserMessage(content.message, content.images);
 }
 
-
 function resetChat(content) {
     chatMessages.innerHTML = '';
     welComeMessage.classList.remove('hidden'); 
     chatLog.dataset.chatId = content.uid;
     attachedImages = [];
     renderAttachments();
+    
+    chatMessage.focus();
 }
 
 
@@ -224,6 +243,7 @@ window.addEventListener('message', event => {
   const message = event.data; 
   switch (message.command) {
     case 'chatRequest':
+      hideLoadingIndicator();
       appendAIMessage(message.content);
       toggleSendButton(0);
       break;
@@ -233,14 +253,8 @@ window.addEventListener('message', event => {
     case 'loadHistory':
       loadHistory();
       break;
-    // NEW: Listen for file context from the extension
     case 'fileContextAdded':
-        // The extension would send this message *back* after
-        // the user selects a file.
-        // `message.content` might be the file's text content.
         console.log('File context received:', message.content);
-        // You could append this to the input or just use it as context.
-        // For now, let's just log it.
         break;
     default:
       console.error('Unknown command:', message.command);
@@ -254,11 +268,13 @@ sendButton.addEventListener("click", event => {
   if (messageText || attachedImages.length > 0) { 
     chatRequest({
         message: messageText, 
-        images: attachedImages,
+        images: attachedImages, 
         chat_id: chatLog.dataset.chatId, 
         timestamp: new Date().toISOString()
     });
     
+    showLoadingIndicator();
+
     toggleSendButton("disabled");
     chatMessage.innerText = "";
     attachedImages = []; 
@@ -289,17 +305,14 @@ window.addEventListener('DOMContentLoaded', ()=>{
       event.preventDefault();
       const clipboardData = event.clipboardData || window.clipboardData;
       
-      // Check for image files
       if (clipboardData.files && clipboardData.files.length > 0) {
-          // Use the new reusable function
-          handleImageFiles(clipboardData.files);
+          handleImageFiles(clipboardData.files, 'paste');
           return;
       }
 
-      // --- Fallback to plain text pasting ---
       const text = clipboardData.getData('text/plain');
       const selection = window.getSelection();
-      if (!selection.rangeCount) {return;}; 
+      if (!selection.rangeCount) return; 
 
       const range = selection.getRangeAt(0);
       range.deleteContents(); 
@@ -312,33 +325,22 @@ window.addEventListener('DOMContentLoaded', ()=>{
       selection.addRange(range);
   });
 
-  // --- NEW: Button Listeners ---
-
-  // "Add Image" button clicks the hidden input
+  // --- Button Listeners ---
   addImageBtn.addEventListener('click', () => {
       imageUploadInput.click();
   });
 
-  // Listen for when files are selected via the hidden input
   imageUploadInput.addEventListener('change', (e) => {
       if (e.target.files) {
-          // Use the new reusable function
-          handleImageFiles(e.target.files);
-          // Clear the input value so the same file can be selected again
+          handleImageFiles(e.target.files, 'upload');
           e.target.value = null;
       }
   });
 
-  // "Add File" button sends a message to the extension
   addFileBtn.addEventListener('click', () => {
-      console.log('Requesting file context from extension...');
-      // This message must be handled by your extension's backend
-      // (e.g., in chat-message-listener.ts)
       sendMessage('addFileContext');
   });
-
-
-  // --- End of New Listeners ---
+  // --- End of Listeners ---
 
   renderAttachments(); 
   input.focus();
