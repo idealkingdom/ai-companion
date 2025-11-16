@@ -67,9 +67,10 @@ function addAllCopyButtons() {
       copyButton.className = 'copy-code-btn';
       copyButton.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copy`;
       copyButton.title = 'Copy code';
-  
+      
       copyButton.addEventListener('click', () => {
         const code = pre.querySelector('code');
+        console.log(code);
         if (code) {
           navigator.clipboard.writeText(code.innerText).then(() => {
               const originalHtml = copyButton.innerHTML;
@@ -323,7 +324,7 @@ input.addEventListener("paste", (event) => {
 
       // 3. Handle Text
       const text = clipboardData.getData('text/plain');
-      if (!text) return;
+      if (!text) {return;};
 
       // 4. Escape the text for HTML
       const escapedText = text
