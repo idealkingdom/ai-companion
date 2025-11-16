@@ -31,7 +31,6 @@ export function fetchFilesWebView(webview: Webview,
                                  {
 
                 let htmlContent = htmlBase;
-                // update the path for htmx library
                 // replace the placeholder with the library name
                 const libraryPath = Uri.joinPath(context.extensionUri, WEBVIEW_FOLDER, viewType, libraryName);
                 htmlContent = htmlContent.replace(new RegExp(placeholder, 'g'), webview.asWebviewUri(libraryPath).toString());

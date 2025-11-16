@@ -10,6 +10,8 @@ export const INDEX_HTML = 'chatbox.html';
 export const FILES_TO_LOAD = [
   { name: 'chatbox.js', placeholder: '{{scriptPath}}' },
   { name: 'chatbox.css', placeholder: '{{stylePath}}' },
+  { name: 'history.js', placeholder: '{{scriptHistoryPath}}' },
+  { name: 'history.css', placeholder: '{{styleHistoryPath}}' },
 ];
 
 export const LIBRARIES_TO_LOAD = [
@@ -39,9 +41,9 @@ export enum ROLE {
 
 // commands messages for chat webview and extension
 export enum CHAT_COMMANDS {
-    WEBVIEW_READY = 'webviewReady',
+    CHAT_WEBVIEW_READY = 'ChatWebviewReady',
     CHAT_REQUEST = 'chatRequest',
-    LOAD_HISTORY = 'loadHistory'
+    HISTORY_LOAD = 'loadHistory'
 }
 
 

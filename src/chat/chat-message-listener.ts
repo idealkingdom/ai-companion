@@ -12,12 +12,14 @@ import { ChatViewProvider } from "./chat-view-provider";
     // message sent from client js
 export async function chatMessageListener(message: any) {
     switch (message.command) {
-        case CHAT_COMMANDS.WEBVIEW_READY:
+        case CHAT_COMMANDS.CHAT_WEBVIEW_READY:
             await ChatHistory.readChatHistory();
             ChatCore.resetChat();
             break;
         case CHAT_COMMANDS.CHAT_REQUEST:
-            ChatViewProvider.getView()?.webview.postMessage({command: 'chatRequest', content: await ChatCore.getChatRequest(message.data) });
+            ChatViewProvider.getView()?.webview.postMessage(
+                {command: 'chatRequest', content: await ChatCore.getChatRequest(message.data) }
+            );
             break;
         // Handle other messages here
         default:

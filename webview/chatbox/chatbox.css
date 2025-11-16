@@ -85,6 +85,22 @@ body {
   background: transparent;
 }
 
+/* --- VIEW CONTAINER STYLES --- */
+.view-container {
+  display: none; /* Hidden by default */
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--app-bg);
+}
+
+/* This class will be toggled by JS to show the correct view */
+.view-container.active-view {
+  display: flex;
+}
+
+
 span.logo{
   display: flex;
   align-items: center;

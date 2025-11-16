@@ -21,7 +21,7 @@ export class ChatHistory  {
         // Open chat history in webview
     public static loadHistoryToWebview() {
         if (ChatViewProvider.getView()) {
-            ChatViewProvider.getView()?.webview.postMessage({ command: CHAT_COMMANDS.LOAD_HISTORY , data: ChatHistory._chatHistory});
+            ChatViewProvider.getView()?.webview.postMessage({ command: CHAT_COMMANDS.HISTORY_LOAD , content: ChatHistory._chatHistory});
         } else {
             vscode.window.showErrorMessage('Chat view is not available.');
         }

@@ -53,7 +53,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     public resolveWebviewView(
         webviewView: vscode.WebviewView
     ) {
-        ChatViewProvider._view = webviewView;
+        
 
         webviewView.webview.options = {
             enableScripts: true,
@@ -102,7 +102,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         });
 
-
-        webviewView.webview.onDidReceiveMessage(chatMessageListener);
+        ChatViewProvider._view = webviewView;
+        ChatViewProvider._view.webview.onDidReceiveMessage(chatMessageListener);
     }
 }

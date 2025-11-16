@@ -1,5 +1,17 @@
-// vscode api receiver
+// --- GLOBALS (accessible by history.js) ---
 const vscode = acquireVsCodeApi();
+
+/**
+ * Sends a message to the VS Code extension.
+ * @param {string} command - The command to execute.
+ * @param {any} [data] - Optional data to send.
+ */
+function sendMessage(command, data='') {
+  vscode.postMessage({
+    command: command,
+    data: data
+  });
+}
 
 // --- GLOBALS ---
 const chatbox = document.getElementById("chatMessages");
@@ -8,9 +20,11 @@ const chatWelcomeMessage = document.getElementById("chatWelcomeMessage");
 const sendButton = document.getElementById('sendButton');
 const chatMessage = document.getElementById('messageInput');
 const attachmentsPreviewContainer = document.getElementById('attachments-preview-container');
-const addImageBtn = document.getElementById('add-image-btn');
 const addFileBtn = document.getElementById('add-file-btn');
 const imageUploadInput = document.getElementById('image-upload-input');
+const chatView = document.getElementById('chat-view');
+const historyView = document.getElementById('history-view');
+const historyListContainer = document.getElementById('history-list-container');
 
 /**
  * Stores attached images as objects
@@ -21,16 +35,63 @@ let attachedImages = [];
 
 // --- HELPER FUNCTIONS ---
 
+
+// --- VIEW SWITCHING FUNCTIONS (Global) ---
+
+/**
+ * Hides the history view and shows the main chat view.
+ */
+function showChatView() {
+  historyView.classList.remove('active-view');
+  chatView.classList.add('active-view');
+  chatMessage.focus(); // Focus the input
+}
+
+
+/**
+ * Hides the chat view and shows the history view, populating it with data.
+ * @param {Array<Object>} historyGroups - Data from the extension
+ */
+function showHistoryView(historyGroups) {
+  historyListContainer.innerHTML = ''; // Clear old history
+
+  if (!historyGroups || historyGroups.length === 0) {
+    historyListContainer.innerHTML = '<div class="empty-message">No chat history found.</div>';
+  } else {
+    for (const group of historyGroups) {
+      const groupEl = document.createElement('div');
+      groupEl.className = 'history-group';
+      const titleEl = document.createElement('h3');
+      titleEl.className = 'history-group-title';
+      titleEl.textContent = group.title;
+      groupEl.appendChild(titleEl);
+
+      for (const item of group.chats) {
+        const itemEl = document.createElement('div');
+        itemEl.className = 'history-item';
+        itemEl.dataset.chatId = item.id;
+        const safeTitle = escapeHtml(item.title);
+        itemEl.innerHTML = `
+          <span class="history-item-title" title="${safeTitle}">${safeTitle}</span>
+          <span class="history-item-time">${item.time}</span>
+        `;
+        groupEl.appendChild(itemEl);
+      }
+      historyListContainer.appendChild(groupEl);
+    }
+  }
+  // Show the view
+  chatView.classList.remove('active-view');
+  historyView.classList.add('active-view');
+}
+// --- END VIEW SWITCHING ---
+
+
+
 function toggleSendButton(mode="off"){
     mode==="disabled" ? sendButton.classList.add("disabled") : sendButton.classList.remove("disabled"); 
 }
 
-function sendMessage(command, data='') {
-  vscode.postMessage({
-    command: command,
-    data: data
-  });
-}
 
 function escapeHtml(unsafe) {
   return unsafe
@@ -232,17 +293,13 @@ function resetChat(content) {
     attachedImages = [];
     renderAttachments();
     chatWelcomeMessage.classList.remove('hidden');
+    showChatView(); // Make sure we're on the chat view
     chatMessage.focus();
 }
 
 
-function loadHistory() {
-    sendMessage('openHistory', '');
-}
-
 
 // --- EVENT LISTENERS ---
-
 window.addEventListener('message', event => {
   const message = event.data; 
   switch (message.command) {
@@ -255,7 +312,7 @@ window.addEventListener('message', event => {
       resetChat(message.content);
       break;
     case 'loadHistory':
-      loadHistory();
+      showHistoryView(message.content); // Call the global function
       break;
     case 'fileContextAdded':
         console.log('File context received:', message.content);
@@ -341,10 +398,7 @@ input.addEventListener("paste", (event) => {
       },0);
 
   });
-  // --- Button Listeners ---
-  addImageBtn.addEventListener('click', () => {
-      imageUploadInput.click();
-  });
+
 
   imageUploadInput.addEventListener('change', (e) => {
       if (e.target.files) {
