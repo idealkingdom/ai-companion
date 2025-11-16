@@ -25,6 +25,9 @@ const imageUploadInput = document.getElementById('image-upload-input');
 const chatView = document.getElementById('chat-view');
 const historyView = document.getElementById('history-view');
 const historyListContainer = document.getElementById('history-list-container');
+const copyCodeBtnHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copy`;
+const aiIconBtnHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bot-message-square-icon lucide-bot-message-square"><path d="M12 6V2H8"/><path d="M15 11v2"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M20 16a2 2 0 0 1-2 2H8.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 4 20.286V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/><path d="M9 11v2"/></svg>`;
+
 
 /**
  * Stores attached images as objects
@@ -55,7 +58,9 @@ function showChatView() {
 function showHistoryView(historyGroups) {
   historyListContainer.innerHTML = ''; // Clear old history
 
-  if (!historyGroups || historyGroups.length === 0) {
+
+  try {
+    if (!historyGroups || historyGroups.length === 0) {
     historyListContainer.innerHTML = '<div class="empty-message">No chat history found.</div>';
   } else {
     for (const group of historyGroups) {
@@ -79,6 +84,10 @@ function showHistoryView(historyGroups) {
       }
       historyListContainer.appendChild(groupEl);
     }
+  }
+  } catch (error) {
+    console.error('Error rendering chat history:', error);
+    historyListContainer.innerHTML = '<div class="empty-message">Error loading chat history.</div>';
   }
   // Show the view
   chatView.classList.remove('active-view');
@@ -119,32 +128,42 @@ function scrollToBottom() {
     chatLog.scrollTop = chatLog.scrollHeight;
 }
 
+
+function copyCodeToClipboard(e) {
+
+const button = e.currentTarget
+
+const code = button.nextElementSibling.innerText;
+if (!code) {
+        console.error('Could not find code element to copy.');
+        return;
+    }
+navigator.clipboard.writeText(code).then(() => {
+    button.innerHTML = 'Copied!';
+    setTimeout(() => {
+        button.innerHTML = copyCodeBtnHTML;
+    }, 2000);
+
+});
+
+
+}
+
+
 function addAllCopyButtons() {
     const pres = document.querySelectorAll('.message-text pre');
     pres.forEach(pre => {
       if (pre.querySelector('.copy-code-btn')) { return; }
-  
+      
+      // on click assign copyCodeToClipboard as html element
       const copyButton = document.createElement('button');
+      copyButton.addEventListener('click', copyCodeToClipboard);
+      
       copyButton.className = 'copy-code-btn';
-      copyButton.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copy`;
+      copyButton.innerHTML = copyCodeBtnHTML;
       copyButton.title = 'Copy code';
       
-      copyButton.addEventListener('click', () => {
-        const code = pre.querySelector('code');
-        console.log(code);
-        if (code) {
-          navigator.clipboard.writeText(code.innerText).then(() => {
-              const originalHtml = copyButton.innerHTML;
-              copyButton.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!`;
-              copyButton.disabled = true;
-              
-              setTimeout(() => {
-                copyButton.innerHTML = originalHtml;
-                copyButton.disabled = false;
-              }, 2000);
-          });
-        }
-      });
+      copyButton.addEventListener('click', copyCodeToClipboard);
   
       pre.prepend(copyButton);
     });
@@ -207,7 +226,7 @@ function showLoadingIndicator() {
     
     loadingDiv.innerHTML = `
         <div class="message-content">
-            <span class="ai-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bot-message-square-icon lucide-bot-message-square"><path d="M12 6V2H8"/><path d="M15 11v2"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M20 16a2 2 0 0 1-2 2H8.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 4 20.286V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/><path d="M9 11v2"/></svg></span>
+            <span class="ai-icon">${aiIconBtnHTML}</span>
             <div class="loading-dots">
                 <span></span>
                 <span></span>
@@ -253,7 +272,14 @@ function appendUserMessage(message, images = []){
       chatWelcomeMessage.classList.add('hidden');
   }
 
-  chatbox.innerHTML += userResponseHTML;
+
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = userResponseHTML;
+  
+  const newMessageElement = tempDiv.firstElementChild;
+  
+  chatbox.appendChild(newMessageElement);
+
   scrollToBottom();
 }
 
@@ -262,7 +288,7 @@ function appendAIMessage(response) {
   const parsedResponse = marked.parse(response);
   const systemResponseHTML = `<div class="system-message">
             <div class="message-content">
-                <div class="message-header"><span class="ai-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bot-message-square-icon lucide-bot-message-square"><path d="M12 6V2H8"/><path d="M15 11v2"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M20 16a2 2 0 0 1-2 2H8.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 4 20.286V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/><path d="M9 11v2"/></svg></span> Companion</div>
+                <div class="message-header"><span class="ai-icon">${aiIconBtnHTML}</span> Companion</div>
                 <span class="message-text">${parsedResponse}</span>
                 <div class="message-time">${getCurrentDate()}</div>
             </div>
@@ -273,7 +299,15 @@ function appendAIMessage(response) {
       chatWelcomeMessage.classList.add('hidden');
   }
 
-  chatbox.innerHTML += systemResponseHTML;
+
+  const tempDiv = document.createElement('div');
+  
+
+  tempDiv.innerHTML = systemResponseHTML;
+
+  const newMessageElement = tempDiv.firstElementChild;
+  
+  chatbox.appendChild(newMessageElement);
   
   hljs.highlightAll();
   addAllCopyButtons();
@@ -362,9 +396,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
           }
       });
   
-// ----------------------------------------------------
-  // DELETE your old "paste" event listener
-  // ----------------------------------------------------
 
 input.addEventListener("paste", (event) => {
       // 1. Stop all native pasting
