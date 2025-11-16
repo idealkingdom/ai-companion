@@ -29,7 +29,7 @@ export class ChatHistory  {
 
 // read chat history
     public static async readChatHistory(){
-        //clear chat history variable
+        //clear chat history variable/*  */
         ChatHistory._chatHistory = {};
         try{
             // Define the path to save the chat history

@@ -345,7 +345,7 @@ sendButton.addEventListener("click", event => {
 
 
 window.addEventListener('DOMContentLoaded', ()=>{
-  sendMessage('webviewReady');
+  sendMessage('ChatWebviewReady');
 
   const input = document.getElementById("messageInput");
         

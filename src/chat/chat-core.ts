@@ -25,6 +25,7 @@ export class ChatCore{
     // reset chat
     public static async resetChat(){
         if (ChatViewProvider.getView()) {
+        
              await ChatViewProvider.getView()?.webview.postMessage({ command: 'resetChat' , content:{uid:generateChatID()}});
         } else {
             outputChannel.appendLine("**Chat view is not available.**");
