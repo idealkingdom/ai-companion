@@ -288,7 +288,6 @@ function chatRequest(content){
 
 function resetChat(content) {
     chatMessages.innerHTML = '';
-    console.error(content.uid);
     chatLog.dataset.chatId = content.uid;
     attachedImages = [];
     renderAttachments();
@@ -309,6 +308,7 @@ window.addEventListener('message', event => {
       toggleSendButton(0);
       break;
     case 'resetChat':
+      console.info("WE ARE HERE AT RESET CHAT!");
       resetChat(message.content);
       break;
     case 'loadHistory':

@@ -6,6 +6,9 @@ import { ChatViewProvider } from "./chat-view-provider";
     export function generateChatID():string {
         //we are making sure that the value generated ID is not in our file, thou it's unlikely.
         let generatedID:string;
+        if(ChatHistory.getChatHistory() === undefined){
+            return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        }
         do{
             generatedID = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
         }
