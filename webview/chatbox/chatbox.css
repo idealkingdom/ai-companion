@@ -340,7 +340,7 @@ span.logo svg{
   padding: 4px 8px;
   font-size: 0.8rem;
   color: var(--text-color);
-  max-width: 200px;
+  max-width: 150px;
 }
 
 .attachment-image {
@@ -373,11 +373,10 @@ span.logo svg{
 }
 
 .input-toolbar {
-  font-size: 0.8rem;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  width: 100%;
+  width: 90%;
   padding: 0 4px;
 }
 
@@ -388,7 +387,7 @@ span.logo svg{
   border-radius: 6px;
   padding: 4px 10px;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.65rem;
   font-family: var(--font-ui);
   display: flex;
   align-items: center;

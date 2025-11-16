@@ -44,6 +44,9 @@ function escapeHtml(unsafe) {
 function getCurrentDate(){
     const now = new Date();
     const options = {
+        month: 'short',
+        day: '2-digit',
+        year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
         hour12: true,
@@ -301,30 +304,42 @@ window.addEventListener('DOMContentLoaded', ()=>{
           }
       });
   
-  input.addEventListener("paste", (event) => {
+// ----------------------------------------------------
+  // DELETE your old "paste" event listener
+  // ----------------------------------------------------
+
+input.addEventListener("paste", (event) => {
+      // 1. Stop all native pasting
       event.preventDefault();
       const clipboardData = event.clipboardData || window.clipboardData;
       
+      // 2. Handle images
       if (clipboardData.files && clipboardData.files.length > 0) {
-          handleImageFiles(clipboardData.files, 'paste');
-          return;
+          if (Array.from(clipboardData.files).some(file => file.type.startsWith('image/'))) {
+              handleImageFiles(clipboardData.files, 'paste');
+              return;
+          }
       }
 
+      // 3. Handle Text
       const text = clipboardData.getData('text/plain');
-      const selection = window.getSelection();
-      if (!selection.rangeCount) return; 
+      if (!text) return;
 
-      const range = selection.getRangeAt(0);
-      range.deleteContents(); 
-      const textNode = document.createTextNode(text);
-      range.insertNode(textNode);
+      // 4. Escape the text for HTML
+      const escapedText = text
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+          // Note: We don't replace \n with <br> because our CSS
+          // 'white-space: pre-wrap' already handles newlines correctly.
 
-      range.setStartAfter(textNode);
-      range.setEndAfter(textNode);
-      selection.removeAllRanges();
-      selection.addRange(range);
+      // 5. Use 'insertHTML'. This command inserts our plain, escaped text
+      //    and correctly adds the action to the undo/redo stack.
+      setTimeout(() =>{
+        document.execCommand('insertHTML', false, escapedText);
+      },0);
+
   });
-
   // --- Button Listeners ---
   addImageBtn.addEventListener('click', () => {
       imageUploadInput.click();
