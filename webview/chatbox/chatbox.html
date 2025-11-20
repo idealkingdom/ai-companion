@@ -19,10 +19,9 @@
     <script src="{{highlightCppScriptPath}}" ></script>
     <script src="{{highlightRustScriptPath}}" ></script>
     <script src="{{highlightRubyScriptPath}}" ></script>
-    <script src="{{highlightJavaScriptPath}}" ></script> 
+    <script src="{{highlightJavaScriptPath}}" ></script>
     <script>
-        // Injected constants from the extension, ignore the error this would be replaced by our extension.
-        window.VS_CONSTANTS = {{constants}};
+      window.VS_CONSTANTS = "{{CONSTANTS}}";
     </script>   
 </head>
 <body>

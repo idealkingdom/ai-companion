@@ -17,13 +17,11 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     if (clearHistoryButton) {
+        // 2. Clear History Button Click
         clearHistoryButton.addEventListener('click', () => {
-            // This function is defined in Chatbox.js
-            sendMessage('clearHistory');
-            // Optimistically clear the UI
-            if (historyListContainer) {
-                historyListContainer.innerHTML = '<div class="empty-message">History cleared.</div>';
-            }
+            // Update: Use CHAT_COMMANDS.HISTORY_CLEAR
+            sendMessage(CHAT_COMMANDS.HISTORY_CLEAR);
+            historyListContainer.innerHTML = '<div class="empty-message">History cleared.</div>';
         });
     }
 

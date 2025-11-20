@@ -1,5 +1,7 @@
 // --- GLOBALS (accessible by history.js) ---
 const vscode = acquireVsCodeApi();
+// Injected constants from the extension, ignore the error this would be replaced by our extension.
+console.log('VS_CONSTANTS:', window.VS_CONSTANTS);
 // Extract the constants injected by the backend
 const { CHAT_COMMANDS, ROLE } = window.VS_CONSTANTS;
 
@@ -151,7 +153,7 @@ navigator.clipboard.writeText(code).then(() => {
 
 }
 
-
+// Add copy buttons to all code blocks
 function addAllCopyButtons() {
     const pres = document.querySelectorAll('.message-text pre');
     pres.forEach(pre => {
@@ -171,6 +173,7 @@ function addAllCopyButtons() {
     });
   }
 
+// --- ATTACHMENTS HANDLING ---
 function renderAttachments() {
     attachmentsPreviewContainer.innerHTML = '';
     
@@ -198,6 +201,8 @@ function renderAttachments() {
     attachmentsPreviewContainer.style.display = attachedImages.length > 0 ? 'flex' : 'none';
 }
 
+
+// Handle image files from input or paste
 function handleImageFiles(fileList, source) {
     const files = Array.from(fileList);
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
@@ -340,10 +345,10 @@ window.addEventListener('message', event => {
   switch (message.command) {
     case CHAT_COMMANDS.CHAT_REQUEST:
       hideLoadingIndicator();
-      
       if (message.role === ROLE.USER) {
           appendUserMessage(message.content);
-      } else {
+          showLoadingIndicator();
+      }else{
           appendAIMessage(message.content);
       }
       // Re-enable send button
@@ -370,7 +375,7 @@ window.addEventListener('message', event => {
 // 1. Send Button Click
 sendButton.addEventListener("click", event => {
   const messageText = chatMessage.innerText.trim();
-    
+  
   if (messageText || attachedImages.length > 0) {
     // Update: Use CHAT_COMMANDS.CHAT_REQUEST
     sendMessage(CHAT_COMMANDS.CHAT_REQUEST, {
@@ -380,7 +385,7 @@ sendButton.addEventListener("click", event => {
         timestamp: new Date().toISOString()
     });
   
-    showLoadingIndicator();
+    
 
     toggleSendButton("disabled");
     chatMessage.innerText = "";
@@ -388,13 +393,6 @@ sendButton.addEventListener("click", event => {
     renderAttachments(); 
   }
 });
-
-// 2. Clear History Button Click
-  clearHistoryButton.addEventListener('click', () => {
-    // Update: Use CHAT_COMMANDS.HISTORY_CLEAR
-    sendMessage(CHAT_COMMANDS.HISTORY_CLEAR);
-    historyListContainer.innerHTML = '<div class="empty-message">History cleared.</div>';
-  });
 
 
 // 3. Load Specific Chat (Click on History Item)
@@ -411,7 +409,7 @@ historyListContainer.addEventListener('click', (e) => {
 
 
 window.addEventListener('DOMContentLoaded', ()=>{
-  sendMessage(CHAT_COMMANDS.WEBVIEW_READY);
+  sendMessage("ChatWebviewReady");
 
   const input = document.getElementById("messageInput");
         

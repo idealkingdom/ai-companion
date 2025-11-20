@@ -28,7 +28,7 @@ export async function chatMessageListener(message: any) {
     const historyService = new ChatHistoryService(context.globalState);
     const coreService = new ChatCoreService(historyService);
 
-    switch (message.command) {
+switch (message.command) {
         // --- 1. INIT ---
         case CHAT_COMMANDS.CHAT_WEBVIEW_READY:
             // Now: We generate ID and send it manually, or add resetChat() to your Service.
@@ -41,11 +41,18 @@ export async function chatMessageListener(message: any) {
             
         case CHAT_COMMANDS.CHAT_REQUEST:
             // This handles saving User + AI msg to history internally.
-            const aiResponse = await coreService.processChatRequest(message.data);
+            
+            await webview.postMessage({
+                command: CHAT_COMMANDS.CHAT_REQUEST, 
+                content: message.data.message, 
+                role: ROLE.USER
+            });
 
+            const aiResponse = await coreService.processChatRequest(message.data);
             webview.postMessage({
                 command: CHAT_COMMANDS.CHAT_REQUEST, 
-                content: aiResponse
+                content: aiResponse,
+                role: ROLE.BOT
             });
             break;
         // --- HISTORY: SHOW LIST ---

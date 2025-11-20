@@ -111,11 +111,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         });
         
         // Inject the constants into the HTML by replacing the {{constants}} placeholder
-        webviewView.webview.html = webviewView.webview.html.replace('{{constants}}', SHARED_CONSTANTS);
+        webviewView.webview.html = webviewView.webview.html.replace(`"{{CONSTANTS}}"`, SHARED_CONSTANTS);
 
 
 
         ChatViewProvider._view = webviewView;
-        ChatViewProvider._view.webview.onDidReceiveMessage(chatMessageListener);
+        // =================================================================
+        // 7. REGISTER THE LISTENER HERE 🚀
+        // =================================================================
+        // This tells VS Code: "When the HTML sends a message, run this function."
+        webviewView.webview.onDidReceiveMessage(chatMessageListener);
     }
 }

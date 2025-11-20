@@ -10,6 +10,7 @@ import { outputChannel } from './logger';
 //CONSTANTS
 import { EXTENSION_NAME } from './constants';
 import { ChatViewProvider } from './chat/chat-view-provider';
+import { CHAT_COMMANDS } from './chat/chat-constants';
 
 
 // editor
@@ -33,7 +34,29 @@ export function activate(context: vscode.ExtensionContext) {
 			webviewOptions: { retainContextWhenHidden: true}})
     );
 
-    // 4. Register Settings Command
+    // Register Load History Command
+    context.subscriptions.push(
+        vscode.commands.registerCommand(`${EXTENSION_NAME}.${CHAT_COMMANDS.HISTORY_LOAD}`, () => {
+            // Send a signal to the Webview: "User clicked History Button"
+            const view = ChatViewProvider.getView();
+            if (view) {
+                view.webview.postMessage({ command: CHAT_COMMANDS.HISTORY_LOAD });
+            }
+        })
+    );
+
+    // Register New Chat Command
+    context.subscriptions.push(
+        vscode.commands.registerCommand(`${EXTENSION_NAME}.${CHAT_COMMANDS.CHAT_RESET}`, () => {
+            // Send a signal to the Webview: "User clicked New Chat Button"
+            const view = ChatViewProvider.getView();
+            if (view) {
+                view.webview.postMessage({ command: CHAT_COMMANDS.CHAT_RESET });
+            }
+        })
+    );
+
+    // Register Settings Command
 
     context.subscriptions.push(
         vscode.commands.registerCommand(`${EXTENSION_NAME}.openSettings`, () => {
