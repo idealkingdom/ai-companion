@@ -27,15 +27,31 @@ window.addEventListener('DOMContentLoaded', () => {
 
     if (historyListContainer) {
         // 3. Load Specific Chat (Click on History Item)
-        historyListContainer.addEventListener('click', (e) => {
-        const item = e.target.closest('.history-item');
-        if (item) {
-            const chatId = item.dataset.chatId;
-            if (chatId) {
-            // Update: Use CHAT_COMMANDS.CHAT_LOAD
-            sendMessage(CHAT_COMMANDS.CHAT_LOAD, { chatId: chatId });
+            console.log("HISTORY LIST CONTAINER CLICKED");
+            historyListContainer.addEventListener('click', (e) => {
+            // 1. CHECK IF "X" BUTTON WAS CLICKED
+            const deleteBtn = e.target.closest('.delete-item-btn');
+            if (deleteBtn) {
+                e.stopPropagation(); // Prevent opening the chat
+                
+                const item = deleteBtn.closest('.history-item');
+                const chatId = item.dataset.chatId;
+                
+                sendMessage(CHAT_COMMANDS.CONVERSATION_DELETE, { chatId: chatId });
+
+                // delete the item from the DOM
+                item.remove();
+                return;
             }
-        }
+
+            // 2. OTHERWISE, OPEN THE CHAT
+            const item = e.target.closest('.history-item');
+            if (item) {
+                const chatId = item.dataset.chatId;
+                sendMessage(CHAT_COMMANDS.CHAT_LOAD, { chatId: chatId });
+            }
         });
     }
+
+
 });

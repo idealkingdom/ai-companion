@@ -1,133 +1,275 @@
 /* ======================================================= */
-/* --- STYLES for View Switching & History --- */
+/* --- HISTORY.CSS (Revised) --- */
 /* ======================================================= */
 
-/* --- VIEW CONTAINER STYLES --- */
-.view-container {
-  display: none; /* Hidden by default */
-  flex-direction: column;
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
-  background-color: var(--app-bg);
+:root {
+  /* Inherit variables for standalone testing */
+  --app-bg: var(--vscode-editor-background, #ffffff);
+  --chat-bg: var(--vscode-sideBar-background, #f5f5f5);
+  --text-color: var(--vscode-editor-foreground, #222222);
+  --border-color: var(--vscode-editorWidget-border, #e0e0e0);
+  
+  --input-bg: var(--vscode-input-background, #ffffff);
+  --input-fg: var(--vscode-input-foreground, #333333);
+  --input-placeholder: var(--vscode-input-placeholderForeground, #777777);
+  --input-focus-border: var(--vscode-focusBorder, #007acc);
+  
+  --hover-bg: var(--vscode-list-hoverBackground, #e8e8e8);
+  --btn-hover-danger: #e81123;
+  --font-ui: var(--vscode-font-family, "Segoe UI", sans-serif);
 }
 
-/* This class will be toggled by JS to show the correct view */
-.view-container.active-view {
-  display: flex;
-}
-
-
-/* --- HISTORY VIEW STYLES --- */
+/* --- HEADER LAYOUT --- */
 
 .history-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 1rem;
+  gap: 8px; /* Space between back btn, search, and trash */
+  padding: 10px 12px;
   background: var(--chat-bg);
   border-bottom: 1px solid var(--border-color);
   width: 100%;
+  height: 50px; /* Fixed height for consistency */
   box-sizing: border-box; 
   flex-shrink: 0; 
 }
 
-.header-title {
-  font-family: var(--font-ui);
-  font-size: 0.9rem;
-  font-weight: 600;
-  opacity: 0.9;
-}
+/* --- BUTTONS --- */
 
 .header-btn {
   background: transparent;
   border: none;
   border-radius: 6px;
-  padding: 4px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-color);
-  opacity: 0.8;
-}
-
-.header-btn svg {
-  width: 18px;
-  height: 18px;
+  opacity: 0.7;
+  transition: all 0.2s;
+  height: 32px;
+  width: 32px;
+  flex-shrink: 0; /* Prevent buttons from squishing */
 }
 
 .header-btn:hover {
-  background: var(--vscode-list-hoverBackground);
+  background: var(--hover-bg);
   opacity: 1;
 }
 
-.header-btn:active {
-  transform: scale(0.95);
+/* Subtle hover effect for the back arrow */
+.nav-btn:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
 }
+
+/* Red hover for clear history */
+.action-btn:hover {
+  color: var(--btn-hover-danger);
+  background: var(--hover-bg);
+}
+
+/* --- SEARCH BAR WRAPPER --- */
+
+.history-search-wrapper {
+  flex: 1; /* This makes the search bar fill all available space */
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* The search icon inside the input */
+.search-icon {
+  position: absolute;
+  left: 8px;
+  color: var(--input-placeholder);
+  pointer-events: none; /* Let clicks pass through to input */
+  opacity: 0.8;
+}
+
+#history-search-input {
+  width: 100%;
+  background: var(--input-bg);
+  color: var(--input-fg);
+  border: 1px solid var(--border-color);
+  border-radius: 15px; /* Pill shape looks modern */
+  padding: 6px 10px 6px 28px; /* Left padding makes room for icon */
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+#history-search-input::placeholder {
+  color: var(--input-placeholder);
+  opacity: 0.8;
+}
+
+#history-search-input:focus {
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 1px var(--input-focus-border); 
+}
+
+/* --- LIST CONTAINER --- */
 
 .history-list-container {
   flex: 1; 
   overflow-y: auto;
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 0.5rem; /* Slightly tighter padding */
   background: var(--app-bg); 
 }
 
 .empty-message {
-  padding: 1.5rem;
+  padding: 2rem;
   text-align: center;
-  opacity: 0.7;
+  opacity: 0.5;
   font-style: italic;
   font-family: var(--font-ui);
+  font-size: 0.85rem;
 }
 
+/* --- GROUP HEADERS --- */
+
 .history-group {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .history-group-title {
   font-family: var(--font-ui);
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.7rem;
+  font-weight: 700;
   color: var(--text-color);
-  opacity: 0.7;
+  opacity: 0.5;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  padding: 0.5rem 0.25rem;
-  border-bottom: 1px solid var(--border-color);
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
+  padding: 0 0.5rem 0.25rem 0.75rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+  /* Removed border-bottom for a cleaner look */
 }
+
+/* --- HISTORY ITEMS --- */
 
 .history-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 0.5rem;
+  padding: 8px 12px;
+  margin: 0 4px 2px 4px; /* Add side margins */
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.1s ease;
-  word-break: break-all;
+  border: 1px solid transparent;
 }
 
 .history-item:hover {
-  background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--hover-bg);
+}
+
+/* Layout for the inner items */
+.history-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1; /* Takes up all available space */
+  overflow: hidden;
 }
 
 .history-item-title {
   font-family: var(--font-ui);
   font-size: 0.9rem;
+  font-weight: 500;
   color: var(--text-color);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-right: 1rem;
 }
 
 .history-item-time {
   font-family: var(--font-ui);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-color);
-  opacity: 0.6;
-  flex-shrink: 0; 
+  opacity: 0.5;
+}
+
+/* --- DELETE BUTTON (Trash Icon) --- */
+
+.delete-item-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  opacity: 0;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s;
+  margin-left: 8px;
+}
+
+.delete-item-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.history-item:hover .delete-item-btn {
+  opacity: 0.4;
+}
+
+.delete-item-btn:hover {
+  opacity: 1 !important;
+  background-color: var(--btn-hover-danger);
+  color: white;
+}
+
+/* --- MINIMALIST DELETE BUTTON --- */
+
+.delete-item-btn {
+  background: transparent;
+  border: none;
+  
+  /* Use text color but start invisible */
+  color: var(--text-color);
+  opacity: 0; 
+  
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%; /* Circular touch target looks cleaner */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  
+  /* Smooth transition for the "pop" effect */
+  transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transform: scale(0.9);
+}
+
+.delete-item-btn svg {
+  width: 14px; /* Slightly smaller icon for elegance */
+  height: 14px;
+  stroke-width: 2; /* Crisp lines */
+}
+
+/* STATE 1: Hovering the ROW -> Button appears faintly */
+.history-item:hover .delete-item-btn {
+  opacity: 0.3; /* Very subtle, barely there */
+  transform: scale(1);
+}
+
+/* STATE 2: Hovering the BUTTON -> Button becomes solid & distinct */
+.delete-item-btn:hover {
+  opacity: 1 !important;
+  
+  /* Use the native VS Code toolbar hover color (usually subtle grey) */
+  background-color: var(--vscode-toolbar-hoverBackground);
+  
+  /* Tiny scale up for tactile feel */
+  transform: scale(1.15); 
+}
+
+/* Optional: Active click state */
+.delete-item-btn:active {
+  transform: scale(0.95);
 }

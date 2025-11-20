@@ -2,7 +2,6 @@
 This function was originally from ChatViewProvider, however for simplicity and easy to access
 separated by another module.
 */
-import { chat } from "vscode";
 import { outputChannel } from "../logger";
 import { CHAT_COMMANDS, ROLE } from "./chat-constants";
 import { ChatCoreService } from "./chat-core"; // Assuming you updated this to a Service, or kept it static
@@ -115,6 +114,13 @@ switch (message.command) {
                 command: CHAT_COMMANDS.HISTORY_LOAD,
                 content: []
             });
+            break;
+            }
+
+        case CHAT_COMMANDS.CONVERSATION_DELETE:
+            {
+            const targetId = message.data.chatId;
+            await historyService.deleteConversation(targetId);
             break;
             }
 

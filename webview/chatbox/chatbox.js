@@ -81,9 +81,14 @@ function showHistoryView(historyGroups) {
         itemEl.dataset.chatId = item.id;
         const safeTitle = escapeHtml(item.title);
         itemEl.innerHTML = `
-          <span class="history-item-title" title="${safeTitle}">${safeTitle}</span>
-          <span class="history-item-time">${item.time}</span>
-        `;
+        <div class="history-info">
+            <span class="history-item-title" title="${safeTitle}">${safeTitle}</span>
+            <span class="history-item-time">${item.time}</span>
+        </div>
+        <button class="delete-item-btn" title="Delete conversation">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      `;
         groupEl.appendChild(itemEl);
       }
       historyListContainer.appendChild(groupEl);

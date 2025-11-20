@@ -92,40 +92,71 @@ export class ChatHistoryService{
         return newMessage;
     }
 
+    /**
+     * DELETE a specific conversation
+     */
+    public async deleteConversation(chatId: string): Promise<void> {
+        let history = this.getHistory();
+        // Filter out the specific ID
+        const newHistory = history.filter(c => c.chat_id !== chatId);
+        await this.storage.update(ChatHistoryService.STORAGE_KEY, newHistory);
+    }
+
+
+    /**
+     * SEARCH history
+     * Returns formatted groups matching the query
+     */
+    public searchHistory(query: string) {
+        const history = this.getHistory();
+        const lowerQuery = query.toLowerCase();
+
+        // Filter logic: Check title OR message content
+        const filtered = history.filter(chat => {
+            const titleMatch = chat.title.toLowerCase().includes(lowerQuery);
+            // Optional: Deep search inside messages (can be slow if history is huge)
+            // const msgMatch = chat.messages.some(m => m.message.toLowerCase().includes(lowerQuery));
+            return titleMatch; // || msgMatch;
+        });
+
+        // Reuse your existing formatting logic for the filtered result
+        return this.formatGroups(filtered);
+    }
 
     /**
      * Format Data for Webview
      * This returns the data structure the frontend needs, 
      * instead of sending the message directly. Separation of concerns!
      */
-    public getFormattedHistoryGroups() {
-        const history = this.getHistory();
-        const groups: { [key: string]: any[] } = {};
+    /**
+     * Refactored Formatting Helper
+     * (Move your existing getFormattedHistoryGroups logic here so 'search' can use it too)
+     */
+    private formatGroups(historyList: Conversation[]) {
+         const groups: { [key: string]: any[] } = {};
 
-        history.forEach(chat => {
+        historyList.forEach(chat => {
             const date = new Date(chat.timestamp);
-            let dateKey = date.toDateString(); // "Fri Nov 21 2025"
+            let dateKey = date.toDateString(); 
+            if (dateKey === new Date().toDateString()) dateKey = "Today";
 
-            if (dateKey === new Date().toDateString()) {
-                dateKey = "Today";
-            }
-
-            if (!groups[dateKey]) {
-                groups[dateKey] = [];
-            }
+            if (!groups[dateKey]) groups[dateKey] = [];
 
             groups[dateKey].push({
-                id: chat.chat_id, // Mapping 'chat_id' to 'id' for frontend
+                id: chat.chat_id,
                 title: chat.title,
                 time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             });
         });
 
-        // Convert to array
         return Object.keys(groups).map(dateTitle => ({
             title: dateTitle,
             chats: groups[dateTitle]
         }));
+    }
+
+    public getFormattedHistoryGroups() {
+        return this.formatGroups(this.getHistory());
     }
 }
   

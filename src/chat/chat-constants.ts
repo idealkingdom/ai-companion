@@ -46,7 +46,9 @@ export enum CHAT_COMMANDS {
     CHAT_REQUEST = 'chatRequest',
     CHAT_LOAD = 'loadChat',
     HISTORY_LOAD = 'loadHistory',
-    HISTORY_CLEAR = 'clearHistory'
+    HISTORY_CLEAR = 'clearHistory',
+    CONVERSATION_DELETE = 'deleteHistoryItem', 
+    HISTORY_SEARCH ='searchHistory' 
 }
 
 
