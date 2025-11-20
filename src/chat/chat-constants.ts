@@ -42,16 +42,26 @@ export enum ROLE {
 // commands messages for chat webview and extension
 export enum CHAT_COMMANDS {
     CHAT_WEBVIEW_READY = 'ChatWebviewReady',
+    CHAT_RESET = 'resetChat',
     CHAT_REQUEST = 'chatRequest',
-    HISTORY_LOAD = 'loadHistory'
+    CHAT_LOAD = 'loadChat',
+    HISTORY_LOAD = 'loadHistory',
+    HISTORY_CLEAR = 'clearHistory'
 }
 
 
 
-// interfaces
-export interface ChatMessage {
-  chat_id: string;
-  timestamp: string;
-  role: ROLE;
-  message: string;
+export interface StoredMessage {
+    message_id: string;       // Unique ID for every message
+    role: ROLE;              
+    message: string;         
+    timestamp: string;
+}
+
+
+export interface Conversation {
+    chat_id: string;       // The chat_id
+    title: string;    // Title (e.g. "How to use React")
+    timestamp: string; // Last modified time
+    messages: StoredMessage[];
 }

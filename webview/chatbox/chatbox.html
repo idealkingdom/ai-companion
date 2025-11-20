@@ -19,7 +19,11 @@
     <script src="{{highlightCppScriptPath}}" ></script>
     <script src="{{highlightRustScriptPath}}" ></script>
     <script src="{{highlightRubyScriptPath}}" ></script>
-    <script src="{{highlightJavaScriptPath}}" ></script>    
+    <script src="{{highlightJavaScriptPath}}" ></script> 
+    <script>
+        // Injected constants from the extension, ignore the error this would be replaced by our extension.
+        window.VS_CONSTANTS = {{constants}};
+    </script>   
 </head>
 <body>
 
@@ -92,6 +96,10 @@
     <main id="history-list-container" class="history-list-container">
       </main>
   </div>
+
+
+  
+
 
 </body>
 </html>

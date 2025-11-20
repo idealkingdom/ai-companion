@@ -16,6 +16,8 @@ import {
     INDEX_HTML,
     FILES_TO_LOAD,
     LIBRARIES_TO_LOAD,
+    CHAT_COMMANDS,
+    ROLE
     } from './chat-constants';
 
 
@@ -101,6 +103,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 );
 
         });
+
+        // LOAD THE CONSTANTS WE CAN USE IN THE WEBVIEW
+        const SHARED_CONSTANTS = JSON.stringify({
+            CHAT_COMMANDS: CHAT_COMMANDS,
+            ROLE: ROLE
+        });
+        
+        // Inject the constants into the HTML by replacing the {{constants}} placeholder
+        webviewView.webview.html = webviewView.webview.html.replace('{{constants}}', SHARED_CONSTANTS);
+
+
 
         ChatViewProvider._view = webviewView;
         ChatViewProvider._view.webview.onDidReceiveMessage(chatMessageListener);

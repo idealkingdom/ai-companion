@@ -1,5 +1,7 @@
 // --- GLOBALS (accessible by history.js) ---
 const vscode = acquireVsCodeApi();
+// Extract the constants injected by the backend
+const { CHAT_COMMANDS, ROLE } = window.VS_CONSTANTS;
 
 /**
  * Sends a message to the VS Code extension.
@@ -131,7 +133,7 @@ function scrollToBottom() {
 
 function copyCodeToClipboard(e) {
 
-const button = e.currentTarget
+const button = e.currentTarget;
 
 const code = button.nextElementSibling.innerText;
 if (!code) {
@@ -294,7 +296,7 @@ function appendAIMessage(response) {
             </div>
             </div>`;
             
-  // *** BUGFIX: Changed .contents (which doesn't exist) to .contains ***
+
   if (!chatWelcomeMessage.classList.contains('hidden')) {
       chatWelcomeMessage.classList.add('hidden');
   }
@@ -336,18 +338,27 @@ function resetChat(content) {
 window.addEventListener('message', event => {
   const message = event.data; 
   switch (message.command) {
-    case 'chatRequest':
+    case CHAT_COMMANDS.CHAT_REQUEST:
       hideLoadingIndicator();
-      appendAIMessage(message.content);
+      
+      if (message.role === ROLE.USER) {
+          appendUserMessage(message.content);
+      } else {
+          appendAIMessage(message.content);
+      }
+      // Re-enable send button
       toggleSendButton(0);
       break;
-    case 'resetChat':
-      console.info("WE ARE HERE AT RESET CHAT!");
+    // Case: Resetting the view / New Chat
+    case CHAT_COMMANDS.CHAT_RESET:
       resetChat(message.content);
       break;
-    case 'loadHistory':
+      
+    case CHAT_COMMANDS.HISTORY_LOAD:
       showHistoryView(message.content); // Call the global function
       break;
+
+    // TODO: Implement file context handling
     case 'fileContextAdded':
         console.log('File context received:', message.content);
         break;
@@ -356,18 +367,19 @@ window.addEventListener('message', event => {
   }
 });
 
-
+// 1. Send Button Click
 sendButton.addEventListener("click", event => {
   const messageText = chatMessage.innerText.trim();
-  
-  if (messageText || attachedImages.length > 0) { 
-    chatRequest({
+    
+  if (messageText || attachedImages.length > 0) {
+    // Update: Use CHAT_COMMANDS.CHAT_REQUEST
+    sendMessage(CHAT_COMMANDS.CHAT_REQUEST, {
         message: messageText, 
         images: attachedImages, 
         chat_id: chatLog.dataset.chatId, 
         timestamp: new Date().toISOString()
     });
-    
+  
     showLoadingIndicator();
 
     toggleSendButton("disabled");
@@ -377,9 +389,29 @@ sendButton.addEventListener("click", event => {
   }
 });
 
+// 2. Clear History Button Click
+  clearHistoryButton.addEventListener('click', () => {
+    // Update: Use CHAT_COMMANDS.HISTORY_CLEAR
+    sendMessage(CHAT_COMMANDS.HISTORY_CLEAR);
+    historyListContainer.innerHTML = '<div class="empty-message">History cleared.</div>';
+  });
+
+
+// 3. Load Specific Chat (Click on History Item)
+historyListContainer.addEventListener('click', (e) => {
+  const item = e.target.closest('.history-item');
+  if (item) {
+    const chatId = item.dataset.chatId;
+    if (chatId) {
+      // Update: Use CHAT_COMMANDS.CHAT_LOAD
+      sendMessage(CHAT_COMMANDS.CHAT_LOAD, { chatId: chatId });
+    }
+  }
+});
+
 
 window.addEventListener('DOMContentLoaded', ()=>{
-  sendMessage('ChatWebviewReady');
+  sendMessage(CHAT_COMMANDS.WEBVIEW_READY);
 
   const input = document.getElementById("messageInput");
         
