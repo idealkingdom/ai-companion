@@ -273,3 +273,13 @@
 .delete-item-btn:active {
   transform: scale(0.95);
 }
+
+/* Search Highlight */
+.highlight {
+  /* Uses the user's theme color for search results */
+  background-color: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.33));
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+  font-weight: inherit;
+}
