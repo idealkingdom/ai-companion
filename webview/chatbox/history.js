@@ -26,18 +26,16 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     if (historyListContainer) {
-        // Handle clicks on the history list using event delegation
+        // 3. Load Specific Chat (Click on History Item)
         historyListContainer.addEventListener('click', (e) => {
-            const item = e.target.closest('.history-item');
-            if (item) {
-                const chatId = item.dataset.chatId;
-                if (chatId) {
-                    // This function is defined in Chatbox.js
-                    sendMessage('loadChat', { chatId: chatId });
-                    // The 'resetChat' message from the extension
-                    // will automatically call showChatView()
-                }
+        const item = e.target.closest('.history-item');
+        if (item) {
+            const chatId = item.dataset.chatId;
+            if (chatId) {
+            // Update: Use CHAT_COMMANDS.CHAT_LOAD
+            sendMessage(CHAT_COMMANDS.CHAT_LOAD, { chatId: chatId });
             }
+        }
         });
     }
 });

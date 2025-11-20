@@ -121,5 +121,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         // =================================================================
         // This tells VS Code: "When the HTML sends a message, run this function."
         webviewView.webview.onDidReceiveMessage(chatMessageListener);
+
     }
 }

@@ -11,7 +11,7 @@ import { outputChannel } from './logger';
 import { EXTENSION_NAME } from './constants';
 import { ChatViewProvider } from './chat/chat-view-provider';
 import { CHAT_COMMANDS } from './chat/chat-constants';
-
+import { chatMessageListener } from './chat/chat-message-listener';
 
 // editor
 const editor = vscode.window.activeTextEditor;
@@ -37,10 +37,9 @@ export function activate(context: vscode.ExtensionContext) {
     // Register Load History Command
     context.subscriptions.push(
         vscode.commands.registerCommand(`${EXTENSION_NAME}.${CHAT_COMMANDS.HISTORY_LOAD}`, () => {
-            // Send a signal to the Webview: "User clicked History Button"
             const view = ChatViewProvider.getView();
             if (view) {
-                view.webview.postMessage({ command: CHAT_COMMANDS.HISTORY_LOAD });
+                chatMessageListener({ command: CHAT_COMMANDS.HISTORY_LOAD });
             }
         })
     );
@@ -51,7 +50,7 @@ export function activate(context: vscode.ExtensionContext) {
             // Send a signal to the Webview: "User clicked New Chat Button"
             const view = ChatViewProvider.getView();
             if (view) {
-                view.webview.postMessage({ command: CHAT_COMMANDS.CHAT_RESET });
+                chatMessageListener({ command: CHAT_COMMANDS.CHAT_RESET });
             }
         })
     );

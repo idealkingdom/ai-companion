@@ -31,6 +31,7 @@ export async function chatMessageListener(message: any) {
 switch (message.command) {
         // --- 1. INIT ---
         case CHAT_COMMANDS.CHAT_WEBVIEW_READY:
+            {
             // Now: We generate ID and send it manually, or add resetChat() to your Service.
             const newChatId = coreService.generateChatID();
             await webview.postMessage({
@@ -38,8 +39,21 @@ switch (message.command) {
                 content: { uid: newChatId } 
             });
             break;
+            }
+        
+        case CHAT_COMMANDS.CHAT_RESET:
+            {
+            // Now: We generate ID and send it manually, or add resetChat() to your Service.
+            const newChatId = coreService.generateChatID();
+            await webview.postMessage({
+                command: CHAT_COMMANDS.CHAT_RESET, 
+                content: { uid: newChatId } 
+            });
+            break;
+            }
             
         case CHAT_COMMANDS.CHAT_REQUEST:
+            {
             // This handles saving User + AI msg to history internally.
             
             await webview.postMessage({
@@ -55,17 +69,20 @@ switch (message.command) {
                 role: ROLE.BOT
             });
             break;
+            }
         // --- HISTORY: SHOW LIST ---
         case CHAT_COMMANDS.HISTORY_LOAD:
+            {
             const historyData = historyService.getFormattedHistoryGroups();
             await webview.postMessage({
                 command: CHAT_COMMANDS.HISTORY_LOAD,
                 content: historyData
             });
             break;
-        
+            }
         // --- HISTORY: LOAD SPECIFIC CHAT ---
         case CHAT_COMMANDS.CHAT_LOAD:
+            {
             const targetId = message.data.chatId;
             const conversation = historyService.getConversation(targetId);
 
@@ -89,16 +106,18 @@ switch (message.command) {
                 }
             }
             break;
-
+            }
             // --- CLEAR HISTORY ---
-            case CHAT_COMMANDS.HISTORY_CLEAR:
+        case CHAT_COMMANDS.HISTORY_CLEAR:
+            {
             await historyService.clear();
             await webview.postMessage({
                 command: CHAT_COMMANDS.HISTORY_LOAD,
                 content: []
             });
             break;
-        
+            }
+
         // Handle other messages here
         default:
             outputChannel.appendLine('Unknown message received:' + message);

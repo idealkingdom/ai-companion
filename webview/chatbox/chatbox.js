@@ -395,19 +395,6 @@ sendButton.addEventListener("click", event => {
 });
 
 
-// 3. Load Specific Chat (Click on History Item)
-historyListContainer.addEventListener('click', (e) => {
-  const item = e.target.closest('.history-item');
-  if (item) {
-    const chatId = item.dataset.chatId;
-    if (chatId) {
-      // Update: Use CHAT_COMMANDS.CHAT_LOAD
-      sendMessage(CHAT_COMMANDS.CHAT_LOAD, { chatId: chatId });
-    }
-  }
-});
-
-
 window.addEventListener('DOMContentLoaded', ()=>{
   sendMessage("ChatWebviewReady");
 
