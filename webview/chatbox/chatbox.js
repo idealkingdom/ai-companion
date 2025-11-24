@@ -380,52 +380,6 @@ function resetChat(content) {
 
 
 
-// --- EVENT LISTENERS ---
-window.addEventListener('message', event => {
-  const message = event.data; 
-  switch (message.command) {
-    case CHAT_COMMANDS.CHAT_REQUEST:
-      hideLoadingIndicator();
-      if (message.role === ROLE.USER) {
-          appendUserMessage(message.content);
-          showLoadingIndicator();
-      }else{
-          appendAIMessage(message.content);
-      }
-      // Re-enable send button
-      toggleSendButton(0);
-      break;
-    // Case: Resetting the view / New Chat
-    case CHAT_COMMANDS.CHAT_RESET:
-      resetChat(message.content);
-      break;
-      
-    case CHAT_COMMANDS.HISTORY_LOAD:
-      showHistoryView(message.content); // Call the global function
-      break;
-
-    // TODO: Implement file context handling
-    case CHAT_COMMANDS.FILE_CONTEXT_ADDED:
-        const fileData = message.content;
-        
-        // Prevent duplicates
-        const exists = attachedFiles.find(f => f.name === fileData.name);
-        if (exists) return;
-
-        attachedFiles.push({
-            name: fileData.name,
-            content: fileData.text,
-            language: fileData.language,
-            lines: fileData.text.split('\n').length
-        });
-        
-        renderAttachments();
-        break;
-    default:
-      console.error('Unknown command:', message.command);
-  }
-});
-
 // 1. Send Button Click
 sendButton.addEventListener("click", event => {
   const messageText = chatMessage.innerText.trim();
@@ -631,4 +585,51 @@ window.addEventListener('DOMContentLoaded', ()=>{
       // Close menu
       contextMenu.classList.add('hidden');
   });
+});
+
+
+// --- EVENT LISTENERS ---
+window.addEventListener('message', event => {
+  const message = event.data; 
+  switch (message.command) {
+    case CHAT_COMMANDS.CHAT_REQUEST:
+      hideLoadingIndicator();
+      if (message.role === ROLE.USER) {
+          appendUserMessage(message.content);
+          showLoadingIndicator();
+      }else{
+          appendAIMessage(message.content);
+      }
+      // Re-enable send button
+      toggleSendButton(0);
+      break;
+    // Case: Resetting the view / New Chat
+    case CHAT_COMMANDS.CHAT_RESET:
+      resetChat(message.content);
+      break;
+      
+    case CHAT_COMMANDS.HISTORY_LOAD:
+      showHistoryView(message.content); // Call the global function
+      break;
+
+    // TODO: Implement file context handling
+    case CHAT_COMMANDS.FILE_CONTEXT_ADDED:
+        const fileData = message.content;
+        
+        // Prevent duplicates
+        const exists = attachedFiles.find(f => f.name === fileData.name);
+        if (exists) { return; };
+
+        attachedFiles.push({
+            name: fileData.name,
+            content: fileData.text,
+            language: fileData.language,
+            lines: fileData.text.split('\n').length
+        });
+        
+        renderAttachments();
+        break;
+    default:
+      console.error('Unknown command:', message.command);
+  }
 });
