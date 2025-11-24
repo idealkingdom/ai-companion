@@ -36,41 +36,57 @@ export class ChatCoreService{
      * 4. Returns the AI response text
      */
     public async processChatRequest(data: { message: string, chat_id: string, timestamp: string }): Promise<string> {
-        const config = vscode.workspace.getConfiguration('aiCompanion');
-        const modelProvider = config.get<string>('modelProvider');
+        
+        // 1. GET SETTINGS
+        // We read from config so you don't have to hardcode the System Prompt
+        const config = vscode.workspace.getConfiguration('aiCompanion'); // Verify your config section name
+        const maxContext = config.get<number>('maxContextMessages') || 10;
+        const systemPromptText = config.get<string>('systemPrompt') || 
+            "You are an expert code assistant. Answer coding relevant topics only.";
         const accessToken = config.get<string>('accessToken') || '';
         const temperature = config.get<number>('modelProvider.temperature') || 0.5;
-        
+        // ... get model provider settings ...
+
         let aiResponseText = "";
 
         try {
-            // 1. SAVE USER MESSAGE (using the service)
+            // 2. SAVE USER MESSAGE FIRST
+            // Important: We save it to history *before* fetching context
+            // so the user's current question is included in the history list.
             await this.historyService.addMessage(data.chat_id, ROLE.USER, data.message);
 
-            // 2. CALL AI API
-            switch (modelProvider) {
-                case MODEL_PROVIDER.OPEN_AI:
-                    //TODO: Make model configurable
-                    const response = await openAIRequest(data.message, OPEN_AI_MODELS.GPT41_NANO, accessToken, temperature);
-                    aiResponseText = response.content;
-                    break;
-                default:
-                    // Fallback or other providers
-                    aiResponseText = "Model provider not configured correctly.";
-                    break;
-            }
+            // 3. BUILD CONTEXT (HISTORY)
+            // Fetch the last N messages (which now includes the one we just saved)
+            const contextMessages = this.historyService.getContextWindow(data.chat_id, maxContext);
+
+            // 4. PREPEND SYSTEM PROMPT
+            // The system prompt must always be the very first message
+            const apiPayload = [
+                { role: 'system', content: systemPromptText },
+                ...contextMessages
+            ];
+
+            // 5. CALL AI (Using your updated LangChain wrapper)
+            // We pass the full array now
+            const response = await openAIRequest(
+                apiPayload, 
+                OPEN_AI_MODELS.GPT41_NANO, // Or your config variable
+                accessToken, 
+                temperature
+            );
             
-            // 3. SAVE AI MESSAGE (using the service)
+            // LangChain returns an object, we want the text content
+            aiResponseText = response.content; 
+            
+            // 6. SAVE AI RESPONSE
             await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText);
 
-            outputChannel.appendLine("Chat interaction saved to history.");
+            outputChannel.appendLine("Chat interaction saved and processed.");
 
         } catch (error) {
             console.error('Error fetching chat response:', error);
-            outputChannel.appendLine('Failed to get response from AI service.');
             aiResponseText = 'Sorry, I could not process your request at this time.';
-            
-            // Optionally save the error message to history too
+            // Optionally save error to history
             await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText);
         }
 

@@ -158,5 +158,27 @@ export class ChatHistoryService{
     public getFormattedHistoryGroups() {
         return this.formatGroups(this.getHistory());
     }
+
+
+
+    /**
+     * Get the last N messages for context.
+     * We slice the array to get the most recent conversation turns.
+     */
+    public getContextWindow(chatId: string, limit: number): { role: string; content: string }[] {
+        const conversation = this.getConversation(chatId);
+        if (!conversation) { return []; };
+
+        // 1. Get the last N messages
+        const lastMessages = conversation.messages.slice(-limit);
+
+        // 2. Map internal roles to OpenAI roles
+        // Internal: 'bot' -> OpenAI: 'assistant'
+        // Internal: 'user' -> OpenAI: 'user'
+        return lastMessages.map(msg => ({
+            role: msg.role === ROLE.BOT ? 'assistant' : 'user', 
+            content: msg.message
+        }));
+    }
 }
   

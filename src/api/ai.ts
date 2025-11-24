@@ -2,17 +2,14 @@ import { ChatOpenAI } from '@langchain/openai';
 import { outputChannel } from '../logger';
 
 /**
- * This module provides functions to interact with AI services.
- * It currently supports OpenAI's API for generating responses based on user input.
- * 
- * @module src/api/ai
+ * Updated to accept an Array of messages for context awareness.
  */
-// Request with OpenAI provider
-export async function openAIRequest(message: string, model: string, accessToken: string, temperature: number): Promise<any> {
-
-    const system_prompt = `You are an expert code assistant, you will answer coding relevant topic only`;
-
-    const user_prompt = `user_prompt: ${message}`;
+export async function openAIRequest(
+    messages: { role: string; content: string }[], // <--- CHANGED: Accepts array
+    model: string, 
+    accessToken: string,
+    temperature: number
+): Promise<any> {
 
     const chat = new ChatOpenAI({
         model: model,
@@ -20,15 +17,13 @@ export async function openAIRequest(message: string, model: string, accessToken:
         temperature: temperature,
         streamUsage: false
     });
+
     try {
-        return await chat.invoke([
-
-        { role: 'system', content: system_prompt },
-        { role: 'user', content: user_prompt },
-
-    ]);
+        // LangChain accepts the standard OpenAI message format:
+        // [{ role: 'system', ... }, { role: 'user', ... }, { role: 'assistant', ... }]
+        return await chat.invoke(messages);
     } catch(error){
-        outputChannel.appendLine("Error during OpenAI Request: ", error);
+        outputChannel.appendLine("Error during OpenAI Request: " + error);
+        throw error; // Rethrow so the caller knows it failed
     }
-    
 }
