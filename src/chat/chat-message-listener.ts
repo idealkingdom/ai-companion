@@ -7,6 +7,7 @@ import { CHAT_COMMANDS, ROLE } from "./chat-constants";
 import { ChatCoreService } from "./chat-core"; // Assuming you updated this to a Service, or kept it static
 import { ChatHistoryService } from "./chat-history"; // Import the NEW Service
 import { ChatViewProvider } from "./chat-view-provider";
+import * as vscode from 'vscode';
 
     // message sent from client js
 export async function chatMessageListener(message: any) {
@@ -55,13 +56,27 @@ switch (message.command) {
             {
             // This handles saving User + AI msg to history internally.
             
+            // FORMAT THE MESSAGE (Text + Files)
+            const rawText = message.data.message;
+            const files = message.data.files;
+            
+            // This turns the text + files into one big Markdown string
+            const formattedMessage = formatMessageWithFiles(rawText, files);
+
             await webview.postMessage({
                 command: CHAT_COMMANDS.CHAT_REQUEST, 
-                content: message.data.message, 
+                content: formattedMessage, 
                 role: ROLE.USER
             });
 
-            const aiResponse = await coreService.processChatRequest(message.data);
+            // We replace the original message data with our new formatted one
+            const aiData = { 
+                ...message.data, 
+                message: formattedMessage, // <--- Pass the FULL content
+                files: [] // Clear files so Core doesn't double-append them
+            };
+
+            const aiResponse = await coreService.processChatRequest(aiData);
             webview.postMessage({
                 command: CHAT_COMMANDS.CHAT_REQUEST, 
                 content: aiResponse,
@@ -123,9 +138,61 @@ switch (message.command) {
             await historyService.deleteConversation(targetId);
             break;
             }
+        
+        case CHAT_COMMANDS.ADD_CONTEXT:
+            {
+                const editor = vscode.window.activeTextEditor;
+
+                if (!editor) {
+                    // No file is open
+                    await webview.postMessage({
+                        command: 'error',
+                        content: 'No active text editor found.'
+                    });
+                    return;
+                }
+
+                const document = editor.document;
+                const fileName = document.fileName.split(/[\\/]/).pop(); // Get just "script.js"
+                const fileContent = document.getText();
+                const languageId = document.languageId;
+
+                // Send back to Frontend to "attach" it
+                await webview.postMessage({
+                    command: 'fileContextAdded', // We reuse your existing listener logic
+                    content: {
+                        name: fileName,
+                        text: fileContent,
+                        language: languageId,
+                        type: 'file'
+                    }
+                });
+
+                break;
+            }
+            
+
 
         // Handle other messages here
         default:
             outputChannel.appendLine('Unknown message received:' + message);
     }
+
+
+ function formatMessageWithFiles(originalMessage: string, files: any[]): string {
+    let fullMessage = originalMessage;
+
+    if (files && Array.isArray(files) && files.length > 0) {
+        fullMessage += "\n\n--- ATTACHED CONTEXT ---\n";
+        
+        files.forEach((file: any) => {
+            fullMessage += `\nFile: ${file.name}\n`;
+            // Wrap content in Markdown code blocks
+            fullMessage += "```" + (file.language || '') + "\n";
+            fullMessage += (file.content || '') + "\n"; 
+            fullMessage += "```\n";
+        });
+    }
+    return fullMessage;
+}
 };

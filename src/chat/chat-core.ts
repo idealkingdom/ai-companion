@@ -35,7 +35,13 @@ export class ChatCoreService{
      * 3. Saves AI Message to History
      * 4. Returns the AI response text
      */
-    public async processChatRequest(data: { message: string, chat_id: string, timestamp: string }): Promise<string> {
+    public async processChatRequest(data: {
+        message: string, 
+        chat_id: string, 
+        timestamp: string,
+        files?: any[]
+    }): Promise<string> {
+        
         
         // 1. GET SETTINGS
         // We read from config so you don't have to hardcode the System Prompt
@@ -49,17 +55,17 @@ export class ChatCoreService{
 
         let aiResponseText = "";
 
+
         try {
-            // 2. SAVE USER MESSAGE FIRST
+            let fullMessage = data.message;
+
             // Important: We save it to history *before* fetching context
             // so the user's current question is included in the history list.
             await this.historyService.addMessage(data.chat_id, ROLE.USER, data.message);
 
-            // 3. BUILD CONTEXT (HISTORY)
             // Fetch the last N messages (which now includes the one we just saved)
             const contextMessages = this.historyService.getContextWindow(data.chat_id, maxContext);
 
-            // 4. PREPEND SYSTEM PROMPT
             // The system prompt must always be the very first message
             const apiPayload = [
                 { role: 'system', content: systemPromptText },

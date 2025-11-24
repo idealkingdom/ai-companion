@@ -24,13 +24,16 @@ const chatWelcomeMessage = document.getElementById("chatWelcomeMessage");
 const sendButton = document.getElementById('sendButton');
 const chatMessage = document.getElementById('messageInput');
 const attachmentsPreviewContainer = document.getElementById('attachments-preview-container');
-const addFileBtn = document.getElementById('add-file-btn');
 const imageUploadInput = document.getElementById('image-upload-input');
 const chatView = document.getElementById('chat-view');
 const historyView = document.getElementById('history-view');
 const historyListContainer = document.getElementById('history-list-container');
 const copyCodeBtnHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copy`;
 const aiIconBtnHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bot-message-square-icon lucide-bot-message-square"><path d="M12 6V2H8"/><path d="M15 11v2"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M20 16a2 2 0 0 1-2 2H8.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 4 20.286V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/><path d="M9 11v2"/></svg>`;
+const contextMenu = document.getElementById('context-menu');
+const attachBtn = document.getElementById('atch-ctx-button');
+
+
 
 
 /**
@@ -38,7 +41,7 @@ const aiIconBtnHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height
  * @type {Array<{dataUrl: string, name: string}>}
  */
 let attachedImages = [];
-
+let attachedFiles = []; 
 
 // --- HELPER FUNCTIONS ---
 
@@ -182,30 +185,53 @@ function addAllCopyButtons() {
 function renderAttachments() {
     attachmentsPreviewContainer.innerHTML = '';
     
+    // 1. Render Images
     attachedImages.forEach((image, index) => {
         const pill = document.createElement('div');
         pill.className = 'attachment-pill';
-        
         pill.innerHTML = `
-            <img src="${image.dataUrl}" class="attachment-image" alt="Attachment thumbnail">
-            <span class="attachment-name" title="${image.name}">${image.name}</span>
-            <button class="remove-attachment" data-index="${index}" title="Remove image">&times;</button>
+            <img src="${image.dataUrl}" class="attachment-image" alt="img">
+            <span class="attachment-name">${image.name}</span>
+            <button class="remove-attachment" onclick="removeImage(${index})">&times;</button>
         `;
-        
+        attachmentsPreviewContainer.appendChild(pill);
+    });
+
+    // 2. Render Files
+    attachedFiles.forEach((file, index) => {
+        const pill = document.createElement('div');
+        pill.className = 'attachment-pill file-pill'; // Add file-pill class for styling
+        pill.innerHTML = `
+            <svg class="attachment-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span class="attachment-name" title="${file.name}">${file.name}</span>
+            <span class="attachment-lines">${file.lines} lines</span>
+            <button class="remove-attachment" onclick="removeFile(${index})">&times;</button>
+        `;
         attachmentsPreviewContainer.appendChild(pill);
     });
     
-    attachmentsPreviewContainer.querySelectorAll('.remove-attachment').forEach(button => {
-        button.addEventListener('click', (e) => {
-            const indexToRemove = parseInt(e.currentTarget.dataset.index, 10);
-            attachedImages.splice(indexToRemove, 1);
-            renderAttachments();
-        });
-    });
+    // Helper functions need to be global for onclick to work, 
+    // OR add event listeners properly
+    addRemoveListeners();
     
-    attachmentsPreviewContainer.style.display = attachedImages.length > 0 ? 'flex' : 'none';
+    attachmentsPreviewContainer.style.display = (attachedImages.length > 0 || attachedFiles.length > 0) ? 'flex' : 'none';
 }
 
+function addRemoveListeners() {
+    // Re-attach listeners dynamically since we rebuilt HTML
+    const buttons = attachmentsPreviewContainer.querySelectorAll('.remove-attachment');
+    buttons.forEach((btn, i) => {
+        // Simple logic: first N buttons are images, rest are files
+        btn.addEventListener('click', () => {
+             if (i < attachedImages.length) {
+                 attachedImages.splice(i, 1);
+             } else {
+                 attachedFiles.splice(i - attachedImages.length, 1);
+             }
+             renderAttachments();
+        });
+    });
+}
 
 // Handle image files from input or paste
 function handleImageFiles(fileList, source) {
@@ -263,7 +289,8 @@ function hideLoadingIndicator() {
 
 function appendUserMessage(message, images = []){
   const escapedMessage = escapeHtml(message);
-  const formattedMessage = escapedMessage.replace(/\n/g, "<br>");
+
+  const finalHTML = processMessageContent(message);
     
   let imagesHTML = '';
   if (images.length > 0) {
@@ -276,7 +303,7 @@ function appendUserMessage(message, images = []){
     
   const userResponseHTML = `<div class="message-content user-message">
           ${imagesHTML}
-          <span class="message-text">${formattedMessage}</span>
+          <span class="message-text">${finalHTML}</span>
           <div class="message-time">${getCurrentDate()}</div>
         </div> `;
 
@@ -291,6 +318,15 @@ function appendUserMessage(message, images = []){
   const newMessageElement = tempDiv.firstElementChild;
   
   chatbox.appendChild(newMessageElement);
+
+  // Important: Since we injected new <pre> blocks inside the details, 
+  // we might want to re-run syntax highlighting or copy buttons
+  if (message.includes("--- ATTACHED CONTEXT ---")) {
+      setTimeout(() => {
+          hljs.highlightAll();
+          addAllCopyButtons();
+      }, 0);
+  }
 
   scrollToBottom();
 }
@@ -369,8 +405,21 @@ window.addEventListener('message', event => {
       break;
 
     // TODO: Implement file context handling
-    case 'fileContextAdded':
-        console.log('File context received:', message.content);
+    case CHAT_COMMANDS.FILE_CONTEXT_ADDED:
+        const fileData = message.content;
+        
+        // Prevent duplicates
+        const exists = attachedFiles.find(f => f.name === fileData.name);
+        if (exists) return;
+
+        attachedFiles.push({
+            name: fileData.name,
+            content: fileData.text,
+            language: fileData.language,
+            lines: fileData.text.split('\n').length
+        });
+        
+        renderAttachments();
         break;
     default:
       console.error('Unknown command:', message.command);
@@ -381,23 +430,97 @@ window.addEventListener('message', event => {
 sendButton.addEventListener("click", event => {
   const messageText = chatMessage.innerText.trim();
   
-  if (messageText || attachedImages.length > 0) {
-    // Update: Use CHAT_COMMANDS.CHAT_REQUEST
-    sendMessage(CHAT_COMMANDS.CHAT_REQUEST, {
+  // Update Condition: Check for files too
+  if (messageText || attachedImages.length > 0 || attachedFiles.length > 0) { 
+    
+    // --- PREPARE PAYLOAD ---
+    const payload = {
         message: messageText, 
         images: attachedImages, 
+        
+        // CRITICAL: Send the attached files to the backend
+        files: attachedFiles, 
+        
         chat_id: chatLog.dataset.chatId, 
         timestamp: new Date().toISOString()
-    });
-  
-    
+    };
 
+    // --- SEND ---
+    sendMessage(CHAT_COMMANDS.CHAT_REQUEST, payload);
+  
+    // --- UI CLEANUP ---
+    showLoadingIndicator(); // Show dots while waiting for backend echo
     toggleSendButton("disabled");
+    
     chatMessage.innerText = "";
+    
+    // Clear both arrays
     attachedImages = []; 
-    renderAttachments(); 
+    attachedFiles = [];
+    
+    renderAttachments(); // Removes the pills from the screen
   }
 });
+
+/**
+ * Parses raw message text to separate user message from file attachments.
+ * Returns HTML string with collapsible details.
+ */
+function processMessageContent(rawText) {
+    const splitMarker = "--- ATTACHED CONTEXT ---";
+    
+    // 1. If no attachments, just return formatted text
+    if (!rawText.includes(splitMarker)) {
+        return escapeHtml(rawText).replace(/\n/g, "<br>");
+    }
+
+    // 2. Split: [User Text, The Big Code Block]
+    const parts = rawText.split(splitMarker);
+    const userMessage = parts[0].trim();
+    const contextBlock = parts[1];
+
+    // 3. Format User Message
+    let html = escapeHtml(userMessage).replace(/\n/g, "<br>");
+
+    // 4. Parse the Context Block to find files
+    // Regex looks for: File: name.ext \n ```lang ...content... ```
+    const fileRegex = /File:\s*(.*?)\n```(\w*)\n([\s\S]*?)```/g;
+    
+    let match;
+    let attachmentsHTML = '<div class="attachments-container">';
+    let foundFiles = false;
+
+    // Loop through all matches in the context block
+    while ((match = fileRegex.exec(contextBlock)) !== null) {
+        foundFiles = true;
+        const fileName = match[1].trim();
+        const language = match[2].trim();
+        const codeContent = match[3];
+
+        // Highlight the code using marked/hljs
+        const highlightedCode = marked.parse(`\`\`\`${language}\n${codeContent}\`\`\``);
+
+        attachmentsHTML += `
+            <details class="file-attachment">
+                <summary class="file-summary">
+                    <svg class="file-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+                    <svg class="file-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    <span>${escapeHtml(fileName)}</span>
+                </summary>
+                <div class="file-code-block">
+                    ${highlightedCode}
+                </div>
+            </details>
+        `;
+    }
+    attachmentsHTML += '</div>';
+
+    if (foundFiles) {
+        html += attachmentsHTML;
+    }
+
+    return html;
+}
 
 
 window.addEventListener('DOMContentLoaded', ()=>{
@@ -419,7 +542,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
       });
   
 
-input.addEventListener("paste", (event) => {
+  input.addEventListener("paste", (event) => {
       // 1. Stop all native pasting
       event.preventDefault();
       const clipboardData = event.clipboardData || window.clipboardData;
@@ -460,9 +583,7 @@ input.addEventListener("paste", (event) => {
       }
   });
 
-  addFileBtn.addEventListener('click', () => {
-      sendMessage('addFileContext');
-  });
+
   // --- End of Listeners ---
 
   renderAttachments(); 
@@ -479,5 +600,35 @@ input.addEventListener("paste", (event) => {
     langPrefix: 'hljs language-',
     gfm: true,
     breaks: true
+  });
+
+
+    // Toggle Menu
+  attachBtn.addEventListener('click', (e) => {
+      e.stopPropagation(); // Prevent immediate closing
+      contextMenu.classList.toggle('hidden');
+  });
+
+  // Close when clicking outside
+  document.addEventListener('click', (e) => {
+      if (!contextMenu.contains(e.target) && e.target !== attachBtn) {
+          contextMenu.classList.add('hidden');
+      }
+  });
+
+  // Handle Item Clicks
+  contextMenu.addEventListener('click', (e) => {
+      const item = e.target.closest('.context-item');
+      if (!item) return;
+
+      const type = item.dataset.type;
+      
+      if (type === 'current-file') {
+            sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'currentFile' });
+      }
+      //TODO: Add more context types here
+      
+      // Close menu
+      contextMenu.classList.add('hidden');
   });
 });

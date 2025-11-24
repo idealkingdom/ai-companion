@@ -46,6 +46,9 @@ body {
   display: flex;
   align-items: stretch;
   justify-content: stretch;
+  /* This makes text look thinner and sharper on dark backgrounds */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 
@@ -394,6 +397,109 @@ span.logo svg{
   gap: 8px;
   width: 90%;
   padding: 0 4px;
+  
+}
+
+
+/* --- CONTEXT MENU WRAPPER --- */
+.context-menu-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* --- THE POPOVER --- */
+.context-menu {
+  position: absolute;
+  bottom: 100%; /* Sits exactly on top of the button */
+  left: 0;
+  margin-bottom: 6px; /* A tiny bit of breathing room */
+  
+  width: 180px; /* Compact width */
+  background: var(--vscode-menu-background, #252526);
+  border: 1px solid var(--vscode-menu-border, #454545);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  padding: 4px;
+  
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  
+  /* Animation Origin */
+  transform-origin: bottom left;
+}
+
+/* Hidden State */
+.context-menu.hidden {
+  display: none;
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+/* Animation */
+.context-menu:not(.hidden) {
+  animation: popIn 0.1s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.95) translateY(5px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* --- HEADERS --- */
+.context-header {
+  font-size: 8px;
+  font-weight: 700;
+  opacity: 0.5;
+  padding: 6px 8px 4px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--vscode-menu-foreground);
+  pointer-events: none;
+}
+
+/* --- ITEMS --- */
+.context-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  
+  color: var(--vscode-menu-foreground, #cccccc);
+  font-family: var(--font-ui);
+  font-size: 11px; /* Small, clean font */
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.context-item:hover {
+  background: var(--vscode-menu-selectionBackground, #094771);
+  color: var(--vscode-menu-selectionForeground, #ffffff);
+}
+
+.ctx-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.8;
+}
+
+.context-item:hover .ctx-icon {
+  opacity: 1;
+}
+
+/* --- DIVIDER --- */
+.context-divider {
+  height: 1px;
+  background: var(--vscode-menu-separatorBackground, #454545);
+  margin: 4px 0;
+  opacity: 0.5;
 }
 
 .toolbar-btn {
@@ -403,7 +509,9 @@ span.logo svg{
   border-radius: 6px;
   padding: 4px 10px;
   cursor: pointer;
-  font-size: 0.65rem;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
   font-family: var(--font-ui);
   display: flex;
   align-items: center;
@@ -554,6 +662,85 @@ span.logo svg{
   background: var(--system-msg-fg);
   margin: 0 2px;
   animation: pulse 1.4s infinite ease-in-out;
+}
+
+
+/* --- COLLAPSIBLE FILE ATTACHMENTS --- */
+
+/* The wrapper for all attachments */
+.attachments-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 8px;
+}
+
+/* The individual file item (Native <details> tag) */
+details.file-attachment {
+  background: var(--system-msg-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* The "Pill" Header (Always visible) */
+summary.file-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: var(--font-ui);
+  list-style: none; /* Hide default triangle */
+  transition: background 0.2s;
+  user-select: none;
+}
+
+/* Remove default marker in some browsers */
+summary.file-summary::-webkit-details-marker {
+  display: none;
+}
+
+summary.file-summary:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+/* The arrow icon */
+.file-arrow {
+  transition: transform 0.2s;
+  width: 16px;
+  height: 16px;
+  opacity: 0.7;
+}
+
+/* Rotate arrow when open */
+details[open] summary .file-arrow {
+  transform: rotate(90deg);
+}
+
+/* The File Icon */
+.file-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--vscode-textLink-foreground);
+}
+
+/* The Content (Hidden by default) */
+.file-code-block {
+  padding: 0;
+  margin: 0;
+  border-top: 1px solid var(--border-color);
+  background: var(--code-bg);
+}
+
+/* Override default pre margins inside the attachment */
+.file-code-block pre {
+  margin: 0;
+  border: none;
+  border-radius: 0;
 }
 
 .loading-dots span:nth-child(1) { animation-delay: 0s; }
