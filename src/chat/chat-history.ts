@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ChatViewProvider } from "./chat-view-provider";
 import { CHAT_COMMANDS, ROLE, StoredMessage, Conversation } from "./chat-constants";
+import { ImageStorageService } from './image-storage';
 
 
 export class ChatHistoryService{
@@ -10,7 +11,9 @@ export class ChatHistoryService{
 
     // Dependency Injection: We inject the storage mechanism here.
     // context.globalState implements vscode.Memento
-    constructor(private readonly storage: vscode.Memento) {}
+    constructor(
+        private readonly storage: vscode.Memento,
+        private readonly imageService: ImageStorageService) {}
 
 
     /**
@@ -40,6 +43,18 @@ export class ChatHistoryService{
      * Clear all history
      */
     public async clear(): Promise<void> {
+        const history = this.getHistory();
+
+        for (const chat of history) {
+            for (const msg of chat.messages) {
+                if (msg.images && msg.images.length > 0) {
+                    for (const fileName of msg.images) {
+                        await this.imageService.deleteImage(fileName);
+                    }
+                }
+            }
+        }
+        
         await this.storage.update(ChatHistoryService.STORAGE_KEY, []);
     }
 
@@ -117,6 +132,21 @@ export class ChatHistoryService{
      */
     public async deleteConversation(chatId: string): Promise<void> {
         let history = this.getHistory();
+
+        const chatToDelete = history.find(c => c.chat_id === chatId);
+
+        if (chatToDelete) {
+            // 2. Loop through all messages in this chat
+            for (const msg of chatToDelete.messages) {
+                // 3. If message has images, delete them physically
+                if (msg.images && msg.images.length > 0) {
+                    for (const fileName of msg.images) {
+                        await this.imageService.deleteImage(fileName);
+                    }
+                }
+            }
+        }
+
         // Filter out the specific ID
         const newHistory = history.filter(c => c.chat_id !== chatId);
         await this.storage.update(ChatHistoryService.STORAGE_KEY, newHistory);

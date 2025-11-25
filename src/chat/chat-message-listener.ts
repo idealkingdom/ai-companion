@@ -27,10 +27,10 @@ export async function chatMessageListener(message: any) {
     }
 
 
-    // 2. INSTANTIATE SERVICES
-    // History needs storage, Core needs History.
-    const historyService = new ChatHistoryService(context.globalState);
     const imageService = new ImageStorageService(context);
+
+    const historyService = new ChatHistoryService(context.globalState,imageService);
+    
     const coreService = new ChatCoreService(historyService,imageService);
 
 switch (message.command) {

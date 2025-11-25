@@ -40,6 +40,23 @@ export class ImageStorageService {
         return fileName; // We only store "img_123.png" in the database
     }
 
+    
+    /**
+     * Deletes an image file from disk to free up space.
+     */
+    public async deleteImage(fileName: string): Promise<void> {
+        try {
+            const fileUri = vscode.Uri.joinPath(this.storageUri, fileName);
+            // useTrash: false means permanent delete (it's just a temp cache anyway)
+            await vscode.workspace.fs.delete(fileUri, { useTrash: false });
+            console.log(`🗑️ Deleted image: ${fileName}`);
+        } catch (e) {
+            // If file doesn't exist (already deleted), just ignore it
+            console.warn(`Could not delete ${fileName}, it might not exist.`);
+        }
+    }
+
+
     /**
      * Converts a stored filename into a VS Code Webview URI 
      * (Required to display the image in the chat window later)
