@@ -362,6 +362,7 @@ span.logo svg{
   max-width: 150px;
 }
 
+
 .attachment-image {
   width: 24px;
   height: 24px;
@@ -390,6 +391,33 @@ span.logo svg{
 .remove-attachment:hover {
   opacity: 1;
 }
+
+
+.message-images-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+.chat-bubble-image {
+  max-width: 250px; /* Limit width */
+  max-height: 200px; /* Limit height */
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  object-fit: contain;
+  background-color: rgba(0,0,0,0.1); /* Placeholder bg */
+  transition: transform 0.2s;
+  cursor: zoom-in; /* Hint that it could be viewed */
+}
+
+.chat-bubble-image:hover {
+  transform: scale(1.02);
+  border-color: var(--input-focus-border);
+}
+
 
 .input-toolbar {
   display: flex;

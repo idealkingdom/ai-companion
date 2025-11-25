@@ -60,6 +60,7 @@ export interface StoredMessage {
     role: ROLE;              
     message: string;         
     timestamp: string;
+    images?: string[];
 }
 
 

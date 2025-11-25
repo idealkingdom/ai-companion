@@ -288,15 +288,16 @@ function hideLoadingIndicator() {
 // --- MESSAGE HANDLING ---
 
 function appendUserMessage(message, images = []){
-  const escapedMessage = escapeHtml(message);
 
   const finalHTML = processMessageContent(message);
     
   let imagesHTML = '';
   if (images.length > 0) {
-      imagesHTML = '<div class="message-images-container" style="display: flex; flex-wrap: wrap; gap: 8px;">';
+      imagesHTML = '<div class="message-images-grid">';
       images.forEach(image => {
-          imagesHTML += `<img src="${image.dataUrl}" style="max-width: 150px; height: auto; border-radius: 8px; margin-top: 8px;" alt="${image.name}">`;
+          // image.dataUrl is either Base64 (Live) or vscode-resource:// (History)
+          // Both work automatically in the <img> tag.
+          imagesHTML += `<img src="${image.dataUrl}" class="chat-bubble-image" alt="${image.name || 'Attached Image'}" title="${image.name}">`;
       });
       imagesHTML += '</div>';
   }
@@ -603,8 +604,10 @@ window.addEventListener('message', event => {
     case CHAT_COMMANDS.CHAT_REQUEST:
       hideLoadingIndicator();
       if (message.role === ROLE.USER) {
-          appendUserMessage(message.content);
-          showLoadingIndicator();
+          appendUserMessage(message.content, message.images);
+          if (!message.isHistory) {
+             showLoadingIndicator();
+          }
       }else{
           appendAIMessage(message.content);
       }

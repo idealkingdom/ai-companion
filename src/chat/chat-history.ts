@@ -48,7 +48,7 @@ export class ChatHistoryService{
     /**
      * Main Logic: Save a message
      */
-    public async addMessage(chatId: string, role: ROLE, messageText: string): Promise<StoredMessage> {
+    public async addMessage(chatId: string, role: ROLE, messageText: string, images: string[] = []): Promise<StoredMessage> {
         let history = this.getHistory();
         const timestamp = new Date().toISOString();
         let chatIndex = history.findIndex(c => c.chat_id === chatId);
@@ -58,7 +58,8 @@ export class ChatHistoryService{
             message_id: ChatHistoryService.generateId(),
             role: role,
             message: messageText,
-            timestamp: timestamp
+            timestamp: timestamp,
+            images: images // <--- Save the filenames
         };
 
         if (chatIndex === -1) {
@@ -87,9 +88,28 @@ export class ChatHistoryService{
             history.splice(chatIndex, 1);
             history.unshift(chat);
         }
-
+        this.enforceStorageLimit(history);
         await this.storage.update(ChatHistoryService.STORAGE_KEY, history);
         return newMessage;
+    }
+    /**
+     * Removes oldest chats if history exceeds ~800KB (Safety Buffer)
+     */
+    private enforceStorageLimit(history: Conversation[]) {
+        const MAX_SIZE_BYTES = 1000 * 1024; // 1MB target
+        
+        // Rough estimation of size
+        let currentSize = JSON.stringify(history).length;
+
+        // While we are over the limit and have chats to delete...
+        while (currentSize > MAX_SIZE_BYTES && history.length > 0) {
+            // Remove the LAST element (The oldest chat, since we unshift new ones to 0)
+            const removed = history.pop(); 
+            console.log(`[Storage Saver] Deleted old chat: ${removed?.title}`);
+            
+            // Recalculate
+            currentSize = JSON.stringify(history).length;
+        }
     }
 
     /**
@@ -158,8 +178,6 @@ export class ChatHistoryService{
     public getFormattedHistoryGroups() {
         return this.formatGroups(this.getHistory());
     }
-
-
 
     /**
      * Get the last N messages for context.

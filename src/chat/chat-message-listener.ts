@@ -10,6 +10,7 @@ import { ChatViewProvider } from "./chat-view-provider";
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { processBinaryFile } from "./binary-handler";
+import { ImageStorageService } from "./image-storage";
 
 
     // message sent from client js
@@ -29,7 +30,8 @@ export async function chatMessageListener(message: any) {
     // 2. INSTANTIATE SERVICES
     // History needs storage, Core needs History.
     const historyService = new ChatHistoryService(context.globalState);
-    const coreService = new ChatCoreService(historyService);
+    const imageService = new ImageStorageService(context);
+    const coreService = new ChatCoreService(historyService,imageService);
 
 switch (message.command) {
         // --- 1. INIT ---
@@ -62,13 +64,14 @@ switch (message.command) {
             // FORMAT THE MESSAGE (Text + Files)
             const rawText = message.data.message;
             const files = message.data.files;
-            
+            const images = message.data.images;
             // This turns the text + files into one big Markdown string
             const formattedMessage = formatMessageWithFiles(rawText, files);
 
             await webview.postMessage({
                 command: CHAT_COMMANDS.CHAT_REQUEST, 
                 content: formattedMessage, 
+                images: images,
                 role: ROLE.USER
             });
 
@@ -115,10 +118,24 @@ switch (message.command) {
                 for (const msg of conversation.messages) {
                     // We use the existing 'chatRequest' command but add the 'role'
                     // so the frontend knows if it's USER or BOT.
+
+                    // RESOLVE IMAGES: Convert "img_123.png" -> "vscode-resource://..."
+                    let displayImages: any[] = [];
+                    if (msg.images && msg.images.length > 0) {
+                        displayImages = msg.images.map(fileName => ({
+                            name: "Image",
+                            dataUrl: imageService.getWebviewUri(fileName, webview)
+                        }));
+                    }
+
+
+
                     await webview.postMessage({
                         command: CHAT_COMMANDS.CHAT_REQUEST,
                         content: msg.message,
-                        role: msg.role === ROLE.USER ? ROLE.USER : ROLE.BOT
+                        images: displayImages,
+                        role: msg.role === ROLE.USER ? ROLE.USER : ROLE.BOT,
+                        isHistory: true, // TODO flag to avoid saving again
                     });
                 }
             }

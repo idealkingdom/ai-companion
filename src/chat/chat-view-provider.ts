@@ -59,8 +59,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         webviewView.webview.options = {
             enableScripts: true,
-            localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'webview', 'chatbox'),
-            vscode.Uri.joinPath(this.context.extensionUri, 'webview', 'libraries')
+            localResourceRoots: [
+                this.context.extensionUri,
+                this.context.globalStorageUri,
+                vscode.Uri.joinPath(this.context.extensionUri, 'webview', 'chatbox'),
+                vscode.Uri.joinPath(this.context.extensionUri, 'webview', 'libraries')
             ]
         };
         // READ BASE HTML - in this case chatbox.html
@@ -113,7 +116,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         // Inject the constants into the HTML by replacing the {{constants}} placeholder
         webviewView.webview.html = webviewView.webview.html.replace(`"{{CONSTANTS}}"`, SHARED_CONSTANTS);
 
-
+        
 
         ChatViewProvider._view = webviewView;
         // =================================================================

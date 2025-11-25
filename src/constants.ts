@@ -6,6 +6,6 @@ export enum MODEL_PROVIDER{
 }
 export enum OPEN_AI_MODELS{
     GPT41_NANO = 'gpt-4.1-nano',
-    GPT4 = 'gpt-4',
+    GPT4o = 'gpt-4o',
     GPT35_TURBO = 'gpt-3.5-turbo'
 }
