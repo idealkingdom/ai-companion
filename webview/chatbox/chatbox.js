@@ -577,10 +577,18 @@ window.addEventListener('DOMContentLoaded', ()=>{
 
       const type = item.dataset.type;
       
+      // 1. Current File
       if (type === 'current-file') {
             sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'currentFile' });
       }
-      //TODO: Add more context types here
+      // 2. Active Selection
+      else if (type === 'selection') {
+          sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'selection' });
+      }
+      // 3. Pick File
+      else if (type === 'search-files') {
+          sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'pickFile' });
+      }
       
       // Close menu
       contextMenu.classList.add('hidden');

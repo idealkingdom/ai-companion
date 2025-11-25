@@ -8,6 +8,9 @@ import { ChatCoreService } from "./chat-core"; // Assuming you updated this to a
 import { ChatHistoryService } from "./chat-history"; // Import the NEW Service
 import { ChatViewProvider } from "./chat-view-provider";
 import * as vscode from 'vscode';
+import * as path from 'path';
+import { processBinaryFile } from "./binary-handler";
+
 
     // message sent from client js
 export async function chatMessageListener(message: any) {
@@ -142,33 +145,125 @@ switch (message.command) {
         case CHAT_COMMANDS.ADD_CONTEXT:
             {
                 const editor = vscode.window.activeTextEditor;
+                const type = message.data.type;
 
-                if (!editor) {
-                    // No file is open
+                if (type === 'currentFile') {
+                    if (!editor) {
+                        // No file is open
+                        await webview.postMessage({
+                            command: 'error',
+                            content: 'No active text editor found.'
+                        });
+                        return;
+                    }
+
+                    const document = editor.document;
+                    const fileName = document.fileName.split(/[\\/]/).pop(); // Get just "script.js"
+                    const fileContent = document.getText();
+                    const languageId = document.languageId;
+
+                    // Send back to Frontend to "attach" it
                     await webview.postMessage({
-                        command: 'error',
-                        content: 'No active text editor found.'
+                        command: 'fileContextAdded', // We reuse your existing listener logic
+                        content: {
+                            name: fileName,
+                            text: fileContent,
+                            language: languageId,
+                            type: 'file'
+                        }
                     });
-                    return;
+
+                }
+                // --- B. ACTIVE SELECTION ---
+                else if (type === 'selection') {
+                    const editor = vscode.window.activeTextEditor;
+                    if (!editor) {
+                        vscode.window.showWarningMessage("No active editor found.");
+                        return;
+                    }
+
+                    const selection = editor.selection;
+                    const text = editor.document.getText(selection);
+
+                    if (!text) {
+                        vscode.window.showInformationMessage("No text selected.");
+                        return;
+                    }
+
+                    // We create a "virtual" filename for the selection
+                    const fileName = path.basename(editor.document.fileName);
+                    
+                    await webview.postMessage({
+                        command: 'fileContextAdded',
+                        content: {
+                            name: `Selection (${fileName})`, // e.g. "Selection (script.ts)"
+                            text: text,
+                            language: editor.document.languageId
+                        }
+                    });
+                }
+                // --- C. PICK FILE (Native Dialog) ---
+                else if (type === 'pickFile') {
+                    // Open the native OS file picker
+                    const uris = await vscode.window.showOpenDialog({
+                        canSelectMany: true,
+                        openLabel: 'Attach',
+                        title: 'Select files to attach to chat'
+                    });
+
+                    if (uris && uris.length > 0) {
+                        // Loop through all selected files
+                        for (const uri of uris) {
+                            try {
+                                const fileName = path.basename(uri.fsPath);
+                                const fileExt = fileName.split('.').pop()?.toLowerCase();
+                                
+                                let fileContent = "";
+                                let language = "";
+
+                                // --- A. CHECK FOR BINARIES ---
+                                if (fileExt === 'pdf') {
+                                    // Use our new binary handler
+                                    const extractedText = await processBinaryFile(uri);
+                                    if (extractedText) {
+                                        fileContent = extractedText;
+                                        language = "markdown"; // PDFs are just text, MD is a safe fallback
+                                    }
+                                } 
+                                // --- B. CHECK FOR IMAGES (If you want to handle them as context) ---
+                                else if (['png', 'jpg', 'jpeg', 'gif'].includes(fileExt || '')) {
+                                     // For images, we usually don't extract text unless using OCR.
+                                     // Ideally, you would push this to the 'images' array instead of 'files'.
+                                     vscode.window.showInformationMessage("Image attachment via file picker is not yet supported. Use Copy/Paste.");
+                                     continue;
+                                }
+                                // --- C. DEFAULT: TEXT FILES ---
+                                else {
+                                    const doc = await vscode.workspace.openTextDocument(uri);
+                                    fileContent = doc.getText();
+                                    language = doc.languageId;
+                                }
+
+                                // Send result to frontend
+                                await webview.postMessage({
+                                    command: 'fileContextAdded',
+                                    content: {
+                                        name: fileName,
+                                        text: fileContent,
+                                        language: language
+                                    }
+                                });
+
+                            } catch (error) {
+                                console.error(`Failed to read file: ${uri.fsPath}`, error);
+                                vscode.window.showErrorMessage(`Failed to attach ${path.basename(uri.fsPath)}`);
+                            }
+                        }
+                    }
                 }
 
-                const document = editor.document;
-                const fileName = document.fileName.split(/[\\/]/).pop(); // Get just "script.js"
-                const fileContent = document.getText();
-                const languageId = document.languageId;
-
-                // Send back to Frontend to "attach" it
-                await webview.postMessage({
-                    command: 'fileContextAdded', // We reuse your existing listener logic
-                    content: {
-                        name: fileName,
-                        text: fileContent,
-                        language: languageId,
-                        type: 'file'
-                    }
-                });
-
                 break;
+
             }
             
 
