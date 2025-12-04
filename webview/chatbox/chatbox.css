@@ -176,7 +176,7 @@ span.logo svg{
   border-radius: 12px; 
   padding: 10px 16px;
   width: auto;
-  max-width: 85%; 
+  max-width: 95%; 
   font-size: 1rem;
   line-height: 1.6;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
@@ -184,7 +184,7 @@ span.logo svg{
 
 .system-message {
   align-self: flex-start;
-  max-width: 90%;
+  max-width: 95%;
 }
 
 .system-message .message-content {
@@ -206,7 +206,7 @@ span.logo svg{
 
 @media (min-width: 900px) {
   .system-message, .user-message {
-    max-width: 700px;
+    max-width: 90%;
   }
 }
 
