@@ -1,10 +1,9 @@
 import * as vscode from 'vscode';
-import { ChatViewProvider } from "./chat-view-provider";
-import { CHAT_COMMANDS, ROLE, StoredMessage, Conversation } from "./chat-constants";
+import { ROLE, StoredMessage, Conversation } from "./chat-constants";
 import { ImageStorageService } from './image-storage';
 
 
-export class ChatHistoryService{
+export class ChatHistoryService {
 
 
     private static readonly STORAGE_KEY = 'spes_chat_history_v1';
@@ -13,7 +12,7 @@ export class ChatHistoryService{
     // context.globalState implements vscode.Memento
     constructor(
         private readonly storage: vscode.Memento,
-        private readonly imageService: ImageStorageService) {}
+        private readonly imageService: ImageStorageService) { }
 
 
     /**
@@ -30,7 +29,7 @@ export class ChatHistoryService{
         return this.storage.get<Conversation[]>(ChatHistoryService.STORAGE_KEY, []);
     }
 
-    
+
     /**
      * Get a specific conversation by ID
      */
@@ -54,7 +53,7 @@ export class ChatHistoryService{
                 }
             }
         }
-        
+
         await this.storage.update(ChatHistoryService.STORAGE_KEY, []);
     }
 
@@ -112,16 +111,16 @@ export class ChatHistoryService{
      */
     private enforceStorageLimit(history: Conversation[]) {
         const MAX_SIZE_BYTES = 1000 * 1024; // 1MB target
-        
+
         // Rough estimation of size
         let currentSize = JSON.stringify(history).length;
 
         // While we are over the limit and have chats to delete...
         while (currentSize > MAX_SIZE_BYTES && history.length > 0) {
             // Remove the LAST element (The oldest chat, since we unshift new ones to 0)
-            const removed = history.pop(); 
+            const removed = history.pop();
             console.log(`[Storage Saver] Deleted old chat: ${removed?.title}`);
-            
+
             // Recalculate
             currentSize = JSON.stringify(history).length;
         }
@@ -183,11 +182,11 @@ export class ChatHistoryService{
      * (Move your existing getFormattedHistoryGroups logic here so 'search' can use it too)
      */
     private formatGroups(historyList: Conversation[]) {
-         const groups: { [key: string]: any[] } = {};
+        const groups: { [key: string]: any[] } = {};
 
         historyList.forEach(chat => {
             const date = new Date(chat.timestamp);
-            let dateKey = date.toDateString(); 
+            let dateKey = date.toDateString();
             if (dateKey === new Date().toDateString()) dateKey = "Today";
 
             if (!groups[dateKey]) groups[dateKey] = [];
@@ -224,9 +223,9 @@ export class ChatHistoryService{
         // Internal: 'bot' -> OpenAI: 'assistant'
         // Internal: 'user' -> OpenAI: 'user'
         return lastMessages.map(msg => ({
-            role: msg.role === ROLE.BOT ? 'assistant' : 'user', 
+            role: msg.role === ROLE.BOT ? 'assistant' : 'user',
             content: msg.message
         }));
     }
 }
-  
+

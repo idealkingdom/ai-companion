@@ -51,7 +51,6 @@ export enum CHAT_COMMANDS {
   HISTORY_SEARCH = 'searchHistory',
   ADD_CONTEXT = 'addContext',
   FILE_CONTEXT_ADDED = 'fileContextAdded',
-
   PROBLEM_CONTEXT_ADDED = 'problemContextAdded'
 }
 
