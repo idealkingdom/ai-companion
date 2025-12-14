@@ -628,8 +628,11 @@ window.addEventListener('message', event => {
         const fileData = message.content;
         
         // Prevent duplicates
-        const exists = attachedFiles.find(f => f.name === fileData.name);
-        if (exists) { return; };
+        const exists = attachedFiles.find(
+            f => f.name === fileData.name
+            &&
+            f.content === fileData.text
+        );
 
         attachedFiles.push({
             name: fileData.name,
