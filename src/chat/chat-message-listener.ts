@@ -13,9 +13,9 @@ import { processBinaryFile } from "./binary-handler";
 import { ImageStorageService } from "./image-storage";
 
 
-    // message sent from client js
+// message sent from client js
 export async function chatMessageListener(message: any) {
-    
+
     // 1. GET DEPENDENCIES
     // We get the context from your Provider to initialize the History Service
     const context = ChatViewProvider.getContext();
@@ -29,136 +29,136 @@ export async function chatMessageListener(message: any) {
 
     const imageService = new ImageStorageService(context);
 
-    const historyService = new ChatHistoryService(context.globalState,imageService);
-    
-    const coreService = new ChatCoreService(historyService,imageService);
+    const historyService = new ChatHistoryService(context.globalState, imageService);
 
-switch (message.command) {
+    const coreService = new ChatCoreService(historyService, imageService);
+
+    switch (message.command) {
         // --- 1. INIT ---
         case CHAT_COMMANDS.CHAT_WEBVIEW_READY:
             {
-            // Now: We generate ID and send it manually, or add resetChat() to your Service.
-            const newChatId = coreService.generateChatID();
-            await webview.postMessage({
-                command: CHAT_COMMANDS.CHAT_RESET, 
-                content: { uid: newChatId } 
-            });
-            break;
+                // Now: We generate ID and send it manually, or add resetChat() to your Service.
+                const newChatId = coreService.generateChatID();
+                await webview.postMessage({
+                    command: CHAT_COMMANDS.CHAT_RESET,
+                    content: { uid: newChatId }
+                });
+                break;
             }
-        
+
         case CHAT_COMMANDS.CHAT_RESET:
             {
-            // Now: We generate ID and send it manually, or add resetChat() to your Service.
-            const newChatId = coreService.generateChatID();
-            await webview.postMessage({
-                command: CHAT_COMMANDS.CHAT_RESET, 
-                content: { uid: newChatId } 
-            });
-            break;
+                // Now: We generate ID and send it manually, or add resetChat() to your Service.
+                const newChatId = coreService.generateChatID();
+                await webview.postMessage({
+                    command: CHAT_COMMANDS.CHAT_RESET,
+                    content: { uid: newChatId }
+                });
+                break;
             }
-            
+
         case CHAT_COMMANDS.CHAT_REQUEST:
             {
-            // This handles saving User + AI msg to history internally.
-            
-            // FORMAT THE MESSAGE (Text + Files)
-            const rawText = message.data.message;
-            const files = message.data.files;
-            const images = message.data.images;
-            // This turns the text + files into one big Markdown string
-            const formattedMessage = formatMessageWithFiles(rawText, files);
+                // This handles saving User + AI msg to history internally.
 
-            await webview.postMessage({
-                command: CHAT_COMMANDS.CHAT_REQUEST, 
-                content: formattedMessage, 
-                images: images,
-                role: ROLE.USER
-            });
+                // FORMAT THE MESSAGE (Text + Files)
+                const rawText = message.data.message;
+                const files = message.data.files;
+                const images = message.data.images;
+                // This turns the text + files into one big Markdown string
+                const formattedMessage = formatMessageWithFiles(rawText, files);
 
-            // We replace the original message data with our new formatted one
-            const aiData = { 
-                ...message.data, 
-                message: formattedMessage, // <--- Pass the FULL content
-                files: [] // Clear files so Core doesn't double-append them
-            };
+                await webview.postMessage({
+                    command: CHAT_COMMANDS.CHAT_REQUEST,
+                    content: formattedMessage,
+                    images: images,
+                    role: ROLE.USER
+                });
 
-            const aiResponse = await coreService.processChatRequest(aiData);
-            webview.postMessage({
-                command: CHAT_COMMANDS.CHAT_REQUEST, 
-                content: aiResponse,
-                role: ROLE.BOT
-            });
-            break;
+                // We replace the original message data with our new formatted one
+                const aiData = {
+                    ...message.data,
+                    message: formattedMessage, // <--- Pass the FULL content
+                    files: [] // Clear files so Core doesn't double-append them
+                };
+
+                const aiResponse = await coreService.processChatRequest(aiData);
+                webview.postMessage({
+                    command: CHAT_COMMANDS.CHAT_REQUEST,
+                    content: aiResponse,
+                    role: ROLE.BOT
+                });
+                break;
             }
         // --- HISTORY: SHOW LIST ---
         case CHAT_COMMANDS.HISTORY_LOAD:
             {
-            const historyData = historyService.getFormattedHistoryGroups();
-            await webview.postMessage({
-                command: CHAT_COMMANDS.HISTORY_LOAD,
-                content: historyData
-            });
-            break;
+                const historyData = historyService.getFormattedHistoryGroups();
+                await webview.postMessage({
+                    command: CHAT_COMMANDS.HISTORY_LOAD,
+                    content: historyData
+                });
+                break;
             }
         // --- HISTORY: LOAD SPECIFIC CHAT ---
         case CHAT_COMMANDS.CHAT_LOAD:
             {
-            const targetId = message.data.chatId;
-            const conversation = historyService.getConversation(targetId);
+                const targetId = message.data.chatId;
+                const conversation = historyService.getConversation(targetId);
 
-            if (conversation) {
-                // A. Reset UI with the old ID
-                await webview.postMessage({
-                    command: CHAT_COMMANDS.CHAT_RESET,
-                    content: { uid: conversation.chat_id }
-                });
-
-                // B. Restore Messages
-                // We loop through the stored messages and send them to the UI
-                for (const msg of conversation.messages) {
-                    // We use the existing 'chatRequest' command but add the 'role'
-                    // so the frontend knows if it's USER or BOT.
-
-                    // RESOLVE IMAGES: Convert "img_123.png" -> "vscode-resource://..."
-                    let displayImages: any[] = [];
-                    if (msg.images && msg.images.length > 0) {
-                        displayImages = msg.images.map(fileName => ({
-                            name: "Image",
-                            dataUrl: imageService.getWebviewUri(fileName, webview)
-                        }));
-                    }
-
-
-
+                if (conversation) {
+                    // A. Reset UI with the old ID
                     await webview.postMessage({
-                        command: CHAT_COMMANDS.CHAT_REQUEST,
-                        content: msg.message,
-                        images: displayImages,
-                        role: msg.role === ROLE.USER ? ROLE.USER : ROLE.BOT,
-                        isHistory: true, // TODO flag to avoid saving again
+                        command: CHAT_COMMANDS.CHAT_RESET,
+                        content: { uid: conversation.chat_id }
                     });
+
+                    // B. Restore Messages
+                    // We loop through the stored messages and send them to the UI
+                    for (const msg of conversation.messages) {
+                        // We use the existing 'chatRequest' command but add the 'role'
+                        // so the frontend knows if it's USER or BOT.
+
+                        // RESOLVE IMAGES: Convert "img_123.png" -> "vscode-resource://..."
+                        let displayImages: any[] = [];
+                        if (msg.images && msg.images.length > 0) {
+                            displayImages = msg.images.map(fileName => ({
+                                name: "Image",
+                                dataUrl: imageService.getWebviewUri(fileName, webview)
+                            }));
+                        }
+
+
+
+                        await webview.postMessage({
+                            command: CHAT_COMMANDS.CHAT_REQUEST,
+                            content: msg.message,
+                            images: displayImages,
+                            role: msg.role === ROLE.USER ? ROLE.USER : ROLE.BOT,
+                            isHistory: true, // TODO flag to avoid saving again
+                        });
+                    }
                 }
+                break;
             }
-            break;
-            }
-            // --- CLEAR HISTORY ---
+        // --- CLEAR HISTORY ---
         case CHAT_COMMANDS.HISTORY_CLEAR:
             {
-            await historyService.clear();
-            await webview.postMessage({
-                command: CHAT_COMMANDS.HISTORY_LOAD,
-                content: []
-            });
-            break;
+                await historyService.clear();
+                await webview.postMessage({
+                    command: CHAT_COMMANDS.HISTORY_LOAD,
+                    content: []
+                });
+                break;
             }
 
         case CHAT_COMMANDS.CONVERSATION_DELETE:
             {
-            const targetId = message.data.chatId;
-            await historyService.deleteConversation(targetId);
-            break;
+                const targetId = message.data.chatId;
+                await historyService.deleteConversation(targetId);
+                break;
             }
-        
+
         case CHAT_COMMANDS.ADD_CONTEXT:
             {
                 const editor = vscode.window.activeTextEditor;
@@ -209,7 +209,7 @@ switch (message.command) {
 
                     // We create a "virtual" filename for the selection
                     const fileName = path.basename(editor.document.fileName);
-                    
+
                     await webview.postMessage({
                         command: 'fileContextAdded',
                         content: {
@@ -234,7 +234,7 @@ switch (message.command) {
                             try {
                                 const fileName = path.basename(uri.fsPath);
                                 const fileExt = fileName.split('.').pop()?.toLowerCase();
-                                
+
                                 let fileContent = "";
                                 let language = "";
 
@@ -246,13 +246,13 @@ switch (message.command) {
                                         fileContent = extractedText;
                                         language = "markdown"; // PDFs are just text, MD is a safe fallback
                                     }
-                                } 
+                                }
                                 // --- B. CHECK FOR IMAGES (If you want to handle them as context) ---
                                 else if (['png', 'jpg', 'jpeg', 'gif'].includes(fileExt || '')) {
-                                     // For images, we usually don't extract text unless using OCR.
-                                     // Ideally, you would push this to the 'images' array instead of 'files'.
-                                     vscode.window.showInformationMessage("Image attachment via file picker is not yet supported. Use Copy/Paste.");
-                                     continue;
+                                    // For images, we usually don't extract text unless using OCR.
+                                    // Ideally, you would push this to the 'images' array instead of 'files'.
+                                    vscode.window.showInformationMessage("Image attachment via file picker is not yet supported. Use Copy/Paste.");
+                                    continue;
                                 }
                                 // --- C. DEFAULT: TEXT FILES ---
                                 else {
@@ -282,7 +282,42 @@ switch (message.command) {
                 break;
 
             }
-            
+
+        // --- D. GET PROBLEMS ---
+        case CHAT_COMMANDS.GET_PROBLEMS:
+            {
+                const diagnostics = vscode.languages.getDiagnostics();
+                let problemsText = "";
+
+                for (const [uri, problems] of diagnostics) {
+                    if (problems.length === 0) { continue; }
+
+                    const relativePath = vscode.workspace.asRelativePath(uri);
+                    problemsText += `File: ${relativePath}\n`;
+
+                    problems.forEach(p => {
+                        problemsText += `  - [${vscode.DiagnosticSeverity[p.severity]}] Line ${p.range.start.line + 1}: ${p.message}\n`;
+                    });
+                    problemsText += "\n";
+                }
+
+                if (!problemsText) {
+                    problemsText = "No problems found in the workspace.";
+                }
+
+                // Send back to frontend
+                await webview.postMessage({
+                    command: CHAT_COMMANDS.PROBLEM_CONTEXT_ADDED,
+                    content: {
+                        name: "Workspace Problems",
+                        text: problemsText,
+                        language: "markdown", // It's a text summary
+                        type: 'problems'
+                    }
+                });
+                break;
+            }
+
 
 
         // Handle other messages here
@@ -291,20 +326,20 @@ switch (message.command) {
     }
 
 
- function formatMessageWithFiles(originalMessage: string, files: any[]): string {
-    let fullMessage = originalMessage;
+    function formatMessageWithFiles(originalMessage: string, files: any[]): string {
+        let fullMessage = originalMessage;
 
-    if (files && Array.isArray(files) && files.length > 0) {
-        fullMessage += "\n\n--- ATTACHED CONTEXT ---\n";
-        
-        files.forEach((file: any) => {
-            fullMessage += `\nFile: ${file.name}\n`;
-            // Wrap content in Markdown code blocks
-            fullMessage += "```" + (file.language || '') + "\n";
-            fullMessage += (file.content || '') + "\n"; 
-            fullMessage += "```\n";
-        });
+        if (files && Array.isArray(files) && files.length > 0) {
+            fullMessage += "\n\n--- ATTACHED CONTEXT ---\n";
+
+            files.forEach((file: any) => {
+                fullMessage += `\nFile: ${file.name}\n`;
+                // Wrap content in Markdown code blocks
+                fullMessage += "```" + (file.language || '') + "\n";
+                fullMessage += (file.content || '') + "\n";
+                fullMessage += "```\n";
+            });
+        }
+        return fullMessage;
     }
-    return fullMessage;
-}
 };

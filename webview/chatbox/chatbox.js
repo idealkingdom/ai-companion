@@ -10,17 +10,17 @@ const { CHAT_COMMANDS, ROLE } = window.VS_CONSTANTS;
  * @param {string} command - The command to execute.
  * @param {any} [data] - Optional data to send.
  */
-function sendMessage(command, data='') {
-  vscode.postMessage({
-    command: command,
-    data: data
-  });
+function sendMessage(command, data = '') {
+    vscode.postMessage({
+        command: command,
+        data: data
+    });
 }
 
 // --- GLOBALS ---
 const chatbox = document.getElementById("chatMessages");
 const chatLog = document.getElementById("chatLog");
-const chatWelcomeMessage = document.getElementById("chatWelcomeMessage");  
+const chatWelcomeMessage = document.getElementById("chatWelcomeMessage");
 const sendButton = document.getElementById('sendButton');
 const chatMessage = document.getElementById('messageInput');
 const attachmentsPreviewContainer = document.getElementById('attachments-preview-container');
@@ -41,7 +41,7 @@ const attachBtn = document.getElementById('atch-ctx-button');
  * @type {Array<{dataUrl: string, name: string}>}
  */
 let attachedImages = [];
-let attachedFiles = []; 
+let attachedFiles = [];
 
 // --- HELPER FUNCTIONS ---
 
@@ -52,9 +52,9 @@ let attachedFiles = [];
  * Hides the history view and shows the main chat view.
  */
 function showChatView() {
-  historyView.classList.remove('active-view');
-  chatView.classList.add('active-view');
-  chatMessage.focus(); // Focus the input
+    historyView.classList.remove('active-view');
+    chatView.classList.add('active-view');
+    chatMessage.focus(); // Focus the input
 }
 
 
@@ -63,27 +63,27 @@ function showChatView() {
  * @param {Array<Object>} historyGroups - Data from the extension
  */
 function showHistoryView(historyGroups) {
-  historyListContainer.innerHTML = ''; // Clear old history
+    historyListContainer.innerHTML = ''; // Clear old history
 
 
-  try {
-    if (!historyGroups || historyGroups.length === 0) {
-    historyListContainer.innerHTML = '<div class="empty-message">No chat history found.</div>';
-  } else {
-    for (const group of historyGroups) {
-      const groupEl = document.createElement('div');
-      groupEl.className = 'history-group';
-      const titleEl = document.createElement('h3');
-      titleEl.className = 'history-group-title';
-      titleEl.textContent = group.title;
-      groupEl.appendChild(titleEl);
+    try {
+        if (!historyGroups || historyGroups.length === 0) {
+            historyListContainer.innerHTML = '<div class="empty-message">No chat history found.</div>';
+        } else {
+            for (const group of historyGroups) {
+                const groupEl = document.createElement('div');
+                groupEl.className = 'history-group';
+                const titleEl = document.createElement('h3');
+                titleEl.className = 'history-group-title';
+                titleEl.textContent = group.title;
+                groupEl.appendChild(titleEl);
 
-      for (const item of group.chats) {
-        const itemEl = document.createElement('div');
-        itemEl.className = 'history-item';
-        itemEl.dataset.chatId = item.id;
-        const safeTitle = escapeHtml(item.title);
-        itemEl.innerHTML = `
+                for (const item of group.chats) {
+                    const itemEl = document.createElement('div');
+                    itemEl.className = 'history-item';
+                    itemEl.dataset.chatId = item.id;
+                    const safeTitle = escapeHtml(item.title);
+                    itemEl.innerHTML = `
         <div class="history-info">
             <span class="history-item-title" title="${safeTitle}">${safeTitle}</span>
             <span class="history-item-time">${item.time}</span>
@@ -92,38 +92,38 @@ function showHistoryView(historyGroups) {
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
         </button>
       `;
-        groupEl.appendChild(itemEl);
-      }
-      historyListContainer.appendChild(groupEl);
+                    groupEl.appendChild(itemEl);
+                }
+                historyListContainer.appendChild(groupEl);
+            }
+        }
+    } catch (error) {
+        console.error('Error rendering chat history:', error);
+        historyListContainer.innerHTML = '<div class="empty-message">Error loading chat history.</div>';
     }
-  }
-  } catch (error) {
-    console.error('Error rendering chat history:', error);
-    historyListContainer.innerHTML = '<div class="empty-message">Error loading chat history.</div>';
-  }
-  // Show the view
-  chatView.classList.remove('active-view');
-  historyView.classList.add('active-view');
+    // Show the view
+    chatView.classList.remove('active-view');
+    historyView.classList.add('active-view');
 }
 // --- END VIEW SWITCHING ---
 
 
 
-function toggleSendButton(mode="off"){
-    mode==="disabled" ? sendButton.classList.add("disabled") : sendButton.classList.remove("disabled"); 
+function toggleSendButton(mode = "off") {
+    mode === "disabled" ? sendButton.classList.add("disabled") : sendButton.classList.remove("disabled");
 }
 
 
 function escapeHtml(unsafe) {
-  return unsafe
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
-function getCurrentDate(){
+function getCurrentDate() {
     const now = new Date();
     const options = {
         month: 'short',
@@ -143,20 +143,20 @@ function scrollToBottom() {
 
 function copyCodeToClipboard(e) {
 
-const button = e.currentTarget;
+    const button = e.currentTarget;
 
-const code = button.nextElementSibling.innerText;
-if (!code) {
+    const code = button.nextElementSibling.innerText;
+    if (!code) {
         console.error('Could not find code element to copy.');
         return;
     }
-navigator.clipboard.writeText(code).then(() => {
-    button.innerHTML = 'Copied!';
-    setTimeout(() => {
-        button.innerHTML = copyCodeBtnHTML;
-    }, 2000);
+    navigator.clipboard.writeText(code).then(() => {
+        button.innerHTML = 'Copied!';
+        setTimeout(() => {
+            button.innerHTML = copyCodeBtnHTML;
+        }, 2000);
 
-});
+    });
 
 
 }
@@ -165,26 +165,26 @@ navigator.clipboard.writeText(code).then(() => {
 function addAllCopyButtons() {
     const pres = document.querySelectorAll('.message-text pre');
     pres.forEach(pre => {
-      if (pre.querySelector('.copy-code-btn')) { return; }
-      
-      // on click assign copyCodeToClipboard as html element
-      const copyButton = document.createElement('button');
-      copyButton.addEventListener('click', copyCodeToClipboard);
-      
-      copyButton.className = 'copy-code-btn';
-      copyButton.innerHTML = copyCodeBtnHTML;
-      copyButton.title = 'Copy code';
-      
-      copyButton.addEventListener('click', copyCodeToClipboard);
-  
-      pre.prepend(copyButton);
+        if (pre.querySelector('.copy-code-btn')) { return; }
+
+        // on click assign copyCodeToClipboard as html element
+        const copyButton = document.createElement('button');
+        copyButton.addEventListener('click', copyCodeToClipboard);
+
+        copyButton.className = 'copy-code-btn';
+        copyButton.innerHTML = copyCodeBtnHTML;
+        copyButton.title = 'Copy code';
+
+        copyButton.addEventListener('click', copyCodeToClipboard);
+
+        pre.prepend(copyButton);
     });
-  }
+}
 
 // --- ATTACHMENTS HANDLING ---
 function renderAttachments() {
     attachmentsPreviewContainer.innerHTML = '';
-    
+
     // 1. Render Images
     attachedImages.forEach((image, index) => {
         const pill = document.createElement('div');
@@ -209,11 +209,11 @@ function renderAttachments() {
         `;
         attachmentsPreviewContainer.appendChild(pill);
     });
-    
+
     // Helper functions need to be global for onclick to work, 
     // OR add event listeners properly
     addRemoveListeners();
-    
+
     attachmentsPreviewContainer.style.display = (attachedImages.length > 0 || attachedFiles.length > 0) ? 'flex' : 'none';
 }
 
@@ -223,12 +223,12 @@ function addRemoveListeners() {
     buttons.forEach((btn, i) => {
         // Simple logic: first N buttons are images, rest are files
         btn.addEventListener('click', () => {
-             if (i < attachedImages.length) {
-                 attachedImages.splice(i, 1);
-             } else {
-                 attachedFiles.splice(i - attachedImages.length, 1);
-             }
-             renderAttachments();
+            if (i < attachedImages.length) {
+                attachedImages.splice(i, 1);
+            } else {
+                attachedFiles.splice(i - attachedImages.length, 1);
+            }
+            renderAttachments();
         });
     });
 }
@@ -237,13 +237,13 @@ function addRemoveListeners() {
 function handleImageFiles(fileList, source) {
     const files = Array.from(fileList);
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
-    
+
     if (imageFiles.length > 0) {
         imageFiles.forEach(file => {
             const reader = new FileReader();
             reader.onload = (e) => {
                 const name = (source === 'upload') ? file.name : 'Pasted Image';
-                
+
                 attachedImages.push({
                     dataUrl: e.target.result,
                     name: name
@@ -256,12 +256,12 @@ function handleImageFiles(fileList, source) {
 }
 
 function showLoadingIndicator() {
-    hideLoadingIndicator(); 
+    hideLoadingIndicator();
 
     const loadingDiv = document.createElement('div');
     loadingDiv.className = 'loading-indicator';
     loadingDiv.id = 'loading-indicator';
-    
+
     loadingDiv.innerHTML = `
         <div class="message-content">
             <span class="ai-icon">${aiIconBtnHTML}</span>
@@ -272,7 +272,7 @@ function showLoadingIndicator() {
             </div>
         </div>
     `;
-    
+
     chatbox.appendChild(loadingDiv);
     scrollToBottom();
 }
@@ -287,84 +287,84 @@ function hideLoadingIndicator() {
 
 // --- MESSAGE HANDLING ---
 
-function appendUserMessage(message, images = []){
+function appendUserMessage(message, images = []) {
 
-  const finalHTML = processMessageContent(message);
-    
-  let imagesHTML = '';
-  if (images.length > 0) {
-      imagesHTML = '<div class="message-images-grid">';
-      images.forEach(image => {
-          // image.dataUrl is either Base64 (Live) or vscode-resource:// (History)
-          // Both work automatically in the <img> tag.
-          imagesHTML += `<img src="${image.dataUrl}" class="chat-bubble-image" alt="${image.name || 'Attached Image'}" title="${image.name}">`;
-      });
-      imagesHTML += '</div>';
-  }
-    
-  const userResponseHTML = `<div class="message-content user-message">
+    const finalHTML = processMessageContent(message);
+
+    let imagesHTML = '';
+    if (images.length > 0) {
+        imagesHTML = '<div class="message-images-grid">';
+        images.forEach(image => {
+            // image.dataUrl is either Base64 (Live) or vscode-resource:// (History)
+            // Both work automatically in the <img> tag.
+            imagesHTML += `<img src="${image.dataUrl}" class="chat-bubble-image" alt="${image.name || 'Attached Image'}" title="${image.name}">`;
+        });
+        imagesHTML += '</div>';
+    }
+
+    const userResponseHTML = `<div class="message-content user-message">
           ${imagesHTML}
           <span class="message-text">${finalHTML}</span>
           <div class="message-time">${getCurrentDate()}</div>
         </div> `;
 
-  if (!chatWelcomeMessage.classList.contains('hidden')) {
-      chatWelcomeMessage.classList.add('hidden');
-  }
+    if (!chatWelcomeMessage.classList.contains('hidden')) {
+        chatWelcomeMessage.classList.add('hidden');
+    }
 
 
-  const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = userResponseHTML;
-  
-  const newMessageElement = tempDiv.firstElementChild;
-  
-  chatbox.appendChild(newMessageElement);
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = userResponseHTML;
 
-  // Important: Since we injected new <pre> blocks inside the details, 
-  // we might want to re-run syntax highlighting or copy buttons
-  if (message.includes("--- ATTACHED CONTEXT ---")) {
-      setTimeout(() => {
-          hljs.highlightAll();
-          addAllCopyButtons();
-      }, 0);
-  }
+    const newMessageElement = tempDiv.firstElementChild;
 
-  scrollToBottom();
+    chatbox.appendChild(newMessageElement);
+
+    // Important: Since we injected new <pre> blocks inside the details, 
+    // we might want to re-run syntax highlighting or copy buttons
+    if (message.includes("--- ATTACHED CONTEXT ---")) {
+        setTimeout(() => {
+            hljs.highlightAll();
+            addAllCopyButtons();
+        }, 0);
+    }
+
+    scrollToBottom();
 }
 
 
-function appendAIMessage(response) { 
-  const parsedResponse = marked.parse(response);
-  const systemResponseHTML = `<div class="system-message">
+function appendAIMessage(response) {
+    const parsedResponse = marked.parse(response);
+    const systemResponseHTML = `<div class="system-message">
             <div class="message-content">
                 <div class="message-header"><span class="ai-icon">${aiIconBtnHTML}</span> Companion</div>
                 <span class="message-text">${parsedResponse}</span>
                 <div class="message-time">${getCurrentDate()}</div>
             </div>
             </div>`;
-            
-
-  if (!chatWelcomeMessage.classList.contains('hidden')) {
-      chatWelcomeMessage.classList.add('hidden');
-  }
 
 
-  const tempDiv = document.createElement('div');
-  
+    if (!chatWelcomeMessage.classList.contains('hidden')) {
+        chatWelcomeMessage.classList.add('hidden');
+    }
 
-  tempDiv.innerHTML = systemResponseHTML;
 
-  const newMessageElement = tempDiv.firstElementChild;
-  
-  chatbox.appendChild(newMessageElement);
-  
-  hljs.highlightAll();
-  addAllCopyButtons();
-  scrollToBottom();
+    const tempDiv = document.createElement('div');
+
+
+    tempDiv.innerHTML = systemResponseHTML;
+
+    const newMessageElement = tempDiv.firstElementChild;
+
+    chatbox.appendChild(newMessageElement);
+
+    hljs.highlightAll();
+    addAllCopyButtons();
+    scrollToBottom();
 }
 
 
-function chatRequest(content){
+function chatRequest(content) {
     sendMessage('chatRequest', content);
     appendUserMessage(content.message, content.images);
 }
@@ -383,38 +383,38 @@ function resetChat(content) {
 
 // 1. Send Button Click
 sendButton.addEventListener("click", event => {
-  const messageText = chatMessage.innerText.trim();
-  
-  // Update Condition: Check for files too
-  if (messageText || attachedImages.length > 0 || attachedFiles.length > 0) { 
-    
-    // --- PREPARE PAYLOAD ---
-    const payload = {
-        message: messageText, 
-        images: attachedImages, 
-        
-        // CRITICAL: Send the attached files to the backend
-        files: attachedFiles, 
-        
-        chat_id: chatLog.dataset.chatId, 
-        timestamp: new Date().toISOString()
-    };
+    const messageText = chatMessage.innerText.trim();
 
-    // --- SEND ---
-    sendMessage(CHAT_COMMANDS.CHAT_REQUEST, payload);
-  
-    // --- UI CLEANUP ---
-    showLoadingIndicator(); // Show dots while waiting for backend echo
-    toggleSendButton("disabled");
-    
-    chatMessage.innerText = "";
-    
-    // Clear both arrays
-    attachedImages = []; 
-    attachedFiles = [];
-    
-    renderAttachments(); // Removes the pills from the screen
-  }
+    // Update Condition: Check for files too
+    if (messageText || attachedImages.length > 0 || attachedFiles.length > 0) {
+
+        // --- PREPARE PAYLOAD ---
+        const payload = {
+            message: messageText,
+            images: attachedImages,
+
+            // CRITICAL: Send the attached files to the backend
+            files: attachedFiles,
+
+            chat_id: chatLog.dataset.chatId,
+            timestamp: new Date().toISOString()
+        };
+
+        // --- SEND ---
+        sendMessage(CHAT_COMMANDS.CHAT_REQUEST, payload);
+
+        // --- UI CLEANUP ---
+        showLoadingIndicator(); // Show dots while waiting for backend echo
+        toggleSendButton("disabled");
+
+        chatMessage.innerText = "";
+
+        // Clear both arrays
+        attachedImages = [];
+        attachedFiles = [];
+
+        renderAttachments(); // Removes the pills from the screen
+    }
 });
 
 /**
@@ -423,7 +423,7 @@ sendButton.addEventListener("click", event => {
  */
 function processMessageContent(rawText) {
     const splitMarker = "--- ATTACHED CONTEXT ---";
-    
+
     // 1. If no attachments, just return formatted text
     if (!rawText.includes(splitMarker)) {
         return escapeHtml(rawText).replace(/\n/g, "<br>");
@@ -440,7 +440,7 @@ function processMessageContent(rawText) {
     // 4. Parse the Context Block to find files
     // Regex looks for: File: name.ext \n ```lang ...content... ```
     const fileRegex = /File:\s*(.*?)\n```(\w*)\n([\s\S]*?)```/g;
-    
+
     let match;
     let attachmentsHTML = '<div class="attachments-container">';
     let foundFiles = false;
@@ -478,176 +478,207 @@ function processMessageContent(rawText) {
 }
 
 
-window.addEventListener('DOMContentLoaded', ()=>{
-  sendMessage("ChatWebviewReady");
+window.addEventListener('DOMContentLoaded', () => {
+    sendMessage("ChatWebviewReady");
 
-  const input = document.getElementById("messageInput");
-        
-  input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
+    const input = document.getElementById("messageInput");
+
+    input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            sendButton.click();
+        }
+    });
+
+    input.addEventListener("focusout", () => {
+        if (!input.textContent.trim().length) {
+            input.textContent = "";
+        }
+    });
+
+
+    input.addEventListener("paste", (event) => {
+        // 1. Stop all native pasting
         event.preventDefault();
-        sendButton.click();
-    }
-  });
+        const clipboardData = event.clipboardData || window.clipboardData;
 
-  input.addEventListener("focusout", () => {
-          if (!input.textContent.trim().length) {
-              input.textContent = "";
-          }
-      });
-  
+        // 2. Handle images
+        if (clipboardData.files && clipboardData.files.length > 0) {
+            if (Array.from(clipboardData.files).some(file => file.type.startsWith('image/'))) {
+                handleImageFiles(clipboardData.files, 'paste');
+                return;
+            }
+        }
 
-  input.addEventListener("paste", (event) => {
-      // 1. Stop all native pasting
-      event.preventDefault();
-      const clipboardData = event.clipboardData || window.clipboardData;
-      
-      // 2. Handle images
-      if (clipboardData.files && clipboardData.files.length > 0) {
-          if (Array.from(clipboardData.files).some(file => file.type.startsWith('image/'))) {
-              handleImageFiles(clipboardData.files, 'paste');
-              return;
-          }
-      }
+        // 3. Handle Text
+        const text = clipboardData.getData('text/plain');
+        if (!text) { return; };
 
-      // 3. Handle Text
-      const text = clipboardData.getData('text/plain');
-      if (!text) {return;};
+        // 4. Escape the text for HTML
+        const escapedText = text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        // Note: We don't replace \n with <br> because our CSS
+        // 'white-space: pre-wrap' already handles newlines correctly.
 
-      // 4. Escape the text for HTML
-      const escapedText = text
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;");
-          // Note: We don't replace \n with <br> because our CSS
-          // 'white-space: pre-wrap' already handles newlines correctly.
+        // 5. Use 'insertHTML'. This command inserts our plain, escaped text
+        //    and correctly adds the action to the undo/redo stack.
+        setTimeout(() => {
+            document.execCommand('insertHTML', false, escapedText);
+        }, 0);
 
-      // 5. Use 'insertHTML'. This command inserts our plain, escaped text
-      //    and correctly adds the action to the undo/redo stack.
-      setTimeout(() =>{
-        document.execCommand('insertHTML', false, escapedText);
-      },0);
-
-  });
+    });
 
 
-  imageUploadInput.addEventListener('change', (e) => {
-      if (e.target.files) {
-          handleImageFiles(e.target.files, 'upload');
-          e.target.value = null;
-      }
-  });
+    imageUploadInput.addEventListener('change', (e) => {
+        if (e.target.files) {
+            handleImageFiles(e.target.files, 'upload');
+            e.target.value = null;
+        }
+    });
 
 
-  // --- End of Listeners ---
+    // --- End of Listeners ---
 
-  renderAttachments(); 
-  input.focus();
+    renderAttachments();
+    input.focus();
 
-  // Configure marked
-  marked.setOptions({
-    highlight: function (code, lang) {
-      if (lang && hljs.getLanguage(lang)) {
-        return hljs.highlight(code, { language: lang }).value;
-      }
-      return hljs.highlightAuto(code).value;
-    },
-    langPrefix: 'hljs language-',
-    gfm: true,
-    breaks: true
-  });
+    // Configure marked
+    marked.setOptions({
+        highlight: function (code, lang) {
+            if (lang && hljs.getLanguage(lang)) {
+                return hljs.highlight(code, { language: lang }).value;
+            }
+            return hljs.highlightAuto(code).value;
+        },
+        langPrefix: 'hljs language-',
+        gfm: true,
+        breaks: true
+    });
 
 
     // Toggle Menu
-  attachBtn.addEventListener('click', (e) => {
-      e.stopPropagation(); // Prevent immediate closing
-      contextMenu.classList.toggle('hidden');
-  });
+    attachBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent immediate closing
+        contextMenu.classList.toggle('hidden');
+    });
 
-  // Close when clicking outside
-  document.addEventListener('click', (e) => {
-      if (!contextMenu.contains(e.target) && e.target !== attachBtn) {
-          contextMenu.classList.add('hidden');
-      }
-  });
+    // Close when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!contextMenu.contains(e.target) && e.target !== attachBtn) {
+            contextMenu.classList.add('hidden');
+        }
+    });
 
-  // Handle Item Clicks
-  contextMenu.addEventListener('click', (e) => {
-      const item = e.target.closest('.context-item');
-      if (!item) return;
+    // Handle Item Clicks
+    contextMenu.addEventListener('click', (e) => {
+        const item = e.target.closest('.context-item');
+        if (!item) return;
 
-      const type = item.dataset.type;
-      
-      // 1. Current File
-      if (type === 'current-file') {
+        const type = item.dataset.type;
+
+        // 1. Current File
+        if (type === 'current-file') {
             sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'currentFile' });
-      }
-      // 2. Active Selection
-      else if (type === 'selection') {
-          sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'selection' });
-      }
-      // 3. Pick File
-      else if (type === 'search-files') {
-          sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'pickFile' });
-      }
-      
-      // Close menu
-      contextMenu.classList.add('hidden');
-  });
+        }
+        // 2. Active Selection
+        else if (type === 'selection') {
+            sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'selection' });
+        }
+        // 3. Pick File
+        else if (type === 'search-files') {
+            sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'pickFile' });
+        }
+        // 4. Problems
+        else if (type === 'problems') {
+            sendMessage(CHAT_COMMANDS.GET_PROBLEMS);
+        }
+
+        // Close menu
+        contextMenu.classList.add('hidden');
+    });
 });
 
 
 // --- EVENT LISTENERS ---
 window.addEventListener('message', event => {
-  const message = event.data; 
-  switch (message.command) {
-    case CHAT_COMMANDS.CHAT_REQUEST:
-      hideLoadingIndicator();
-      if (message.role === ROLE.USER) {
-          appendUserMessage(message.content, message.images);
-          if (!message.isHistory) {
-             showLoadingIndicator();
-          }
-      }else{
-          appendAIMessage(message.content);
-      }
-      // Re-enable send button
-      toggleSendButton(0);
-      break;
-    // Case: Resetting the view / New Chat
-    case CHAT_COMMANDS.CHAT_RESET:
-      resetChat(message.content);
-      break;
-      
-    case CHAT_COMMANDS.HISTORY_LOAD:
-      showHistoryView(message.content); // Call the global function
-      break;
+    const message = event.data;
+    switch (message.command) {
+        case CHAT_COMMANDS.CHAT_REQUEST:
+            hideLoadingIndicator();
+            if (message.role === ROLE.USER) {
+                appendUserMessage(message.content, message.images);
+                if (!message.isHistory) {
+                    showLoadingIndicator();
+                }
+            } else {
+                appendAIMessage(message.content);
+            }
+            // Re-enable send button
+            toggleSendButton(0);
+            break;
+        // Case: Resetting the view / New Chat
+        case CHAT_COMMANDS.CHAT_RESET:
+            resetChat(message.content);
+            break;
 
-    // TODO: Implement file context handling
-    case CHAT_COMMANDS.FILE_CONTEXT_ADDED:
-        const fileData = message.content;
-        
-        // Prevent duplicates
-        const exists = attachedFiles.find(
-            f => f.name === fileData.name
-            && f.content.trim() === fileData.text.trim()
-        );
+        case CHAT_COMMANDS.HISTORY_LOAD:
+            showHistoryView(message.content); // Call the global function
+            break;
 
-        if (exists) { 
-            return;
-               
-        };
+        // TODO: Implement file context handling
+        case CHAT_COMMANDS.FILE_CONTEXT_ADDED:
+            const fileData = message.content;
 
-        attachedFiles.push({
-            name: fileData.name,
-            content: fileData.text,
-            language: fileData.language,
-            lines: fileData.text.split('\n').length
-        });
-        
-        renderAttachments();
-        break;
-    default:
-      console.error('Unknown command:', message.command);
-  }
+            // Prevent duplicates
+            const exists = attachedFiles.find(
+                f => f.name === fileData.name
+                    && f.content.trim() === fileData.text.trim()
+            );
+
+            if (exists) {
+                return;
+
+            };
+
+            attachedFiles.push({
+                name: fileData.name,
+                content: fileData.text,
+                language: fileData.language,
+                lines: fileData.text.split('\n').length
+            });
+
+            renderAttachments();
+            break;
+
+        case CHAT_COMMANDS.PROBLEM_CONTEXT_ADDED:
+            const problemData = message.content;
+
+            // Check if we already have problems attached
+            const existingIndex = attachedFiles.findIndex(f => f.name === problemData.name);
+
+            if (existingIndex !== -1) {
+                // REPLACE existing problems
+                attachedFiles[existingIndex] = {
+                    name: problemData.name,
+                    content: problemData.text,
+                    language: problemData.language,
+                    lines: problemData.text.split('\n').length
+                };
+            } else {
+                // NEW attachment
+                attachedFiles.push({
+                    name: problemData.name,
+                    content: problemData.text,
+                    language: problemData.language,
+                    lines: problemData.text.split('\n').length
+                });
+            }
+
+            renderAttachments();
+            break;
+        default:
+            console.error('Unknown command:', message.command);
+    }
 });

@@ -36,37 +36,39 @@ export const LIBRARIES_TO_LOAD = [
 export enum ROLE {
   USER = 'user',
   BOT = 'bot',
-}  
+}
 
 
 // commands messages for chat webview and extension
 export enum CHAT_COMMANDS {
-    CHAT_WEBVIEW_READY = 'ChatWebviewReady',
-    CHAT_RESET = 'resetChat',
-    CHAT_REQUEST = 'chatRequest',
-    CHAT_LOAD = 'loadChat',
-    HISTORY_LOAD = 'loadHistory',
-    HISTORY_CLEAR = 'clearHistory',
-    CONVERSATION_DELETE = 'deleteHistoryItem', 
-    HISTORY_SEARCH ='searchHistory',
-    ADD_CONTEXT= 'addContext',
-    FILE_CONTEXT_ADDED = 'fileContextAdded'
+  CHAT_WEBVIEW_READY = 'ChatWebviewReady',
+  CHAT_RESET = 'resetChat',
+  CHAT_REQUEST = 'chatRequest',
+  CHAT_LOAD = 'loadChat',
+  HISTORY_LOAD = 'loadHistory',
+  HISTORY_CLEAR = 'clearHistory',
+  CONVERSATION_DELETE = 'deleteHistoryItem',
+  HISTORY_SEARCH = 'searchHistory',
+  ADD_CONTEXT = 'addContext',
+  FILE_CONTEXT_ADDED = 'fileContextAdded',
+  GET_PROBLEMS = 'getProblems',
+  PROBLEM_CONTEXT_ADDED = 'problemContextAdded'
 }
 
 
 
 export interface StoredMessage {
-    message_id: string;       // Unique ID for every message
-    role: ROLE;              
-    message: string;         
-    timestamp: string;
-    images?: string[];
+  message_id: string;       // Unique ID for every message
+  role: ROLE;
+  message: string;
+  timestamp: string;
+  images?: string[];
 }
 
 
 export interface Conversation {
-    chat_id: string;       // The chat_id
-    title: string;    // Title (e.g. "How to use React")
-    timestamp: string; // Last modified time
-    messages: StoredMessage[];
+  chat_id: string;       // The chat_id
+  title: string;    // Title (e.g. "How to use React")
+  timestamp: string; // Last modified time
+  messages: StoredMessage[];
 }
