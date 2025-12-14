@@ -630,9 +630,13 @@ window.addEventListener('message', event => {
         // Prevent duplicates
         const exists = attachedFiles.find(
             f => f.name === fileData.name
-            &&
-            f.content === fileData.text
+            && f.content.trim() === fileData.text.trim()
         );
+
+        if (exists) { 
+            return;
+               
+        };
 
         attachedFiles.push({
             name: fileData.name,
