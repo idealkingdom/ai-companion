@@ -62,6 +62,7 @@ export interface StoredMessage {
   message: string;
   timestamp: string;
   images?: string[];
+  imageDescriptions?: string[]; // Cached descriptions for fallback/memory
 }
 
 

@@ -62,7 +62,7 @@ export class ChatHistoryService {
     /**
      * Main Logic: Save a message
      */
-    public async addMessage(chatId: string, role: ROLE, messageText: string, images: string[] = []): Promise<StoredMessage> {
+    public async addMessage(chatId: string, role: ROLE, messageText: string, images: string[] = [], imageDescriptions: string[] = []): Promise<StoredMessage> {
         let history = this.getHistory();
         const timestamp = new Date().toISOString();
         let chatIndex = history.findIndex(c => c.chat_id === chatId);
@@ -73,7 +73,9 @@ export class ChatHistoryService {
             role: role,
             message: messageText,
             timestamp: timestamp,
-            images: images // <--- Save the filenames
+
+            images: images, // <--- Save the filenames
+            imageDescriptions: imageDescriptions
         };
 
         if (chatIndex === -1) {
@@ -222,10 +224,18 @@ export class ChatHistoryService {
         // 2. Map internal roles to OpenAI roles
         // Internal: 'bot' -> OpenAI: 'assistant'
         // Internal: 'user' -> OpenAI: 'user'
-        return lastMessages.map(msg => ({
-            role: msg.role === ROLE.BOT ? 'assistant' : 'user',
-            content: msg.message
-        }));
+        return lastMessages.map(msg => {
+            let content = msg.message;
+            if (msg.imageDescriptions && msg.imageDescriptions.length > 0) {
+                const descText = msg.imageDescriptions.map((d, i) => `[Image ${i + 1} Description: ${d}]`).join("\n");
+                content += `\n\n${descText}`;
+            }
+
+            return {
+                role: msg.role === ROLE.BOT ? 'assistant' : 'user',
+                content: content
+            };
+        });
     }
 }
 
