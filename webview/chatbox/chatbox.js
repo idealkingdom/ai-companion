@@ -592,7 +592,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
         // 4. Problems
         else if (type === 'problems') {
-            sendMessage(CHAT_COMMANDS.GET_PROBLEMS);
+            sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'problems' });
         }
 
         // Close menu

@@ -279,43 +279,41 @@ export async function chatMessageListener(message: any) {
                     }
                 }
 
-                break;
+                // --- D. PROBLEMS ---
+                else if (type === 'problems') {
+                    const diagnostics = vscode.languages.getDiagnostics();
+                    let problemsText = "";
 
-            }
+                    for (const [uri, problems] of diagnostics) {
+                        if (problems.length === 0) { continue; }
 
-        // --- D. GET PROBLEMS ---
-        case CHAT_COMMANDS.GET_PROBLEMS:
-            {
-                const diagnostics = vscode.languages.getDiagnostics();
-                let problemsText = "";
+                        const relativePath = vscode.workspace.asRelativePath(uri);
+                        problemsText += `File: ${relativePath}\n`;
 
-                for (const [uri, problems] of diagnostics) {
-                    if (problems.length === 0) { continue; }
-
-                    const relativePath = vscode.workspace.asRelativePath(uri);
-                    problemsText += `File: ${relativePath}\n`;
-
-                    problems.forEach(p => {
-                        problemsText += `  - [${vscode.DiagnosticSeverity[p.severity]}] Line ${p.range.start.line + 1}: ${p.message}\n`;
-                    });
-                    problemsText += "\n";
-                }
-
-                if (!problemsText) {
-                    problemsText = "No problems found in the workspace.";
-                }
-
-                // Send back to frontend
-                await webview.postMessage({
-                    command: CHAT_COMMANDS.PROBLEM_CONTEXT_ADDED,
-                    content: {
-                        name: "Workspace Problems",
-                        text: problemsText,
-                        language: "markdown", // It's a text summary
-                        type: 'problems'
+                        problems.forEach(p => {
+                            problemsText += `  - [${vscode.DiagnosticSeverity[p.severity]}] Line ${p.range.start.line + 1}: ${p.message}\n`;
+                        });
+                        problemsText += "\n";
                     }
-                });
+
+                    if (!problemsText) {
+                        problemsText = "No problems found in the workspace.";
+                    }
+
+                    // Send back to frontend
+                    await webview.postMessage({
+                        command: CHAT_COMMANDS.PROBLEM_CONTEXT_ADDED,
+                        content: {
+                            name: "Workspace Problems",
+                            text: problemsText,
+                            language: "markdown", // It's a text summary
+                            type: 'problems'
+                        }
+                    });
+                }
+
                 break;
+
             }
 
 
