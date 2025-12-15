@@ -12,6 +12,8 @@ import { EXTENSION_NAME } from './constants';
 import { ChatViewProvider } from './chat/chat-view-provider';
 import { CHAT_COMMANDS } from './chat/chat-constants';
 import { chatMessageListener } from './chat/chat-message-listener';
+import { SettingsManager } from './services/settings-manager';
+import { SettingsView } from './settings/settings-view';
 
 // editor
 const editor = vscode.window.activeTextEditor;
@@ -30,8 +32,9 @@ export function activate(context: vscode.ExtensionContext) {
 
     // 3. Register the provider
     context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, provider,{
-			webviewOptions: { retainContextWhenHidden: true}})
+        vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, provider, {
+            webviewOptions: { retainContextWhenHidden: true }
+        })
     );
 
     // Register Load History Command
@@ -59,10 +62,11 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand(`${EXTENSION_NAME}.openSettings`, () => {
-            vscode.commands.executeCommand(
-                'workbench.action.openSettings',
-                `@${EXTENSION_NAME}` // Focus on the AI Companion extension settings
-            );
+            // Initialize Settings Manager (Singleton-ish or recreate)
+            // Ideally we should have a singleton or pass it around.
+            // For now, new instance is cheap as it just wraps context.
+            const settingsManager = new SettingsManager(context);
+            SettingsView.createOrShow(context, settingsManager);
         })
     );
 

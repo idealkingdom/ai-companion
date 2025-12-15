@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Companion Settings</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="main-layout">
+        <header class="top-nav">
+            <div class="logo-section">
+                <h2>AI Companion</h2>
+                <span class="badge">Settings</span>
+            </div>
+            <div class="tabs-section">
+                <button class="nav-tab active" data-tab="general">General</button>
+                <button class="nav-tab" data-tab="prompts">Prompt Chains</button>
+            </div>
+            <div class="actions-section">
+                <button id="saveBtn" class="primary-btn">Save Changes</button>
+            </div>
+        </header>
+
+        <div class="content-wrapper">
+            <!-- GENERAL TAB -->
+            <section id="general" class="tab-view active">
+                <div class="container-width">
+                    <div class="grid-layout">
+                        <!-- Model Config Card -->
+                        <div class="card full-width">
+                            <div class="card-header">
+                                <h3>Model Configuration</h3>
+                                <p class="card-desc">Configure your LLM provider and API details.</p>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="form-group col-4">
+                                        <label>Provider</label>
+                                        <select id="providerSelect">
+                                            <option value="OpenAI">OpenAI</option>
+                                            <option value="Gemini">Google Gemini</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col-8">
+                                        <label>API Key</label>
+                                        <div class="input-group">
+                                            <input type="password" id="apiKeyInput" placeholder="sk-...">
+                                            <button id="toggleKeyBtn" class="icon-btn"
+                                                title="Show/Hide Key">👁️</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Base URL (Optional)</label>
+                                    <input type="text" id="baseUrlInput" placeholder="https://api.openai.com/v1">
+                                </div>
+                                <div class="row">
+                                    <div class="form-group half">
+                                        <label>Text Model <button id="fetchModelsBtn" class="link-btn"
+                                                title="Refresh Models">🔄 Fetch</button></label>
+                                        <select id="textModelInput">
+                                            <!-- Populated by JS -->
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="imageModel">Image Model (Vision)</label>
+                                        <select id="imageModelInput">
+                                            <!-- Populated by JS -->
+                                        </select>
+                                        <small>Model used for reading images (e.g., gpt-4o, gemini-1.5-flash).</small>
+                                    </div>
+
+
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Parameters Card -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Parameters</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label>Temperature <span id="tempValue">0.7</span></label>
+                                    <input type="range" id="tempInput" min="0" max="2" step="0.1" value="0.7">
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Context</label>
+                                    <input type="number" id="contextInput" value="10" min="1" max="50">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card info-card">
+                            <div class="card-body">
+                                <p>ℹ️ These settings apply globally across all chat sessions.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- PROMPTS TAB -->
+            <section id="prompts" class="tab-view">
+                <div class="container-width">
+                    <div class="header-actions">
+                        <div class="header-text">
+                            <h2>Sequential Agents</h2>
+                            <p>Chain agents together. The output of Agent 1 becomes the input for Agent 2.</p>
+                        </div>
+                        <button id="addPromptBtn" class="secondary-btn">+ Add Agent</button>
+                    </div>
+
+                    <div id="promptsList" class="prompts-grid">
+                        <!-- Injected JS -->
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+    <script src="settings.js"></script>
+</body>
+
+</html>

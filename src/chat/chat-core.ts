@@ -8,12 +8,15 @@ import * as crypto from 'crypto';
 import { ImageStorageService } from './image-storage';
 import { ImageDescriptionService } from './image-description-service';
 
+import { SettingsManager } from '../services/settings-manager';
+
 export class ChatCoreService {
 
     constructor(
         private readonly historyService: ChatHistoryService,
         private readonly imageService: ImageStorageService,
-        private readonly descriptionService: ImageDescriptionService = new ImageDescriptionService()
+        private readonly settingsManager: SettingsManager,
+        private readonly descriptionService: ImageDescriptionService = new ImageDescriptionService(settingsManager)
     ) { }
 
     /**
@@ -41,12 +44,11 @@ export class ChatCoreService {
         const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
 
         // 1. GET SETTINGS
-        const config = vscode.workspace.getConfiguration('aiCompanion');
-        const maxContext = config.get<number>('maxContextMessages') || 10;
-        const systemPromptText = config.get<string>('systemPrompt') ||
-            "You are an expert code assistant. Answer coding relevant topics only.";
-        const accessToken = config.get<string>('accessToken') || '';
-        const temperature = config.get<number>('modelProvider.temperature') || 0.5;
+        const appSettings = this.settingsManager.getSettings();
+
+        const maxContext = appSettings.general.maxContextMessages;
+        const accessToken = appSettings.models.apiKey;
+        const temperature = appSettings.general.temperature;
 
         let aiResponseText = "";
 
@@ -133,7 +135,7 @@ export class ChatCoreService {
                 contextMessages.pop();
             }
 
-            const configModel = config.get<string>('modelProvider'); // e.g. "OpenAI", "Mistral"
+            const configModel = appSettings.models.provider; // e.g. "OpenAI", "Mistral"
             // Simple check: Only use Vision model if explicitly OpenAI + Has Images.
             // (You might want better logic if other providers support vision).
             const isVisionCapable = (configModel === 'OpenAI' || !configModel) && hasImages;
@@ -146,14 +148,16 @@ export class ChatCoreService {
             // BUT, if the user forced a text-only model setting (e.g. "DeepSeek"), we should respect that?
             // The prompt says "if we use doesn't support images... how can we deal with it?"
 
-            let targetModel = OPEN_AI_MODELS.GPT41_NANO;
+            let targetModel: string = 'gpt-4o-mini'; // Default fallback
             let finalContextMessages = [...contextMessages];
             let finalCurrentMessage: any = currentMessageContent;
 
             // Decision Logic
             if (hasImages) {
                 if (isVisionCapable) {
-                    targetModel = OPEN_AI_MODELS.GPT4o;
+                    targetModel = appSettings.models.imageModel || 'gpt-4o-mini';
+                    // If using a custom provider or model, we trust the setting.
+                    // For OpenAI compatibility, we ensure the model name is correct.
                 } else {
                     // FALLBACK: Text-Only Model selected or provider doesn't support vision
                     // Replace the Image Payload with Text Descriptions
@@ -162,6 +166,62 @@ export class ChatCoreService {
                     // Override the current message content to be just text
                     finalCurrentMessage = `${data.message}\n\n${descriptionContext}`;
                 }
+            } else {
+                targetModel = appSettings.models.textModel || 'gpt-4o';
+            }
+
+            // --- SEQUENTIAL PROMPT EXECUTION ---
+
+            // 1. Get Active Prompts
+            const activePrompts = appSettings.prompts
+                .filter((p: any) => p.isActive)
+                .sort((a: any, b: any) => a.order - b.order);
+
+            // 2. Define Execution Loop
+            // If no prompts are active, we run once with the default system prompt.
+            // If prompts are active, we run sequentially.
+            // Note: The 'User Message' for Step N+1 is the 'AI Response' from Step N.
+
+            let pipelineContext = finalCurrentMessage; // Start with user input (or multimodal array)
+            const steps = activePrompts.length > 0 ? activePrompts : [{ content: appSettings.general.systemPrompt || "You are a helpful assistant." }];
+
+            // Global settings overrides
+            const apiBaseUrl = appSettings.models.baseUrl;
+            const apiKey = appSettings.models.apiKey;
+
+            for (const step of steps) {
+
+                // Construct Payload for this step
+                // Ideally, we might want to keep history? 
+                // For a true chain, maybe only the immediate context matters, 
+                // OR we append the chain to the history?
+                // Let's keep the shared historyContext for now.
+
+                const apiPayload = [
+                    // The System Prompt for this specific agent
+                    { role: 'system', content: (step as any).content || step },
+                    ...finalContextMessages,
+                    { role: 'user', content: pipelineContext }
+                ];
+
+                // O1 Models do not support temperature (must be 1 or default).
+                // To be safe, if model is o1, we force temperature to 1 (or undefined if api supports it).
+                const isO1 = targetModel.startsWith('o1');
+                const requestTemperature = isO1 ? 1 : temperature;
+
+                // Call AI
+                const response = await openAIRequest(
+                    apiPayload,
+                    targetModel,
+                    apiKey || accessToken,
+                    requestTemperature,
+                    apiBaseUrl
+                );
+
+                // Output becomes input for next step (if any)
+                // If multimodal input was used in Step 1, the response text becomes text input for Step 2.
+                pipelineContext = response.content;
+                aiResponseText = response.content; // Update final result
             }
 
             // Also handle PREVIOUS context images?
@@ -177,20 +237,11 @@ export class ChatCoreService {
             // For now, let's assume getContextWindow returns the text prompt.
             // If we save descriptions in a separate field, they are NOT in 'message' text by default.
 
-            const apiPayload = [
-                { role: 'system', content: systemPromptText },
-                ...finalContextMessages,
-                { role: 'user', content: finalCurrentMessage }
-            ];
 
-            const response = await openAIRequest(
-                apiPayload,
-                targetModel,
-                accessToken,
-                temperature
-            );
 
-            aiResponseText = response.content;
+
+
+
 
             // --- STEP E: SAVE AI RESPONSE ---
             await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText);

@@ -11,6 +11,10 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { processBinaryFile } from "./binary-handler";
 import { ImageStorageService } from "./image-storage";
+import * as fs from 'fs';
+import * as os from 'os';
+import * as crypto from 'crypto';
+import { SettingsManager } from '../services/settings-manager';
 
 
 // message sent from client js
@@ -28,10 +32,13 @@ export async function chatMessageListener(message: any) {
 
 
     const imageService = new ImageStorageService(context);
+    const settingsManager = new SettingsManager(context);
 
+    // const historyService = new ChatHistoryService(context.globalState, imageService);
+    // Note: ChatHistoryService also needs context.globalState. It seems okay.
     const historyService = new ChatHistoryService(context.globalState, imageService);
 
-    const coreService = new ChatCoreService(historyService, imageService);
+    const coreService = new ChatCoreService(historyService, imageService, settingsManager);
 
     switch (message.command) {
         // --- 1. INIT ---
@@ -124,7 +131,8 @@ export async function chatMessageListener(message: any) {
                         if (msg.images && msg.images.length > 0) {
                             displayImages = msg.images.map(fileName => ({
                                 name: "Image",
-                                dataUrl: imageService.getWebviewUri(fileName, webview)
+                                dataUrl: imageService.getWebviewUri(fileName, webview),
+                                path: imageService.getImagePath(fileName).fsPath // <--- Send REAL path
                             }));
                         }
 
@@ -156,6 +164,50 @@ export async function chatMessageListener(message: any) {
             {
                 const targetId = message.data.chatId;
                 await historyService.deleteConversation(targetId);
+                await historyService.deleteConversation(targetId);
+                break;
+            }
+
+        case CHAT_COMMANDS.OPEN_IMAGE:
+            {
+                const data = message.data.path; // Can be path OR base64
+                if (!data) return;
+
+                let uri: vscode.Uri;
+
+                // Check if it's Base64
+                if (data.startsWith('data:')) {
+                    try {
+                        // 1. Parse Base64
+                        const matches = data.match(/^data:image\/([a-z]+);base64,(.+)$/);
+                        const ext = matches ? matches[1] : 'png';
+                        const rawData = matches ? matches[2] : data;
+                        const buffer = Buffer.from(rawData, 'base64');
+
+                        // 2. Generate Hash for Deduplication
+                        const hash = crypto.createHash('md5').update(buffer).digest('hex');
+                        const fileName = `vscode_ai_preview_${hash}.${ext}`;
+                        const tempPath = path.join(os.tmpdir(), fileName);
+
+                        // 3. Write only if not exists (Cache!)
+                        if (!fs.existsSync(tempPath)) {
+                            await fs.promises.writeFile(tempPath, buffer);
+                        }
+
+                        uri = vscode.Uri.file(tempPath);
+
+                    } catch (e) {
+                        console.error("Preview Error:", e);
+                        vscode.window.showErrorMessage("Failed to open image preview.");
+                        return;
+                    }
+                } else {
+                    // It's a normal path
+                    uri = vscode.Uri.file(data);
+                }
+
+                // Execute VS Code's native open command
+                vscode.commands.executeCommand('vscode.open', uri);
                 break;
             }
 
@@ -247,12 +299,24 @@ export async function chatMessageListener(message: any) {
                                         language = "markdown"; // PDFs are just text, MD is a safe fallback
                                     }
                                 }
-                                // --- B. CHECK FOR IMAGES (If you want to handle them as context) ---
-                                else if (['png', 'jpg', 'jpeg', 'gif'].includes(fileExt || '')) {
-                                    // For images, we usually don't extract text unless using OCR.
-                                    // Ideally, you would push this to the 'images' array instead of 'files'.
-                                    vscode.window.showInformationMessage("Image attachment via file picker is not yet supported. Use Copy/Paste.");
-                                    continue;
+                                // --- B. CHECK FOR IMAGES (Supported Now) ---
+                                else if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(fileExt || '')) {
+                                    // Read file as Buffer
+                                    const fileData = await vscode.workspace.fs.readFile(uri);
+                                    const base64 = Buffer.from(fileData).toString('base64');
+                                    // mime type (simple check)
+                                    const mime = fileExt === 'jpg' ? 'jpeg' : fileExt;
+                                    const dataUrl = `data:image/${mime};base64,${base64}`;
+
+                                    // Send to Frontend
+                                    await webview.postMessage({
+                                        command: CHAT_COMMANDS.IMAGE_CONTEXT_ADDED,
+                                        content: {
+                                            name: fileName,
+                                            dataUrl: dataUrl
+                                        }
+                                    });
+                                    continue; // Skip the text file handling
                                 }
                                 // --- C. DEFAULT: TEXT FILES ---
                                 else {

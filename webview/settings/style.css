@@ -1,0 +1,429 @@
+:root {
+    --bg-color: var(--vscode-editor-background);
+    --header-bg: var(--vscode-titleBar-activeBackground, #1e1e1e);
+    --header-fg: var(--vscode-titleBar-activeForeground, #ffffff);
+    --card-bg: var(--vscode-editorWidget-background);
+    --text-primary: var(--vscode-editor-foreground);
+    --text-secondary: var(--vscode-descriptionForeground);
+    --accent: var(--vscode-textLink-foreground);
+    --border: var(--vscode-editorWidget-border);
+    --input-bg: var(--vscode-input-background);
+    --button-bg: var(--vscode-button-background);
+    --button-fg: var(--vscode-button-foreground);
+    --button-hover: var(--vscode-button-hoverBackground);
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    /* Stack header and content vertically */
+    overflow: hidden;
+}
+
+/* === LAYOUT === */
+
+/* Top Navigation Bar */
+.top-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 50px;
+    background-color: var(--header-bg);
+    color: var(--header-fg);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    /* Prevent header from shrinking */
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.logo-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+}
+
+.logo-section h2 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.badge {
+    background: rgba(255, 255, 255, 0.1);
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+/* Tabs */
+.tabs-section {
+    display: flex;
+    gap: 20px;
+    height: 100%;
+}
+
+.nav-tab {
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 0 10px;
+    height: 100%;
+    transition: all 0.2s;
+    font-weight: 500;
+}
+
+.nav-tab:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.nav-tab.active {
+    color: #fff;
+    border-bottom-color: var(--accent);
+}
+
+/* Main Content Wrapper */
+.content-wrapper {
+    flex: 1;
+    /* Take remaining space */
+    overflow-y: auto;
+    /* Scrollable */
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    /* Center content max-width */
+}
+
+/* View Container */
+.tab-view {
+    display: none;
+    width: 100%;
+}
+
+.tab-view.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+.container-width {
+    max-width: 900px;
+    margin: 0 auto;
+    width: 100%;
+    padding-bottom: 40px;
+    /* Space at bottom */
+}
+
+/* === GRID SYSTEM === */
+.grid-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.full-width {
+    grid-column: 1 / -1;
+}
+
+/* === CARD STYLES === */
+.card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.card-header {
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.card-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.card-desc {
+    margin: 4px 0 0 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.card-body {
+    padding: 20px;
+}
+
+/* Form Elements */
+.row {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.col-4 {
+    flex: 4;
+    min-width: 120px;
+}
+
+.col-8 {
+    flex: 8;
+    min-width: 200px;
+}
+
+.half {
+    flex: 1;
+    min-width: 200px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group:last-child {
+    margin-bottom: 0;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.input-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.input-group input {
+    flex: 1;
+}
+
+/* Ensure icon button in input group looks good */
+.input-group .icon-btn {
+    padding: 8px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    height: 100%;
+    /* Match input height if possible */
+}
+
+.input-group .icon-btn:hover {
+    background: var(--button-hover);
+    border-color: var(--accent);
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    padding: 10px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: inherit;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.link-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 0 4px;
+    margin-left: 8px;
+    text-decoration: underline;
+    opacity: 0.8;
+}
+
+.link-btn:hover {
+    opacity: 1;
+}
+
+/* === BUTTONS === */
+.primary-btn {
+    background-color: var(--button-bg);
+    color: var(--button-fg);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.primary-btn:hover {
+    background-color: var(--button-hover);
+}
+
+.secondary-btn {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.secondary-btn:hover {
+    background: rgba(128, 128, 128, 0.1);
+}
+
+/* === PROMPTS LIST === */
+.header-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.prompts-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.prompt-item {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.prompt-header {
+    padding: 12px 15px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid transparent;
+    cursor: pointer;
+}
+
+.prompt-item.expanded .prompt-header {
+    border-bottom-color: var(--border);
+}
+
+.prompt-index {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--header-bg);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: bold;
+    border: 1px solid var(--border);
+}
+
+.prompt-name-input {
+    flex: 1;
+    background: transparent;
+    border: 1px solid transparent;
+    font-weight: 600;
+    color: var(--text-primary);
+    padding: 4px 8px;
+}
+
+.prompt-name-input:hover,
+.prompt-name-input:focus {
+    border-color: var(--border);
+    background: var(--input-bg);
+}
+
+.prompt-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.icon-btn[disabled] {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.prompt-body {
+    padding: 15px;
+}
+
+/* Transitions */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-secondary);
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+}
+
+/* Animations */
+.prompt-item {
+    transition: border-color 0.2s;
+}
+
+.prompt-item:hover {
+    border-color: var(--accent);
+}
+
+/* Info Card */
+.info-card {
+    border-left: 3px solid var(--accent);
+}

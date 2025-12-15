@@ -190,7 +190,7 @@ function renderAttachments() {
         const pill = document.createElement('div');
         pill.className = 'attachment-pill';
         pill.innerHTML = `
-            <img src="${image.dataUrl}" class="attachment-image" alt="img">
+            <img src="${image.dataUrl}" class="attachment-image" alt="img" onclick="requestOpenImage('${image.dataUrl}')" title="Click to open">
             <span class="attachment-name">${image.name}</span>
             <button class="remove-attachment" onclick="removeImage(${index})">&times;</button>
         `;
@@ -296,8 +296,24 @@ function appendUserMessage(message, images = []) {
         imagesHTML = '<div class="message-images-grid">';
         images.forEach(image => {
             // image.dataUrl is either Base64 (Live) or vscode-resource:// (History)
-            // Both work automatically in the <img> tag.
-            imagesHTML += `<img src="${image.dataUrl}" class="chat-bubble-image" alt="${image.name || 'Attached Image'}" title="${image.name}">`;
+            let clickAction = '';
+
+            // Only allow clicking if it's a history image (vscode-resource) or we have a path
+            // For live base64 images, we can't easily "open" them in VS Code unless we saved them.
+            // But wait, our 'dataUrl' for history IS a valid URI (vscode-resource:).
+            // We need to send the original path.
+            // Actually, let's just send the src. The backend can figure it out?
+            // "vscode-resource:/..." -> might need conversion.
+
+            // If we have a real path (from history), use it. Otherwise fall back to dataUrl (which might fail if base64)
+            const openPath = image.path || image.dataUrl;
+
+            // To keep it simple: We'll attach an onclick that calls a function
+            imagesHTML += `<img src="${image.dataUrl}" 
+                class="chat-bubble-image clickable-image" 
+                alt="${image.name || 'Attached Image'}" 
+                title="Click to open in Editor"
+                onclick="requestOpenImage('${openPath.replace(/\\/g, '\\\\')}')">`; // Escape backslashes for Windows paths
         });
         imagesHTML += '</div>';
     }
@@ -600,6 +616,17 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+/**
+ * Request the extension to open the image.
+ * @param {string} dateUrlOrPath 
+ */
+function requestOpenImage(dateUrlOrPath) {
+    // If it's base64, we CAN now send it. The backend will save it to temp.
+    // if (dateUrlOrPath.startsWith('data:')) { ... }
+
+    sendMessage(CHAT_COMMANDS.OPEN_IMAGE, { path: dateUrlOrPath });
+}
+
 
 // --- EVENT LISTENERS ---
 window.addEventListener('message', event => {
@@ -649,6 +676,15 @@ window.addEventListener('message', event => {
                 lines: fileData.text.split('\n').length
             });
 
+            renderAttachments();
+            break;
+
+        case CHAT_COMMANDS.IMAGE_CONTEXT_ADDED:
+            const imgData = message.content;
+            attachedImages.push({
+                name: imgData.name,
+                dataUrl: imgData.dataUrl
+            });
             renderAttachments();
             break;
 

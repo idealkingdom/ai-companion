@@ -2,7 +2,11 @@ import { openAIRequest } from '../api/ai';
 import { OPEN_AI_MODELS } from '../constants';
 import * as vscode from 'vscode';
 
+import { SettingsManager } from '../services/settings-manager';
+
 export class ImageDescriptionService {
+
+    constructor(private readonly settingsManager: SettingsManager) { }
 
     /**
      * Generates a text description (caption) for a given Base64 image.
@@ -10,13 +14,12 @@ export class ImageDescriptionService {
      */
     public async describeImage(base64Image: string): Promise<string> {
         try {
-            // Get config
-            const config = vscode.workspace.getConfiguration('aiCompanion');
-            const accessToken = config.get<string>('accessToken') || '';
+            const appSettings = this.settingsManager.getSettings();
+            const accessToken = appSettings.models.apiKey;
 
             // Use gpt-4o-mini for fast/cheap vision
             // If strictly unavailable, could fallback to GPT-4o
-            const visionModel = "gpt-4o-mini";
+            const visionModel = appSettings.models.imageModel || "gpt-4o-mini";
 
             const messages = [
                 {

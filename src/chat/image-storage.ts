@@ -5,7 +5,7 @@ export class ImageStorageService {
 
     constructor(context: vscode.ExtensionContext) {
         // Use the specific storage folder for this extension
-        this.storageUri = context.globalStorageUri; 
+        this.storageUri = context.globalStorageUri;
         this.init();
     }
 
@@ -25,8 +25,8 @@ export class ImageStorageService {
     public async saveImage(base64Data: string): Promise<string> {
         // 1. Parse the header (e.g., "data:image/png;base64,")
         const matches = base64Data.match(/^data:image\/([a-z]+);base64,(.+)$/);
-        
-        const ext = matches ? matches[1] : 'png'; 
+
+        const ext = matches ? matches[1] : 'png';
         const rawData = matches ? matches[2] : base64Data;
 
         // 2. Generate unique filename
@@ -40,7 +40,7 @@ export class ImageStorageService {
         return fileName; // We only store "img_123.png" in the database
     }
 
-    
+
     /**
      * Deletes an image file from disk to free up space.
      */
@@ -64,5 +64,12 @@ export class ImageStorageService {
     public getWebviewUri(fileName: string, webview: vscode.Webview): string {
         const diskPath = vscode.Uri.joinPath(this.storageUri, fileName);
         return webview.asWebviewUri(diskPath).toString();
+    }
+
+    /**
+     * Get the absolute path URI of an image file
+     */
+    public getImagePath(fileName: string): vscode.Uri {
+        return vscode.Uri.joinPath(this.storageUri, fileName);
     }
 }
