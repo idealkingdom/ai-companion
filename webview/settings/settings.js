@@ -38,7 +38,7 @@ const imageModelInput = document.getElementById('imageModelInput');
 const tempInput = document.getElementById('tempInput');
 const tempValue = document.getElementById('tempValue');
 const contextInput = document.getElementById('contextInput');
-const toggleKeyBtn = document.getElementById('toggleKeyBtn');
+const showKeyToggle = document.getElementById('showKeyToggle');
 const fetchModelsBtn = document.getElementById('fetchModelsBtn');
 
 
@@ -139,9 +139,8 @@ tempInput.addEventListener('input', (e) => {
 });
 
 // Toggle API Key Visibility
-toggleKeyBtn.addEventListener('click', () => {
-    const currentType = apiKeyInput.getAttribute('type');
-    apiKeyInput.setAttribute('type', currentType === 'password' ? 'text' : 'password');
+showKeyToggle.addEventListener('change', (e) => {
+    apiKeyInput.setAttribute('type', e.target.checked ? 'text' : 'password');
 });
 
 // Fetch Models

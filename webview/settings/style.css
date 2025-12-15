@@ -427,3 +427,50 @@ textarea:focus {
 .info-card {
     border-left: 3px solid var(--accent);
 }
+
+/* === MODERN CHECKBOX === */
+.checkbox-wrapper {
+    margin-left: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.modern-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    user-select: none;
+}
+
+.modern-checkbox input {
+    display: none;
+}
+
+.checkbox-box {
+    display: none;
+    /* Hidden as requested */
+}
+
+.label-text {
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+}
+
+/* Checked State - Glow Effect */
+.modern-checkbox input:checked~.label-text {
+    color: var(--accent);
+    text-shadow: 0 0 10px rgba(55, 148, 255, 0.5);
+    /* Soft glow using blue-ish tint or var */
+    border-color: var(--accent);
+    background: rgba(55, 148, 255, 0.1);
+}
+
+.modern-checkbox:hover .label-text {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
