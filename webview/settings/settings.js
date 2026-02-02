@@ -11,13 +11,14 @@ let currentSettings = {
 };
 
 // Default lists to show before fetching
-const DEFAULT_MODELS = {
+// Models injected from backend
+let DEFAULT_MODELS = window.VS_MODELS || {
     'OpenAI': {
         text: ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'],
-        image: ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo'] // Vision capable models
+        image: ['gpt-4o', 'gpt-4-turbo']
     },
     'Gemini': {
-        text: ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-1.0-pro'],
+        text: ['gemini-1.5-pro', 'gemini-1.5-flash'],
         image: ['gemini-1.5-flash', 'gemini-1.5-pro']
     }
 };
@@ -39,7 +40,6 @@ const tempInput = document.getElementById('tempInput');
 const tempValue = document.getElementById('tempValue');
 const contextInput = document.getElementById('contextInput');
 const showKeyToggle = document.getElementById('showKeyToggle');
-const fetchModelsBtn = document.getElementById('fetchModelsBtn');
 
 
 // --- INITIALIZATION ---
@@ -143,20 +143,7 @@ showKeyToggle.addEventListener('change', (e) => {
     apiKeyInput.setAttribute('type', e.target.checked ? 'text' : 'password');
 });
 
-// Fetch Models
-fetchModelsBtn.addEventListener('click', () => {
-    const provider = currentSettings.models.provider;
-    // Uses current input values (user might have just typed them without switching providers)
-    const apiKey = apiKeyInput.value;
-    const baseUrl = baseUrlInput.value;
 
-    vscode.postMessage({
-        command: 'fetchModels',
-        provider,
-        apiKey,
-        baseUrl
-    });
-});
 
 // Save Button
 saveBtn.addEventListener('click', () => {
@@ -186,6 +173,11 @@ window.addEventListener('message', event => {
     switch (message.command) {
         case 'loadSettings':
             currentSettings = message.settings;
+            // Update available models from backend source of truth
+            if (message.availableModels) {
+                DEFAULT_MODELS = message.availableModels;
+            }
+
             // Ensure providerSettings exists in loaded data
             if (!currentSettings.models.providerSettings) {
                 currentSettings.models.providerSettings = {};
@@ -195,27 +187,7 @@ window.addEventListener('message', event => {
             populateForm();
             renderPrompts();
             break;
-        case 'updateModelList':
-            const { textModels, imageModels } = message;
 
-            // Populate Text Select
-            const textOptions = textModels.map(m => `<option value="${m}">${m}</option>`).join('');
-
-            // Populate Image Select
-            const imageOptions = imageModels.map(m => `<option value="${m}">${m}</option>`).join('');
-
-            // Preserve current selection if possible
-            const currentText = textModelInput.value;
-            const currentImage = imageModelInput.value;
-
-            textModelInput.innerHTML = textOptions;
-            imageModelInput.innerHTML = imageOptions;
-
-            // Try to restore selection
-            if (textModels.includes(currentText)) textModelInput.value = currentText;
-            if (imageModels.includes(currentImage)) imageModelInput.value = currentImage;
-
-            break;
     }
 });
 
@@ -357,6 +329,10 @@ function escapeHtml(unsafe) {
 
 function populateModelDropdowns(provider, selectedText, selectedImage) {
     const data = DEFAULT_MODELS[provider] || DEFAULT_MODELS['OpenAI'];
+
+    // Safety check: specific model data might not be loaded yet
+    if (!data || !data.text) return;
+
     let textList = [...data.text];
     let imageList = [...data.image];
 

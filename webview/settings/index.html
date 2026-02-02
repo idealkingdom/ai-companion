@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Companion Settings</title>
     <link rel="stylesheet" href="style.css">
+    <script>
+        window.VS_MODELS = "{{MODELS}}";
+    </script>
 </head>
 
 <body>
@@ -64,8 +67,7 @@
                                 </div>
                                 <div class="row">
                                     <div class="form-group half">
-                                        <label>Text Model <button id="fetchModelsBtn" class="link-btn"
-                                                title="Refresh Models">🔄 Fetch</button></label>
+                                        <label>Text Model</label>
                                         <select id="textModelInput">
                                             <!-- Populated by JS -->
                                         </select>

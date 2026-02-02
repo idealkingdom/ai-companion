@@ -1,6 +1,5 @@
 import { openAIRequest } from '../api/ai';
-import { OPEN_AI_MODELS } from '../constants';
-import * as vscode from 'vscode';
+
 
 import { SettingsManager } from '../services/settings-manager';
 

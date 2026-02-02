@@ -3,7 +3,6 @@ import { openAIRequest } from '../api/ai';
 import { outputChannel } from '../logger';
 import { ROLE } from '../chat/chat-constants';
 import { ChatHistoryService } from './chat-history';
-import { MODEL_PROVIDER, OPEN_AI_MODELS } from '../constants';
 import * as crypto from 'crypto';
 import { ImageStorageService } from './image-storage';
 import { ImageDescriptionService } from './image-description-service';
