@@ -13,14 +13,6 @@ let currentSettings = {
 // Default lists to show before fetching
 // Models injected from backend
 let DEFAULT_MODELS = window.VS_MODELS || {
-    'OpenAI': {
-        text: ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'],
-        image: ['gpt-4o', 'gpt-4-turbo']
-    },
-    'Gemini': {
-        text: ['gemini-1.5-pro', 'gemini-1.5-flash'],
-        image: ['gemini-1.5-flash', 'gemini-1.5-pro']
-    }
 };
 
 // --- DOM ELEMENTS ---
