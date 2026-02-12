@@ -1,3 +1,5 @@
+import { ProviderRegistry } from './providers/index.js';
+
 const vscode = acquireVsCodeApi();
 
 // --- STATE ---
@@ -54,18 +56,19 @@ providerSelect.addEventListener('change', (e) => {
     }
 
     // 3. Load values for new Provider
-    let defaults = currentSettings.models.providerSettings[newProvider] || { apiKey: '', baseUrl: '', textModel: '', imageModel: '' };
+    const providerInstance = ProviderRegistry.get(newProvider);
+    const providerDefaults = providerInstance.getDefaults();
+
+    let defaults = currentSettings.models.providerSettings[newProvider] || { ...providerDefaults };
 
     // PRESET BASE URL if empty
     if (!defaults.baseUrl && (!defaults.apiKey || defaults.apiKey === '')) {
-        // Only preset if effectively empty/unused to avoid overwriting user intent
-        if (newProvider === 'OpenAI') defaults.baseUrl = 'https://api.openai.com/v1';
-        if (newProvider === 'Gemini') defaults.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
+        defaults.baseUrl = providerDefaults.baseUrl;
     }
 
     // Determine target values
-    const defaultText = newProvider === 'Gemini' ? 'gemini-1.5-pro' : 'gpt-4o';
-    const defaultImage = newProvider === 'Gemini' ? 'gemini-1.5-flash-8b' : 'dall-e-3';
+    const defaultText = providerDefaults.textModel;
+    const defaultImage = providerDefaults.imageModel;
 
     const targetText = defaults.textModel || defaultText;
     const targetImage = defaults.imageModel || defaultImage;

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { MODEL_PROVIDER } from '../constants';
 
 export interface PromptDef {
     id: string;
@@ -19,7 +20,7 @@ export interface AppSettings {
         imageModel: string;
         baseUrl: string;
         apiKey: string;
-        provider: 'OpenAI' | 'Gemini';
+        provider: MODEL_PROVIDER.OPEN_AI | MODEL_PROVIDER.GEMINI;
 
         // Persisted per-provider settings
         providerSettings: {
@@ -45,10 +46,10 @@ const DEFAULT_SETTINGS: AppSettings = {
         imageModel: 'gpt-4o',
         baseUrl: '',
         apiKey: '',
-        provider: 'OpenAI',
+        provider: MODEL_PROVIDER.OPEN_AI,
         providerSettings: {
-            'OpenAI': { apiKey: '', baseUrl: 'https://api.openai.com/v1', textModel: 'gpt-4o', imageModel: 'gpt-4o' },
-            'Gemini': { apiKey: '', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', textModel: 'gemini-1.5-pro', imageModel: 'gemini-1.5-flash' }
+            [MODEL_PROVIDER.OPEN_AI]: { apiKey: '', baseUrl: 'https://api.openai.com/v1', textModel: 'gpt-4o', imageModel: 'gpt-4o' },
+            [MODEL_PROVIDER.GEMINI]: { apiKey: '', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', textModel: 'gemini-1.5-pro', imageModel: 'gemini-1.5-flash' }
         }
     },
     prompts: []
