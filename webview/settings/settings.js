@@ -323,13 +323,20 @@ function escapeHtml(unsafe) {
 }
 
 function populateModelDropdowns(provider, selectedText, selectedImage) {
+
     const data = DEFAULT_MODELS[provider] || DEFAULT_MODELS['OpenAI'];
 
     // Safety check: specific model data might not be loaded yet
-    if (!data || !data.text) return;
+    if (!data) return;
 
-    let textList = [...data.text];
-    let imageList = [...data.image];
+    // Structure from backend is { name: '...', models: { text: [], image: [] } }
+    // But we should also fail-safe if structure is flat
+    const source = data.models || data;
+
+    if (!source || !source.text) return;
+
+    let textList = [...source.text];
+    let imageList = [...source.image];
 
     // If selected model is not in default list, add it (preserves previously fetched selection)
     if (selectedText && !textList.includes(selectedText)) {

@@ -10,7 +10,7 @@ export class OpenAIProvider extends BaseProvider {
             apiKey: '',
             baseUrl: 'https://api.openai.com/v1',
             textModel: 'gpt-4o',
-            imageModel: 'dall-e-3'
+            imageModel: 'gpt-4o'
         };
     }
 }

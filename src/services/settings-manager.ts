@@ -49,7 +49,7 @@ const DEFAULT_SETTINGS: AppSettings = {
         provider: MODEL_PROVIDER.OPEN_AI,
         providerSettings: {
             [MODEL_PROVIDER.OPEN_AI]: { apiKey: '', baseUrl: 'https://api.openai.com/v1', textModel: 'gpt-4o', imageModel: 'gpt-4o' },
-            [MODEL_PROVIDER.GEMINI]: { apiKey: '', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', textModel: 'gemini-1.5-pro', imageModel: 'gemini-1.5-flash' }
+            [MODEL_PROVIDER.GEMINI]: { apiKey: '', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', textModel: 'gemini-2.5-pro', imageModel: 'gemini-2.5-pro' }
         }
     },
     prompts: []

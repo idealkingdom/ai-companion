@@ -1,8 +1,12 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import * as fs from 'fs';
+
+
+import { OutputChannel } from 'vscode';
 import { SettingsManager } from '../services/settings-manager';
-import { STATIC_MODELS } from '../constants';
+import { MODEL_PROVIDER_OPTIONS } from '../constants';
+import { outputChannel } from '../logger';
+
 
 export class SettingsView {
     public static currentPanel: SettingsView | undefined;
@@ -111,7 +115,8 @@ export class SettingsView {
         htmlContent = htmlContent.replace('settings.js', scriptUri.toString());
 
         // Inject Models
-        htmlContent = htmlContent.replace(`"{{MODELS}}"`, JSON.stringify(STATIC_MODELS));
+        outputChannel.appendLine(JSON.stringify(Object.keys(MODEL_PROVIDER_OPTIONS)));
+        htmlContent = htmlContent.replace(`"{{MODELS}}"`, JSON.stringify(MODEL_PROVIDER_OPTIONS));
 
         // Inject Nonce (Safety) - If we add CSP
         // htmlContent = htmlContent.replace(/nonce-PLACEHOLDER/g, nonce);

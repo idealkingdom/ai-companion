@@ -9,8 +9,8 @@ export class GeminiProvider extends BaseProvider {
         return {
             apiKey: '',
             baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-            textModel: 'gemini-1.5-pro',
-            imageModel: 'gemini-1.5-flash-8b'
+            textModel: 'gemini-2.5-pro',
+            imageModel: 'gemini-2.5-pro'
         };
     }
 }
