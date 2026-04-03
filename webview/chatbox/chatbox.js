@@ -233,6 +233,7 @@ function addRemoveListeners() {
     });
 }
 
+let pastedImageCounter = 0;
 // Handle image files from input or paste
 function handleImageFiles(fileList, source) {
     const files = Array.from(fileList);
@@ -242,17 +243,61 @@ function handleImageFiles(fileList, source) {
         imageFiles.forEach(file => {
             const reader = new FileReader();
             reader.onload = (e) => {
-                const name = (source === 'upload') ? file.name : 'Pasted Image';
-
-                attachedImages.push({
-                    dataUrl: e.target.result,
-                    name: name
-                });
-                renderAttachments();
+                let name = file.name;
+                if (source !== 'upload') {
+                    pastedImageCounter++;
+                    name = `Pasted Image ${pastedImageCounter}`;
+                }
+                insertInlineImage(e.target.result, name);
             };
             reader.readAsDataURL(file);
         });
     }
+}
+
+function insertInlineImage(dataUrl, name) {
+    chatMessage.focus();
+    
+    // ensure cursor is inside chatMessage
+    const selection = window.getSelection();
+    let isInside = false;
+    if (selection.rangeCount > 0) {
+        let node = selection.getRangeAt(0).commonAncestorContainer;
+        while(node) {
+            if (node === chatMessage) { isInside = true; break; }
+            node = node.parentNode;
+        }
+    }
+    if (!isInside && typeof document.createRange !== 'undefined') {
+        const range = document.createRange();
+        range.selectNodeContents(chatMessage);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+    
+    const id = "pill-" + Date.now() + Math.floor(Math.random() * 1000);
+    const html = `<span id="${id}" class="inline-attachment-pill" contenteditable="false" data-image="true" data-name="${escapeHtml(name)}" data-url="${dataUrl}" onclick="requestOpenImage(this.dataset.url)" title="Click to view image">[${escapeHtml(name)}]</span>&nbsp;`;
+    
+    document.execCommand('insertHTML', false, html);
+    
+    const insertedNode = document.getElementById(id);
+    if (insertedNode && window.getSelection) {
+        const range = document.createRange();
+        if (insertedNode.nextSibling) {
+            range.setStart(insertedNode.nextSibling, insertedNode.nextSibling.textContent.length);
+        } else {
+            range.setStartAfter(insertedNode);
+        }
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        insertedNode.removeAttribute("id");
+    }
+    
+    chatMessage.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function showLoadingIndicator() {
@@ -289,43 +334,31 @@ function hideLoadingIndicator() {
 
 function appendUserMessage(message, images = []) {
 
-    const finalHTML = processMessageContent(message);
+    let finalHTML = processMessageContent(message);
 
-    let imagesHTML = '';
-    if (images.length > 0) {
-        imagesHTML = '<div class="message-images-grid">';
+    if (images && images.length > 0) {
         images.forEach(image => {
-            // image.dataUrl is either Base64 (Live) or vscode-resource:// (History)
-            let clickAction = '';
-
-            // Only allow clicking if it's a history image (vscode-resource) or we have a path
-            // For live base64 images, we can't easily "open" them in VS Code unless we saved them.
-            // But wait, our 'dataUrl' for history IS a valid URI (vscode-resource:).
-            // We need to send the original path.
-            // Actually, let's just send the src. The backend can figure it out?
-            // "vscode-resource:/..." -> might need conversion.
-
-            // If we have a real path (from history), use it. Otherwise fall back to dataUrl (which might fail if base64)
             const openPath = image.path || image.dataUrl;
-
-            // To keep it simple: We'll attach an onclick that calls a function
-            imagesHTML += `<img src="${image.dataUrl}" 
-                class="chat-bubble-image clickable-image" 
-                alt="${image.name || 'Attached Image'}" 
-                title="Click to open in Editor"
-                onclick="requestOpenImage('${openPath.replace(/\\/g, '\\\\')}')">`; // Escape backslashes for Windows paths
+            const marker = `[${escapeHtml(image.name)}]`;
+            // Link UI logic
+            const pillHTML = `<span class="inline-attachment-pill" contenteditable="false" onclick="requestOpenImage('${openPath.replace(/\\/g, '\\\\')}')" title="Click to view image">[${escapeHtml(image.name)}]</span>`;
+            
+            if (finalHTML.includes(marker)) {
+                finalHTML = finalHTML.replace(marker, pillHTML);
+            } else {
+                finalHTML += ` ${pillHTML}`;
+            }
         });
-        imagesHTML += '</div>';
     }
 
     const userResponseHTML = `<div class="message-content user-message">
-          ${imagesHTML}
           <span class="message-text">${finalHTML}</span>
           <div class="message-time">${getCurrentDate()}</div>
         </div> `;
 
     if (!chatWelcomeMessage.classList.contains('hidden')) {
         chatWelcomeMessage.classList.add('hidden');
+        document.querySelector('.chat-container').classList.remove('new-chat');
     }
 
 
@@ -362,6 +395,7 @@ function appendAIMessage(response) {
 
     if (!chatWelcomeMessage.classList.contains('hidden')) {
         chatWelcomeMessage.classList.add('hidden');
+        document.querySelector('.chat-container').classList.remove('new-chat');
     }
 
 
@@ -389,8 +423,10 @@ function resetChat(content) {
     chatMessages.innerHTML = '';
     chatLog.dataset.chatId = content.uid;
     attachedImages = [];
+    attachedFiles = [];
     renderAttachments();
     chatWelcomeMessage.classList.remove('hidden');
+    document.querySelector('.chat-container').classList.add('new-chat');
     showChatView(); // Make sure we're on the chat view
     chatMessage.focus();
 }
@@ -399,15 +435,46 @@ function resetChat(content) {
 
 // 1. Send Button Click
 sendButton.addEventListener("click", event => {
+    const imagePills = chatMessage.querySelectorAll('.inline-attachment-pill[data-image="true"]');
+    const dynamicAttachedImages = [];
+    const usedNames = new Set();
+    
+    imagePills.forEach(pill => {
+        let name = pill.dataset.name;
+        let originalName = name;
+        let counter = 1;
+        while (usedNames.has(name)) {
+            const dotRegex = /(.*)(\.[a-zA-Z0-9]+)$/;
+            const match = originalName.match(dotRegex);
+            if (match) {
+                name = `${match[1]}_${counter}${match[2]}`;
+            } else {
+                name = `${originalName}_${counter}`;
+            }
+            counter++;
+        }
+        usedNames.add(name);
+        
+        if (pill.dataset.name !== name) {
+            pill.dataset.name = name;
+            pill.innerHTML = `[${escapeHtml(name)}]`;
+        }
+
+        dynamicAttachedImages.push({
+            name: name,
+            dataUrl: pill.dataset.url
+        });
+    });
+
     const messageText = chatMessage.innerText.trim();
 
     // Update Condition: Check for files too
-    if (messageText || attachedImages.length > 0 || attachedFiles.length > 0) {
+    if (messageText || dynamicAttachedImages.length > 0 || attachedFiles.length > 0) {
 
         // --- PREPARE PAYLOAD ---
         const payload = {
             message: messageText,
-            images: attachedImages,
+            images: dynamicAttachedImages,
 
             // CRITICAL: Send the attached files to the backend
             files: attachedFiles,
@@ -423,13 +490,13 @@ sendButton.addEventListener("click", event => {
         showLoadingIndicator(); // Show dots while waiting for backend echo
         toggleSendButton("disabled");
 
-        chatMessage.innerText = "";
+        chatMessage.innerHTML = "";
 
-        // Clear both arrays
-        attachedImages = [];
+        // Clear files array
         attachedFiles = [];
+        // No need to clear attachedImages since they are dynamically populated
 
-        renderAttachments(); // Removes the pills from the screen
+        renderAttachments(); // Removes the file pills from the screen
     }
 });
 
@@ -590,7 +657,9 @@ window.addEventListener('DOMContentLoaded', () => {
     // Handle Item Clicks
     contextMenu.addEventListener('click', (e) => {
         const item = e.target.closest('.context-item');
-        if (!item) return;
+        if (!item) {
+            return;
+        }
 
         const type = item.dataset.type;
 
@@ -681,11 +750,7 @@ window.addEventListener('message', event => {
 
         case CHAT_COMMANDS.IMAGE_CONTEXT_ADDED:
             const imgData = message.content;
-            attachedImages.push({
-                name: imgData.name,
-                dataUrl: imgData.dataUrl
-            });
-            renderAttachments();
+            insertInlineImage(imgData.dataUrl, imgData.name);
             break;
 
         case CHAT_COMMANDS.PROBLEM_CONTEXT_ADDED:

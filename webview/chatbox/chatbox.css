@@ -41,7 +41,7 @@ html, body {
 body {
   height: 100vh;
   width: 100vw;
-  background-color: var(--app-bg);
+  background-color: var(--chat-bg);
   color: var(--text-color);
   display: flex;
   align-items: stretch;
@@ -95,7 +95,7 @@ body {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background-color: var(--app-bg);
+  background-color: var(--chat-bg);
 }
 
 /* This class will be toggled by JS to show the correct view */
@@ -120,7 +120,7 @@ span.logo svg{
 .chat-container {
   height: 100vh;
   width: 100vw;
-  background: var(--app-bg);
+  background: var(--chat-bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -155,6 +155,11 @@ span.logo svg{
   user-select: none;
   font-size: 1.1rem;
   color: var(--text-color);
+  transition: opacity 0.5s ease;
+}
+.chat-message-welcome.hidden {
+  display: flex !important;
+  opacity: 0 !important;
 }
 .chat-message-welcome h1 {
   font-size: 3rem;
@@ -328,6 +333,8 @@ span.logo svg{
 .editor-wrapper {
   position: relative;
   width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   padding: 1rem;
@@ -336,6 +343,11 @@ span.logo svg{
   border-top: 1px solid var(--border-color);
   gap: 8px;
   box-sizing: border-box;
+  transition: margin-bottom 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+              max-width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+              border-radius 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+              border-color 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 #attachments-preview-container {
@@ -774,3 +786,24 @@ details[open] summary .file-arrow {
 .loading-dots span:nth-child(1) { animation-delay: 0s; }
 .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
 .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+/* Centering for New Chat transition wrapper */
+.chat-container.new-chat .editor-wrapper {
+  margin-bottom: 30vh;
+  max-width: 800px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+}
+
+.inline-attachment-pill {
+    display: inline;
+    color: var(--vscode-textLink-foreground, #3794ff);
+    text-decoration: underline;
+    user-select: none;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.inline-attachment-pill:hover {
+    color: var(--vscode-textLink-activeForeground, #55aaff);
+}
