@@ -105,6 +105,44 @@ export async function chatMessageListener(message: any) {
                 });
                 break;
             }
+
+        case CHAT_COMMANDS.CHAT_RETRY:
+            {
+                const chatId = message.data.chat_id;
+                const deleteCount = message.data.count ?? 2;
+                const overrideMessage = message.data.overrideMessage ?? null;
+
+                // 1. Delete messages from history, get the original user text back
+                const lastUserMessage = await historyService.deleteLastMessages(chatId, deleteCount);
+                const messageToSend = overrideMessage || lastUserMessage;
+                if (!messageToSend) { break; }
+
+                // 2. Re-stream using recovered or overridden message
+                const retryData = {
+                    message: messageToSend,
+                    chat_id: chatId,
+                    timestamp: new Date().toISOString(),
+                    files: [],
+                    images: []
+                };
+
+                webview.postMessage({ command: CHAT_COMMANDS.CHAT_STREAM_START });
+
+                const aiResponse = await coreService.processChatRequest(retryData, async (chunk) => {
+                    await webview.postMessage({
+                        command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
+                        content: chunk
+                    });
+                });
+
+                webview.postMessage({
+                    command: CHAT_COMMANDS.CHAT_STREAM_END,
+                    content: aiResponse,
+                    role: ROLE.BOT
+                });
+                break;
+            }
+
         // --- HISTORY: SHOW LIST ---
         case CHAT_COMMANDS.HISTORY_LOAD:
             {

@@ -56,7 +56,8 @@ export enum CHAT_COMMANDS {
   IMAGE_CONTEXT_ADDED = 'imageContextAdded',
   CHAT_STREAM_START = 'chatStreamStart',
   CHAT_STREAM_CHUNK = 'chatStreamChunk',
-  CHAT_STREAM_END = 'chatStreamEnd'
+  CHAT_STREAM_END = 'chatStreamEnd',
+  CHAT_RETRY = 'chatRetry'
 }
 
 

@@ -351,10 +351,24 @@ function appendUserMessage(message, images = []) {
         });
     }
 
-    const userResponseHTML = `<div class="message-content user-message">
-          <span class="message-text">${finalHTML}</span>
-          <div class="message-time">${getCurrentDate()}</div>
-        </div> `;
+    const userResponseHTML = `<div class="user-message" data-raw-text="${encodeURIComponent(message)}">
+          <div class="message-content">
+            <span class="message-text">${finalHTML}</span>
+            <div class="message-footer">
+              <div class="message-time">${getCurrentDate()}</div>
+              <div class="user-message-actions">
+                <button class="msg-action-btn retry-btn" title="Retry" onclick="retryLastMessage(this)">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
+                  Retry
+                </button>
+                <button class="msg-action-btn edit-btn" title="Edit & Send" onclick="editUserMessage(this)">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Edit
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>`;
 
     if (!chatWelcomeMessage.classList.contains('hidden')) {
         chatWelcomeMessage.classList.add('hidden');
@@ -430,6 +444,107 @@ function resetChat(content) {
     showChatView(); // Make sure we're on the chat view
     chatMessage.focus();
 }
+
+/**
+ * Retry: keep the user message, remove only all AI messages following it.
+ */
+function retryLastMessage(btn) {
+    const userMsgEl = btn ? btn.closest('.user-message') : null;
+    const allMessages = Array.from(chatbox.querySelectorAll('.user-message, .system-message'));
+    // Start removing from the message AFTER the user message
+    const startIdx = userMsgEl ? allMessages.indexOf(userMsgEl) + 1 : allMessages.length - 1;
+    if (startIdx <= 0 || startIdx > allMessages.length) { return; }
+
+    const removedCount = allMessages.length - startIdx;
+    for (let i = startIdx; i < allMessages.length; i++) {
+        allMessages[i].remove();
+    }
+
+    showLoadingIndicator();
+    toggleSendButton('disabled');
+    // removedCount messages removed, plus the user message itself needs to be re-sent = +1
+    sendMessage(CHAT_COMMANDS.CHAT_RETRY, { chat_id: chatLog.dataset.chatId, count: removedCount + 1 });
+}
+
+/**
+ * Edit: swap user message bubble with an inline editable textarea.
+ * On cancel, restore the original bubble.
+ */
+function editUserMessage(btn) {
+    const userMsgEl = btn.closest('.user-message');
+    const rawText = decodeURIComponent(userMsgEl.dataset.rawText || '');
+
+    // Only remove AI messages AFTER this user message (user bubble stays)
+    const allMessages = Array.from(chatbox.querySelectorAll('.user-message, .system-message'));
+    const startIdx = allMessages.indexOf(userMsgEl);
+    const messagesAfter = allMessages.slice(startIdx + 1);
+    messagesAfter.forEach(el => el.remove());
+    const removedCount = messagesAfter.length + 1; // +1 = the user msg itself for history delete
+
+    // Swap the text span for a textarea, IN-PLACE inside the existing bubble
+    const textSpan = userMsgEl.querySelector('.message-text');
+    const footer = userMsgEl.querySelector('.message-footer');
+    const actionsDiv = userMsgEl.querySelector('.user-message-actions');
+
+    // Build textarea to replace text span
+    const ta = document.createElement('textarea');
+    ta.className = 'edit-textarea';
+    ta.value = rawText;
+    ta.rows = Math.max(2, rawText.split('\n').length);
+    textSpan.replaceWith(ta);
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+
+    // Auto-grow helper (fallback for browsers without field-sizing support)
+    function autoGrow() {
+        ta.style.height = 'auto';
+        ta.style.height = Math.min(ta.scrollHeight, 220) + 'px';
+    }
+    ta.addEventListener('input', () => {
+        autoGrow();
+        sendBtn.disabled = !ta.value.trim();
+    });
+    autoGrow(); // run once on init
+
+    // Swap action buttons to Cancel/Send
+    const originalActionsHTML = actionsDiv.innerHTML;
+    actionsDiv.innerHTML = `
+        <button class="edit-cancel-btn">Cancel</button>
+        <button class="edit-send-btn" ${!rawText.trim() ? 'disabled' : ''}>Send</button>`;
+
+    const sendBtn = actionsDiv.querySelector('.edit-send-btn');
+
+    // Cancel: restore everything, put back AI messages
+    actionsDiv.querySelector('.edit-cancel-btn').addEventListener('click', () => {
+        ta.replaceWith(textSpan);
+        actionsDiv.innerHTML = originalActionsHTML;
+        // Re-attach action button listeners (onclick attributes are restored via innerHTML)
+        messagesAfter.forEach(el => chatbox.appendChild(el));
+    });
+
+    // Send: update bubble text, remove AI history, re-submit
+    sendBtn.addEventListener('click', () => {
+        const newText = ta.value.trim();
+        if (!newText) { return; }
+
+        // Restore bubble to display mode with updated text
+        textSpan.innerHTML = escapeHtml(newText).replace(/\n/g, '<br>');
+        ta.replaceWith(textSpan);
+        userMsgEl.dataset.rawText = encodeURIComponent(newText);
+        actionsDiv.innerHTML = originalActionsHTML;
+
+        showLoadingIndicator();
+        toggleSendButton('disabled');
+        sendMessage(CHAT_COMMANDS.CHAT_RETRY, {
+            chat_id: chatLog.dataset.chatId,
+            count: removedCount,
+            overrideMessage: newText
+        });
+    });
+
+    scrollToBottom();
+}
+
 
 
 

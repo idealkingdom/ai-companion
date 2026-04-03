@@ -153,6 +153,33 @@ export class ChatHistoryService {
         await this.storage.update(ChatHistoryService.STORAGE_KEY, newHistory);
     }
 
+    /**
+     * Deletes the last N messages from a conversation (for Retry).
+     * Returns the text of the last user message so it can be re-submitted.
+     */
+    public async deleteLastMessages(chatId: string, count: number = 2): Promise<string | null> {
+        const history = this.getHistory();
+        const chatIndex = history.findIndex(c => c.chat_id === chatId);
+        if (chatIndex === -1) { return null; }
+
+        const chat = history[chatIndex];
+        const removed = chat.messages.splice(-count, count);
+
+        // Clean up any images from removed messages
+        for (const msg of removed) {
+            if (msg.images && msg.images.length > 0) {
+                for (const fileName of msg.images) {
+                    await this.imageService.deleteImage(fileName);
+                }
+            }
+        }
+
+        // The last user message is the one we want to re-submit
+        const lastUserMsg = removed.find(m => m.role === ROLE.USER);
+        await this.storage.update(ChatHistoryService.STORAGE_KEY, history);
+        return lastUserMsg?.message ?? null;
+    }
+
 
     /**
      * SEARCH history
