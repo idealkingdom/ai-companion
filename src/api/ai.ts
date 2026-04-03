@@ -1,5 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import { generateText } from 'ai';
+import { generateText, streamText } from 'ai';
 import { outputChannel } from '../logger';
 
 /**
@@ -30,5 +30,31 @@ export async function openAIRequest(
     } catch (error) {
         outputChannel.appendLine("Error during OpenAI Request: " + error);
         throw error; // Rethrow so the caller knows it failed
+    }
+}
+
+export async function openAIStreamRequest(
+    messages: any[],
+    model: string,
+    accessToken: string,
+    temperature: number,
+    baseUrl?: string
+) {
+    const openai = createOpenAI({
+        apiKey: accessToken,
+        baseURL: baseUrl || undefined,
+    });
+
+    try {
+        const result = await streamText({
+            model: openai(model),
+            messages: messages,
+            temperature: temperature,
+        });
+
+        return result;
+    } catch (error) {
+        outputChannel.appendLine("Error during OpenAI Stream Request: " + error);
+        throw error;
     }
 }

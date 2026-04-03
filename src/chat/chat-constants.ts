@@ -53,7 +53,10 @@ export enum CHAT_COMMANDS {
   FILE_CONTEXT_ADDED = 'fileContextAdded',
   PROBLEM_CONTEXT_ADDED = 'problemContextAdded',
   OPEN_IMAGE = 'openImage',
-  IMAGE_CONTEXT_ADDED = 'imageContextAdded'
+  IMAGE_CONTEXT_ADDED = 'imageContextAdded',
+  CHAT_STREAM_START = 'chatStreamStart',
+  CHAT_STREAM_CHUNK = 'chatStreamChunk',
+  CHAT_STREAM_END = 'chatStreamEnd'
 }
 
 

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { openAIRequest } from '../api/ai';
+import { openAIRequest, openAIStreamRequest } from '../api/ai';
 import { outputChannel } from '../logger';
 import { ROLE } from '../chat/chat-constants';
 import { ChatHistoryService } from './chat-history';
@@ -38,7 +38,7 @@ export class ChatCoreService {
         timestamp: string,
         files?: any[],
         images?: any[]
-    }): Promise<string> {
+    }, onChunk?: (text: string) => void): Promise<string> {
 
         const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
 
@@ -188,14 +188,11 @@ export class ChatCoreService {
             const apiBaseUrl = appSettings.models.baseUrl;
             const apiKey = appSettings.models.apiKey;
 
-            for (const step of steps) {
+            for (let i = 0; i < steps.length; i++) {
+                const step = steps[i];
+                const isLastStep = i === steps.length - 1;
 
                 // Construct Payload for this step
-                // Ideally, we might want to keep history? 
-                // For a true chain, maybe only the immediate context matters, 
-                // OR we append the chain to the history?
-                // Let's keep the shared historyContext for now.
-
                 const apiPayload = [
                     // The System Prompt for this specific agent
                     { role: 'system', content: (step as any).content || step },
@@ -204,23 +201,39 @@ export class ChatCoreService {
                 ];
 
                 // O1 Models do not support temperature (must be 1 or default).
-                // To be safe, if model is o1, we force temperature to 1 (or undefined if api supports it).
                 const isO1 = targetModel.startsWith('o1');
                 const requestTemperature = isO1 ? 1 : temperature;
 
-                // Call AI
-                const response = await openAIRequest(
-                    apiPayload,
-                    targetModel,
-                    apiKey || accessToken,
-                    requestTemperature,
-                    apiBaseUrl
-                );
+                if (isLastStep && onChunk) {
+                    // Call AI with Streaming for the final output step
+                    const result = await openAIStreamRequest(
+                        apiPayload,
+                        targetModel,
+                        apiKey || accessToken,
+                        requestTemperature,
+                        apiBaseUrl
+                    );
 
-                // Output becomes input for next step (if any)
-                // If multimodal input was used in Step 1, the response text becomes text input for Step 2.
-                pipelineContext = response.content;
-                aiResponseText = response.content; // Update final result
+                    let fullText = '';
+                    // Iterate and stream chunks
+                    for await (const chunk of result.textStream) {
+                        fullText += chunk;
+                        onChunk(chunk);
+                    }
+                    pipelineContext = fullText;
+                    aiResponseText = fullText;
+                } else {
+                    // Call AI Normally for internal thought steps 
+                    const response = await openAIRequest(
+                        apiPayload,
+                        targetModel,
+                        apiKey || accessToken,
+                        requestTemperature,
+                        apiBaseUrl
+                    );
+                    pipelineContext = response.content;
+                    aiResponseText = response.content; // Update final result
+                }
             }
 
             // Also handle PREVIOUS context images?

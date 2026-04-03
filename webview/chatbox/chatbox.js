@@ -697,6 +697,9 @@ function requestOpenImage(dateUrlOrPath) {
 }
 
 
+let activeStreamAccumulator = "";
+let activeStreamNode = null;
+
 // --- EVENT LISTENERS ---
 window.addEventListener('message', event => {
     const message = event.data;
@@ -714,6 +717,43 @@ window.addEventListener('message', event => {
             // Re-enable send button
             toggleSendButton(0);
             break;
+
+        case CHAT_COMMANDS.CHAT_STREAM_START:
+            activeStreamAccumulator = "";
+            activeStreamNode = null;
+            break;
+
+        case CHAT_COMMANDS.CHAT_STREAM_CHUNK:
+            if (!activeStreamNode) {
+                hideLoadingIndicator();
+                appendAIMessage(""); // Create empty blank message
+                
+                // Get reference to the newly created blank message
+                const aiMessages = chatbox.querySelectorAll('.system-message .message-text');
+                if (aiMessages.length > 0) {
+                    activeStreamNode = aiMessages[aiMessages.length - 1];
+                }
+            }
+
+            if (activeStreamNode) {
+                activeStreamAccumulator += message.content;
+                activeStreamNode.innerHTML = marked.parse(activeStreamAccumulator);
+                scrollToBottom();
+            }
+            break;
+
+        case CHAT_COMMANDS.CHAT_STREAM_END:
+            if (activeStreamNode) {
+                setTimeout(() => {
+                    hljs.highlightAll();
+                    addAllCopyButtons();
+                }, 0);
+            }
+            activeStreamNode = null;
+            activeStreamAccumulator = "";
+            toggleSendButton(0);
+            break;
+
         // Case: Resetting the view / New Chat
         case CHAT_COMMANDS.CHAT_RESET:
             resetChat(message.content);

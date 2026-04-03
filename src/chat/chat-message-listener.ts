@@ -89,9 +89,17 @@ export async function chatMessageListener(message: any) {
                     files: [] // Clear files so Core doesn't double-append them
                 };
 
-                const aiResponse = await coreService.processChatRequest(aiData);
+                webview.postMessage({ command: CHAT_COMMANDS.CHAT_STREAM_START });
+
+                const aiResponse = await coreService.processChatRequest(aiData, async (chunk) => {
+                    await webview.postMessage({
+                        command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
+                        content: chunk
+                    });
+                });
+
                 webview.postMessage({
-                    command: CHAT_COMMANDS.CHAT_REQUEST,
+                    command: CHAT_COMMANDS.CHAT_STREAM_END,
                     content: aiResponse,
                     role: ROLE.BOT
                 });
