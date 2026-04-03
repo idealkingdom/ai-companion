@@ -125,10 +125,8 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
-    "@langchain/community": "^0.3.48",
-    "@langchain/core": "^0.3.62",
-    "@langchain/langgraph": "^0.3.7",
-    "@langchain/openai": "^0.5.18",
+    "@ai-sdk/openai": "^3.0.50",
+    "ai": "^6.0.145",
     "pdf-parse": "^1.1.1"
   }
 }

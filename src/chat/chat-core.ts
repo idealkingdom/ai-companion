@@ -70,8 +70,8 @@ export class ChatCoreService {
 
                     // c. Prepare Payload
                     aiImagePayload.push({
-                        type: "image_url",
-                        image_url: { url: img.dataUrl }
+                        type: "image",
+                        image: new URL(img.dataUrl) // Vercel AI SDK uses 'image' key with URL or base64 String buffer
                     });
                 });
 

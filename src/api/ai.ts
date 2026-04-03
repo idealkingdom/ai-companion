@@ -1,29 +1,32 @@
-import { ChatOpenAI } from '@langchain/openai';
+import { createOpenAI } from '@ai-sdk/openai';
+import { generateText } from 'ai';
 import { outputChannel } from '../logger';
 
 /**
  * Updated to accept an Array of messages for context awareness.
+ * Uses Vercel AI SDK.
  */
 export async function openAIRequest(
-    messages: { role: string; content: string }[], // <--- CHANGED: Accepts array
+    messages: any[],
     model: string,
     accessToken: string,
     temperature: number,
-    baseUrl?: string // <--- Added optional baseUrl
-): Promise<any> {
+    baseUrl?: string
+): Promise<{ content: string }> {
 
-    const chat = new ChatOpenAI({
-        model: model,
-        openAIApiKey: accessToken,
-        temperature: temperature,
-        streamUsage: false,
-        configuration: baseUrl ? { baseURL: baseUrl } : undefined
+    const openai = createOpenAI({
+        apiKey: accessToken,
+        baseURL: baseUrl || undefined,
     });
 
     try {
-        // LangChain accepts the standard OpenAI message format:
-        // [{ role: 'system', ... }, { role: 'user', ... }, { role: 'assistant', ... }]
-        return await chat.invoke(messages);
+        const { text } = await generateText({
+            model: openai(model),
+            messages: messages,
+            temperature: temperature,
+        });
+
+        return { content: text };
     } catch (error) {
         outputChannel.appendLine("Error during OpenAI Request: " + error);
         throw error; // Rethrow so the caller knows it failed
