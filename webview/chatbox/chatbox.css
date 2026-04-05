@@ -963,3 +963,80 @@ details[open] summary .file-arrow {
 .inline-attachment-pill:hover {
     color: var(--vscode-textLink-activeForeground, #55aaff);
 }
+
+/* --- AUTOCOMPLETE MENU --- */
+.autocomplete-menu {
+  position: absolute;
+  bottom: calc(100% + 8px); 
+  left: 0;
+  width: 100%;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--vscode-menu-background, #252526);
+  border: 1px solid var(--vscode-menu-border, #454545);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  padding: 4px 0;
+  backdrop-filter: blur(12px);
+  animation: slideUp 0.15s ease-out;
+}
+
+/* Custom scrollbar for autocomplete menu */
+.autocomplete-menu::-webkit-scrollbar {
+  width: 6px;
+}
+.autocomplete-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+.autocomplete-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+}
+.autocomplete-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.autocomplete-menu.hidden {
+  display: none;
+}
+
+.autocomplete-item {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  border-left: 3px solid transparent;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.selected {
+  background: var(--vscode-menu-selectionBackground, #094771);
+  border-left-color: var(--vscode-focusBorder, #007acc);
+}
+
+.autocomplete-item.selected .autocomplete-label,
+.autocomplete-item:hover .autocomplete-label,
+.autocomplete-item.selected .autocomplete-description,
+.autocomplete-item:hover .autocomplete-description {
+  color: var(--vscode-menu-selectionForeground, #ffffff) !important;
+}
+
+.autocomplete-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--vscode-menu-foreground, #cccccc);
+}
+
+.autocomplete-description {
+  font-size: 0.72rem;
+  opacity: 0.6;
+  color: var(--vscode-menu-foreground, #cccccc);
+  margin-top: 3px;
+}

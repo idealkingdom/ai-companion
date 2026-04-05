@@ -43,7 +43,149 @@ const attachBtn = document.getElementById('atch-ctx-button');
 let attachedImages = [];
 let attachedFiles = [];
 
+// --- AUTOCOMPLETE STATE ---
+const { COMMANDS = [], WORKFLOWS = [] } = window.VS_CONSTANTS;
+const autocompleteMenu = document.getElementById('autocomplete-menu');
+let autocompleteActive = false;
+let autocompleteType = null; // '@' or '/'
+let selectedIndex = 0;
+let filteredItems = [];
+let triggerQuery = '';
+
 // --- HELPER FUNCTIONS ---
+
+function updateAutocompleteItems(text) {
+    const query = text.toLowerCase();
+    const source = autocompleteType === '@' ? COMMANDS : WORKFLOWS;
+
+    filteredItems = source.filter(item =>
+        item.label.toLowerCase().includes(query) ||
+        item.description.toLowerCase().includes(query)
+    );
+
+    if (filteredItems.length === 0) {
+        hideAutocomplete();
+        return;
+    }
+
+    selectedIndex = Math.min(selectedIndex, filteredItems.length - 1);
+    renderAutocomplete();
+}
+
+function renderAutocomplete() {
+    autocompleteMenu.innerHTML = '';
+    filteredItems.forEach((item, index) => {
+        const itemEl = document.createElement('div');
+        itemEl.className = `autocomplete-item ${index === selectedIndex ? 'selected' : ''}`;
+        itemEl.innerHTML = `
+            <span class="autocomplete-label">${escapeHtml(item.label)}</span>
+            <span class="autocomplete-description">${escapeHtml(item.description)}</span>
+        `;
+        itemEl.addEventListener('click', () => {
+            selectedIndex = index;
+            confirmAutocompleteSelection();
+        });
+        autocompleteMenu.appendChild(itemEl);
+    });
+
+    autocompleteMenu.classList.remove('hidden');
+    autocompleteActive = true;
+
+    // Ensure selected item is visible if scrolling is needed
+    const selectedEl = autocompleteMenu.children[selectedIndex];
+    if (selectedEl) {
+        selectedEl.scrollIntoView({ block: 'nearest' });
+    }
+}
+
+function hideAutocomplete() {
+    autocompleteMenu.classList.add('hidden');
+    autocompleteMenu.innerHTML = '';
+    autocompleteActive = false;
+    autocompleteType = null;
+    triggerQuery = '';
+    selectedIndex = 0;
+}
+
+function confirmAutocompleteSelection() {
+    const item = filteredItems[selectedIndex];
+    if (!item) { return; }
+
+    const text = chatMessage.innerText;
+    const cursorPosition = getCaretPosition(chatMessage);
+
+    // Find the trigger position (backwards from cursor)
+    const textBeforeCursor = text.substring(0, cursorPosition);
+    const triggerIndex = textBeforeCursor.lastIndexOf(autocompleteType);
+
+    if (triggerIndex !== -1) {
+        // Special Handling for @file and @workspace
+        if (item.label === '@file') {
+            // Remove the "@file" text and trigger picker
+            const newText = text.substring(0, triggerIndex) + text.substring(cursorPosition);
+            chatMessage.innerText = newText;
+            setCaretPosition(chatMessage, triggerIndex);
+            sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'pickFile' });
+        } else if (item.label === '@workspace') {
+            // Remove the "@workspace" text and trigger workspace context
+            const newText = text.substring(0, triggerIndex) + text.substring(cursorPosition);
+            chatMessage.innerText = newText;
+            setCaretPosition(chatMessage, triggerIndex);
+            sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'workspace' });
+        } else {
+            // Normal insertion for workflows and other commands
+            const textAfterCursor = text.substring(cursorPosition);
+            const newText = text.substring(0, triggerIndex) + item.label + ' ' + textAfterCursor;
+            chatMessage.innerText = newText;
+            setCaretPosition(chatMessage, triggerIndex + item.label.length + 1);
+        }
+    }
+
+    hideAutocomplete();
+}
+
+/**
+ * Gets the current caret position in a contenteditable element.
+ */
+function getCaretPosition(element) {
+    let position = 0;
+    const isSupported = typeof window.getSelection !== "undefined";
+    if (isSupported) {
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            const preCaretRange = range.cloneRange();
+            preCaretRange.selectNodeContents(element);
+            preCaretRange.setEnd(range.endContainer, range.endOffset);
+            position = preCaretRange.toString().length;
+        }
+    }
+    return position;
+}
+
+/**
+ * Sets the caret position in a contenteditable element.
+ */
+function setCaretPosition(element, offset) {
+    const range = document.createRange();
+    const sel = window.getSelection();
+
+    // This is a simplified version for plain text contenteditables
+    let currentOffset = 0;
+    let node = element.firstChild || element;
+
+    // If no text node yet, we can't set offset
+    if (node.nodeType !== 3) {
+        element.focus();
+        return;
+    }
+
+    range.setStart(node, Math.min(offset, node.textContent.length));
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    element.focus();
+}
 
 
 // --- VIEW SWITCHING FUNCTIONS (Global) ---
@@ -257,13 +399,13 @@ function handleImageFiles(fileList, source) {
 
 function insertInlineImage(dataUrl, name) {
     chatMessage.focus();
-    
+
     // ensure cursor is inside chatMessage
     const selection = window.getSelection();
     let isInside = false;
     if (selection.rangeCount > 0) {
         let node = selection.getRangeAt(0).commonAncestorContainer;
-        while(node) {
+        while (node) {
             if (node === chatMessage) { isInside = true; break; }
             node = node.parentNode;
         }
@@ -276,12 +418,12 @@ function insertInlineImage(dataUrl, name) {
         sel.removeAllRanges();
         sel.addRange(range);
     }
-    
+
     const id = "pill-" + Date.now() + Math.floor(Math.random() * 1000);
     const html = `<span id="${id}" class="inline-attachment-pill" contenteditable="false" data-image="true" data-name="${escapeHtml(name)}" data-url="${dataUrl}" onclick="requestOpenImage(this.dataset.url)" title="Click to view image">[${escapeHtml(name)}]</span>&nbsp;`;
-    
+
     document.execCommand('insertHTML', false, html);
-    
+
     const insertedNode = document.getElementById(id);
     if (insertedNode && window.getSelection) {
         const range = document.createRange();
@@ -296,7 +438,58 @@ function insertInlineImage(dataUrl, name) {
         sel.addRange(range);
         insertedNode.removeAttribute("id");
     }
-    
+
+    chatMessage.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+// Map to store file contents attached inline to avoid large data attributes
+window.inlineFilesMap = window.inlineFilesMap || {};
+
+function insertInlineFile(name, text, language, path) {
+    chatMessage.focus();
+
+    // ensure cursor is inside chatMessage
+    const selection = window.getSelection();
+    let isInside = false;
+    if (selection.rangeCount > 0) {
+        let node = selection.getRangeAt(0).commonAncestorContainer;
+        while (node) {
+            if (node === chatMessage) { isInside = true; break; }
+            node = node.parentNode;
+        }
+    }
+    if (!isInside && typeof document.createRange !== 'undefined') {
+        const range = document.createRange();
+        range.selectNodeContents(chatMessage);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+
+    const id = "file-pill-" + Date.now() + Math.floor(Math.random() * 1000);
+    // Store content in map
+    window.inlineFilesMap[id] = { name, content: text, language, path, lines: text.split('\n').length };
+
+    const html = `<span id="${id}" class="inline-attachment-pill file-pill" contenteditable="false" data-file-id="${id}" data-file="true" data-name="${escapeHtml(name)}" title="Attached file: ${escapeHtml(name)}" onclick="requestOpenFile(this.dataset.fileId)">[📄 ${escapeHtml(name)}]</span>&nbsp;`;
+
+    document.execCommand('insertHTML', false, html);
+
+    const insertedNode = document.getElementById(id);
+    if (insertedNode && window.getSelection) {
+        const range = document.createRange();
+        if (insertedNode.nextSibling) {
+            range.setStart(insertedNode.nextSibling, insertedNode.nextSibling.textContent.length);
+        } else {
+            range.setStartAfter(insertedNode);
+        }
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        insertedNode.removeAttribute("id"); // Remove temporary ID
+    }
+
     chatMessage.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
@@ -332,9 +525,23 @@ function hideLoadingIndicator() {
 
 // --- MESSAGE HANDLING ---
 
-function appendUserMessage(message, images = []) {
+function appendUserMessage(message, images = [], files = []) {
 
     let finalHTML = processMessageContent(message);
+
+    if (files && files.length > 0) {
+        files.forEach(file => {
+            const id = "file-pill-hist-" + Date.now() + Math.floor(Math.random() * 1000);
+            window.inlineFilesMap[id] = file;
+            const marker = `[📄 ${escapeHtml(file.name)}]`;
+            const pillHTML = `<span class="inline-attachment-pill file-pill" contenteditable="false" data-file-id="${id}" onclick="requestOpenFile(this.dataset.fileId)" title="Attached file: ${escapeHtml(file.name)}">${marker}</span>`;
+            if (finalHTML.includes(marker)) {
+                finalHTML = finalHTML.replace(marker, pillHTML);
+            } else {
+                finalHTML += ` ${pillHTML}`;
+            }
+        });
+    }
 
     if (images && images.length > 0) {
         images.forEach(image => {
@@ -342,7 +549,7 @@ function appendUserMessage(message, images = []) {
             const marker = `[${escapeHtml(image.name)}]`;
             // Link UI logic
             const pillHTML = `<span class="inline-attachment-pill" contenteditable="false" onclick="requestOpenImage('${openPath.replace(/\\/g, '\\\\')}')" title="Click to view image">[${escapeHtml(image.name)}]</span>`;
-            
+
             if (finalHTML.includes(marker)) {
                 finalHTML = finalHTML.replace(marker, pillHTML);
             } else {
@@ -553,7 +760,7 @@ sendButton.addEventListener("click", event => {
     const imagePills = chatMessage.querySelectorAll('.inline-attachment-pill[data-image="true"]');
     const dynamicAttachedImages = [];
     const usedNames = new Set();
-    
+
     imagePills.forEach(pill => {
         let name = pill.dataset.name;
         let originalName = name;
@@ -569,7 +776,7 @@ sendButton.addEventListener("click", event => {
             counter++;
         }
         usedNames.add(name);
-        
+
         if (pill.dataset.name !== name) {
             pill.dataset.name = name;
             pill.innerHTML = `[${escapeHtml(name)}]`;
@@ -581,10 +788,23 @@ sendButton.addEventListener("click", event => {
         });
     });
 
+    const filePills = chatMessage.querySelectorAll('.inline-attachment-pill[data-file="true"]');
+    const dynamicAttachedFiles = [];
+    filePills.forEach(pill => {
+        const fileId = pill.dataset.fileId;
+        const fileData = window.inlineFilesMap && window.inlineFilesMap[fileId];
+        if (fileData) {
+            dynamicAttachedFiles.push(fileData);
+        }
+    });
+
     const messageText = chatMessage.innerText.trim();
 
+    // Combine inline files and externally attached files (if any still use the old method)
+    const allFiles = attachedFiles.concat(dynamicAttachedFiles);
+
     // Update Condition: Check for files too
-    if (messageText || dynamicAttachedImages.length > 0 || attachedFiles.length > 0) {
+    if (messageText || dynamicAttachedImages.length > 0 || allFiles.length > 0) {
 
         // --- PREPARE PAYLOAD ---
         const payload = {
@@ -592,7 +812,7 @@ sendButton.addEventListener("click", event => {
             images: dynamicAttachedImages,
 
             // CRITICAL: Send the attached files to the backend
-            files: attachedFiles,
+            files: allFiles,
 
             chat_id: chatLog.dataset.chatId,
             timestamp: new Date().toISOString()
@@ -635,43 +855,7 @@ function processMessageContent(rawText) {
     // 3. Format User Message
     let html = escapeHtml(userMessage).replace(/\n/g, "<br>");
 
-    // 4. Parse the Context Block to find files
-    // Regex looks for: File: name.ext \n ```lang ...content... ```
-    const fileRegex = /File:\s*(.*?)\n```(\w*)\n([\s\S]*?)```/g;
-
-    let match;
-    let attachmentsHTML = '<div class="attachments-container">';
-    let foundFiles = false;
-
-    // Loop through all matches in the context block
-    while ((match = fileRegex.exec(contextBlock)) !== null) {
-        foundFiles = true;
-        const fileName = match[1].trim();
-        const language = match[2].trim();
-        const codeContent = match[3];
-
-        // Highlight the code using marked/hljs
-        const highlightedCode = marked.parse(`\`\`\`${language}\n${codeContent}\`\`\``);
-
-        attachmentsHTML += `
-            <details class="file-attachment">
-                <summary class="file-summary">
-                    <svg class="file-arrow" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
-                    <svg class="file-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    <span>${escapeHtml(fileName)}</span>
-                </summary>
-                <div class="file-code-block">
-                    ${highlightedCode}
-                </div>
-            </details>
-        `;
-    }
-    attachmentsHTML += '</div>';
-
-    if (foundFiles) {
-        html += attachmentsHTML;
-    }
-
+    // 4. Return just the user message
     return html;
 }
 
@@ -682,9 +866,65 @@ window.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById("messageInput");
 
     input.addEventListener("keydown", (event) => {
+        if (autocompleteActive) {
+            if (event.key === "ArrowDown") {
+                event.preventDefault();
+                selectedIndex = (selectedIndex + 1) % filteredItems.length;
+                renderAutocomplete();
+                return;
+            }
+            if (event.key === "ArrowUp") {
+                event.preventDefault();
+                selectedIndex = (selectedIndex - 1 + filteredItems.length) % filteredItems.length;
+                renderAutocomplete();
+                return;
+            }
+            if (event.key === "Enter" || event.key === "Tab") {
+                event.preventDefault();
+                confirmAutocompleteSelection();
+                return;
+            }
+            if (event.key === "Escape") {
+                event.preventDefault();
+                hideAutocomplete();
+                return;
+            }
+        }
+
         if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
             sendButton.click();
+        }
+    });
+
+    input.addEventListener("input", (event) => {
+        const text = input.innerText;
+        const cursorPosition = getCaretPosition(input);
+        const textBeforeCursor = text.substring(0, cursorPosition);
+
+        // Find the last trigger character before the cursor
+        const lastAt = textBeforeCursor.lastIndexOf('@');
+        const lastSlash = textBeforeCursor.lastIndexOf('/');
+        const lastTriggerIdx = Math.max(lastAt, lastSlash);
+
+        if (lastTriggerIdx !== -1) {
+            const potentialTrigger = textBeforeCursor[lastTriggerIdx];
+            // Check if trigger is at start or preceded by whitespace
+            const charBeforeTrigger = textBeforeCursor[lastTriggerIdx - 1];
+            if (!charBeforeTrigger || /\s/.test(charBeforeTrigger)) {
+                autocompleteType = potentialTrigger;
+                triggerQuery = textBeforeCursor.substring(lastTriggerIdx + 1);
+
+                // Query shouldn't contain spaces (if it does, user moved past the command)
+                if (!/\s/.test(triggerQuery)) {
+                    updateAutocompleteItems(triggerQuery);
+                    return;
+                }
+            }
+        }
+
+        if (autocompleteActive) {
+            hideAutocomplete();
         }
     });
 
@@ -767,6 +1007,11 @@ window.addEventListener('DOMContentLoaded', () => {
         if (!contextMenu.contains(e.target) && e.target !== attachBtn) {
             contextMenu.classList.add('hidden');
         }
+
+        // Hide autocomplete if clicking outside
+        if (autocompleteActive && !autocompleteMenu.contains(e.target) && e.target !== input) {
+            hideAutocomplete();
+        }
     });
 
     // Handle Item Clicks
@@ -811,6 +1056,21 @@ function requestOpenImage(dateUrlOrPath) {
     sendMessage(CHAT_COMMANDS.OPEN_IMAGE, { path: dateUrlOrPath });
 }
 
+function requestOpenFile(fileId) {
+    const fileData = window.inlineFilesMap && window.inlineFilesMap[fileId];
+    if (fileData) {
+        if (fileData.path) {
+            sendMessage('openFile', { path: fileData.path });
+        } else {
+            sendMessage('openVirtualFile', {
+                name: fileData.name,
+                text: fileData.content,
+                language: fileData.language
+            });
+        }
+    }
+}
+
 
 let activeStreamAccumulator = "";
 let activeStreamNode = null;
@@ -822,7 +1082,7 @@ window.addEventListener('message', event => {
         case CHAT_COMMANDS.CHAT_REQUEST:
             hideLoadingIndicator();
             if (message.role === ROLE.USER) {
-                appendUserMessage(message.content, message.images);
+                appendUserMessage(message.content, message.images, message.files);
                 if (!message.isHistory) {
                     showLoadingIndicator();
                 }
@@ -842,7 +1102,7 @@ window.addEventListener('message', event => {
             if (!activeStreamNode) {
                 hideLoadingIndicator();
                 appendAIMessage(""); // Create empty blank message
-                
+
                 // Get reference to the newly created blank message
                 const aiMessages = chatbox.querySelectorAll('.system-message .message-text');
                 if (aiMessages.length > 0) {
@@ -881,26 +1141,7 @@ window.addEventListener('message', event => {
         // TODO: Implement file context handling
         case CHAT_COMMANDS.FILE_CONTEXT_ADDED:
             const fileData = message.content;
-
-            // Prevent duplicates
-            const exists = attachedFiles.find(
-                f => f.name === fileData.name
-                    && f.content.trim() === fileData.text.trim()
-            );
-
-            if (exists) {
-                return;
-
-            };
-
-            attachedFiles.push({
-                name: fileData.name,
-                content: fileData.text,
-                language: fileData.language,
-                lines: fileData.text.split('\n').length
-            });
-
-            renderAttachments();
+            insertInlineFile(fileData.name, fileData.text, fileData.language, fileData.path);
             break;
 
         case CHAT_COMMANDS.IMAGE_CONTEXT_ADDED:
@@ -910,29 +1151,7 @@ window.addEventListener('message', event => {
 
         case CHAT_COMMANDS.PROBLEM_CONTEXT_ADDED:
             const problemData = message.content;
-
-            // Check if we already have problems attached
-            const existingIndex = attachedFiles.findIndex(f => f.name === problemData.name);
-
-            if (existingIndex !== -1) {
-                // REPLACE existing problems
-                attachedFiles[existingIndex] = {
-                    name: problemData.name,
-                    content: problemData.text,
-                    language: problemData.language,
-                    lines: problemData.text.split('\n').length
-                };
-            } else {
-                // NEW attachment
-                attachedFiles.push({
-                    name: problemData.name,
-                    content: problemData.text,
-                    language: problemData.language,
-                    lines: problemData.text.split('\n').length
-                });
-            }
-
-            renderAttachments();
+            insertInlineFile(problemData.name, problemData.text, problemData.language, problemData.path);
             break;
         default:
             console.error('Unknown command:', message.command);

@@ -78,3 +78,18 @@ export interface Conversation {
   timestamp: string; // Last modified time
   messages: StoredMessage[];
 }
+
+export const COMMANDS = [
+  { label: '@workspace', description: 'Search across workspace' },
+  { label: '@file', description: 'Pick a specific file' },
+  { label: '@terminal', description: 'Focus terminal' },
+];
+
+export const WORKFLOWS = [
+  // { label: '/fix', description: 'Suggest a fix for code' },
+  // { label: '/explain', description: 'Explain code' },
+  // { label: '/refactor', description: 'Refactor code' },
+  // { label: '/optimize', description: 'Optimize code' },
+  // { label: '/test', description: 'Generate unit tests' },
+];
+

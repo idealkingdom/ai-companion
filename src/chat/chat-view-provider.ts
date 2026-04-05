@@ -17,7 +17,9 @@ import {
     FILES_TO_LOAD,
     LIBRARIES_TO_LOAD,
     CHAT_COMMANDS,
-    ROLE
+    ROLE,
+    COMMANDS,
+    WORKFLOWS
     } from './chat-constants';
 
 
@@ -110,7 +112,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         // LOAD THE CONSTANTS WE CAN USE IN THE WEBVIEW
         const SHARED_CONSTANTS = JSON.stringify({
             CHAT_COMMANDS: CHAT_COMMANDS,
-            ROLE: ROLE
+            ROLE: ROLE,
+            COMMANDS: COMMANDS,
+            WORKFLOWS: WORKFLOWS
         });
         
         // Inject the constants into the HTML by replacing the {{constants}} placeholder

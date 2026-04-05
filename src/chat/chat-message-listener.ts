@@ -79,6 +79,7 @@ export async function chatMessageListener(message: any) {
                     command: CHAT_COMMANDS.CHAT_REQUEST,
                     content: formattedMessage,
                     images: images,
+                    files: files,
                     role: ROLE.USER
                 });
 
@@ -217,7 +218,7 @@ export async function chatMessageListener(message: any) {
         case CHAT_COMMANDS.OPEN_IMAGE:
             {
                 const data = message.data.path; // Can be path OR base64
-                if (!data) return;
+                if (!data) { return; }
 
                 let uri: vscode.Uri;
 
@@ -257,6 +258,28 @@ export async function chatMessageListener(message: any) {
                 break;
             }
 
+        case 'openFile':
+            {
+                const path = message.data.path;
+                if (!path) { return; }
+                const uri = vscode.Uri.file(path);
+                vscode.commands.executeCommand('vscode.open', uri);
+                break;
+            }
+
+        case 'openVirtualFile':
+            {
+                const { name, text, language } = message.data;
+                if (!text) { return; }
+                vscode.workspace.openTextDocument({
+                    content: text,
+                    language: language || 'markdown'
+                }).then(doc => {
+                    vscode.window.showTextDocument(doc, { preview: true });
+                });
+                break;
+            }
+
         case CHAT_COMMANDS.ADD_CONTEXT:
             {
                 const editor = vscode.window.activeTextEditor;
@@ -284,7 +307,8 @@ export async function chatMessageListener(message: any) {
                             name: fileName,
                             text: fileContent,
                             language: languageId,
-                            type: 'file'
+                            type: 'file',
+                            path: document.uri.fsPath
                         }
                     });
 
@@ -313,20 +337,30 @@ export async function chatMessageListener(message: any) {
                         content: {
                             name: `Selection (${fileName})`, // e.g. "Selection (script.ts)"
                             text: text,
-                            language: editor.document.languageId
+                            language: editor.document.languageId,
+                            path: editor.document.uri.fsPath
                         }
                     });
                 }
-                // --- C. PICK FILE (Native Dialog) ---
+                // --- C. PICK FILE (Workspace File Picker) ---
                 else if (type === 'pickFile') {
-                    // Open the native OS file picker
-                    const uris = await vscode.window.showOpenDialog({
-                        canSelectMany: true,
-                        openLabel: 'Attach',
+                    // Fetch all files in the workspace excluding common hidden/build folders
+                    const files = await vscode.workspace.findFiles('**/*', '{**/node_modules/**,**/dist/**,**/build/**,**/.git/**}');
+                    const quickPickItems = files.map(uri => ({
+                        label: vscode.workspace.asRelativePath(uri),
+                        description: path.basename(uri.fsPath),
+                        uri: uri
+                    }));
+
+                    const selectedItems = await vscode.window.showQuickPick(quickPickItems, {
+                        canPickMany: true,
+                        placeHolder: 'Select workspace files to attach (multi-select allowed)',
+                        matchOnDescription: true,
                         title: 'Select files to attach to chat'
                     });
 
-                    if (uris && uris.length > 0) {
+                    if (selectedItems && selectedItems.length > 0) {
+                        const uris = selectedItems.map(item => item.uri);
                         // Loop through all selected files
                         for (const uri of uris) {
                             try {
@@ -377,7 +411,8 @@ export async function chatMessageListener(message: any) {
                                     content: {
                                         name: fileName,
                                         text: fileContent,
-                                        language: language
+                                        language: language,
+                                        path: uri.fsPath
                                     }
                                 });
 
@@ -417,7 +452,64 @@ export async function chatMessageListener(message: any) {
                             name: "Workspace Problems",
                             text: problemsText,
                             language: "markdown", // It's a text summary
-                            type: 'problems'
+                            type: 'problems',
+                            path: null
+                        }
+                    });
+                }
+                // --- E. WORKSPACE ---
+                else if (type === 'workspace') {
+                    const workspaceFiles = await vscode.workspace.findFiles('**/*', '{**/node_modules/**,**/dist/**,**/build/**,**/.git/**}');
+                    
+                    if (workspaceFiles.length === 0) {
+                        await webview.postMessage({
+                            command: 'fileContextAdded',
+                            content: {
+                                name: "Workspace",
+                                text: "No files found in the current workspace.",
+                                language: "markdown",
+                                type: 'workspace'
+                            }
+                        });
+                        return;
+                    }
+
+                    // Build a tree representation
+                    // We sort by file path to group folder contents together
+                    const paths = workspaceFiles.map(uri => vscode.workspace.asRelativePath(uri)).sort();
+                    
+                    let treeOutput = "Project File Tree:\n";
+                    let currentPathParts: string[] = [];
+                    
+                    for (const p of paths) {
+                        const parts = p.split(/[\\/]/);
+                        const fileName = parts.pop();
+                        
+                        // Find common prefix length with previous path
+                        let commonLen = 0;
+                        while (commonLen < parts.length && commonLen < currentPathParts.length && parts[commonLen] === currentPathParts[commonLen]) {
+                            commonLen++;
+                        }
+                        
+                        // Print new directories
+                        for (let i = commonLen; i < parts.length; i++) {
+                            treeOutput += '  '.repeat(i) + '📁 ' + parts[i] + '/\n';
+                        }
+                        
+                        // Print file
+                        treeOutput += '  '.repeat(parts.length) + '📄 ' + fileName + '\n';
+                        
+                        currentPathParts = parts;
+                    }
+
+                    await webview.postMessage({
+                        command: 'fileContextAdded',
+                        content: {
+                            name: "Workspace",
+                            text: treeOutput,
+                            language: "markdown",
+                            type: 'workspace',
+                            path: null
                         }
                     });
                 }
