@@ -699,8 +699,23 @@ function renderAgentStep(step) {
             
             let reviewBtn = '';
             if (step.diffReviewRequired) {
-                const escapedArgs = JSON.stringify(step.args).replace(/'/g, "\\'");
-                reviewBtn = `<button class="review-btn" onclick="reviewDiff('${step.toolCallId}', '${step.toolName}', '${escapedArgs}')">Review Changes</button>`;
+                // Store args in a global map instead of passing through HTML attributes to avoid quoting hell
+                window.pendingToolArgs = window.pendingToolArgs || {};
+                window.pendingToolArgs[step.toolCallId] = step.args;
+                
+                reviewBtn = `<button class="review-btn" onclick="reviewDiff('${step.toolCallId}', '${step.toolName}')">Review Changes</button>`;
+            }
+
+            let actions = `
+                ${reviewBtn}
+                <button class="approve-btn" onclick="approveTool('${step.toolCallId}', true)">✅ Approve</button>
+                <button class="deny-btn" onclick="approveTool('${step.toolCallId}', false)">❌ Deny</button>
+            `;
+
+            // If we have an inline review via "Review Changes", hide the simple Approve/Deny
+            // to force the user to interact with the CodeLens in the editor.
+            if (step.diffReviewRequired) {
+                actions = reviewBtn;
             }
 
             stepEl.innerHTML = `
@@ -711,9 +726,7 @@ function renderAgentStep(step) {
                 </div>
                 <div class="step-args">${argsPreview}</div>
                 <div class="step-actions">
-                    ${reviewBtn}
-                    <button class="approve-btn" onclick="approveTool('${step.toolCallId}', true)">Approve</button>
-                    <button class="deny-btn" onclick="approveTool('${step.toolCallId}', false)">Deny</button>
+                    ${actions}
                 </div>
             `;
         } else {
@@ -753,9 +766,14 @@ function renderAgentStep(step) {
 
 window.approveTool = (toolCallId, approved) => {
     sendMessage('chatToolApproval', { toolCallId, approved });
-    
-    // Find the button that was clicked to identify the card
-    const btn = document.querySelector(`.approve-btn[onclick*="${toolCallId}"], .deny-btn[onclick*="${toolCallId}"]`);
+    // Local update for immediate feedback
+    updateCardApproval(toolCallId, approved);
+};
+
+function updateCardApproval(toolCallId, approved) {
+    // Find the button or use direct lookup for the card
+    // We look for common elements that contain the toolCallId
+    const btn = document.querySelector(`.approve-btn[onclick*="${toolCallId}"], .deny-btn[onclick*="${toolCallId}"], .review-btn[onclick*="${toolCallId}"]`);
     if (btn) {
         const card = btn.closest('.agent-step-card');
         if (card) {
@@ -767,18 +785,21 @@ window.approveTool = (toolCallId, approved) => {
             }
             const actions = card.querySelector('.step-actions');
             if (actions) { actions.remove(); }
-            
-            // If approved, it will soon transition to "Running" when the backend continues
         }
     }
-};
+}
 
-window.reviewDiff = (toolCallId, toolName, argsStr) => {
+window.reviewDiff = (toolCallId, toolName) => {
     try {
-        const args = JSON.parse(argsStr);
-        sendMessage('chatReviewDiff', { toolCallId, toolName, args });
+        console.log('Initiating ReviewDiff for:', toolCallId, toolName);
+        const args = window.pendingToolArgs ? window.pendingToolArgs[toolCallId] : null;
+        if (args) {
+            sendMessage('chatReviewDiff', { toolCallId, toolName, args });
+        } else {
+            console.error('No pending args found for toolCallId:', toolCallId);
+        }
     } catch (e) {
-        console.error('Failed to parse diff args', e);
+        console.error('Failed to initiate diff review', e);
     }
 };
 
@@ -1339,6 +1360,11 @@ window.addEventListener('message', event => {
 
         case CHAT_COMMANDS.CHAT_AGENT_STEP:
             renderAgentStep(message.content);
+            break;
+
+        case CHAT_COMMANDS.CHAT_APPROVAL_UPDATE:
+            const { toolCallId, approved } = message.data;
+            updateCardApproval(toolCallId, approved);
             break;
 
         default:

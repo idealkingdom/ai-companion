@@ -1288,7 +1288,7 @@ details[open] summary .file-arrow {
 }
 
 .review-btn::before {
-    content: '🔍';
+    content: '✨';
     font-size: 0.85rem;
 }
 

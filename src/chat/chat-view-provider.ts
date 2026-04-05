@@ -22,6 +22,7 @@ import {
     COMMANDS,
     WORKFLOWS
 } from './chat-constants';
+import { ApprovalService } from './approval-service';
 
 
 // MESSAGE LISTENER
@@ -128,8 +129,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
 
         ChatViewProvider._view = webviewView;
+
+        // 7. Subscribe to Approval Updates
+        ApprovalService.getInstance().onDidResolveApproval(({ toolCallId, approved }) => {
+            webviewView.webview.postMessage({
+                command: 'chatApprovalUpdate',
+                data: { toolCallId, approved }
+            });
+        });
+
         // =================================================================
-        // 7. REGISTER THE LISTENER HERE 🚀
+        // 8. REGISTER THE LISTENER HERE 🚀
         // =================================================================
         // This tells VS Code: "When the HTML sends a message, run this function."
         webviewView.webview.onDidReceiveMessage(chatMessageListener);

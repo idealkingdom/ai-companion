@@ -105,7 +105,8 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
                 file: params.filePath,
                 range: `${params.startLine}-${clampedEnd}`,
                 totalLines,
-                content: numbered
+                content: numbered,
+                _note: 'The L-prefix line numbers are for your reference only. Do NOT include them in your targetContent when using chunk_replace.'
             };
         }
     } as any);
@@ -115,7 +116,7 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
         description: 'Replace a specific block of text in a file. Provide the exact target text to find and the replacement text. This is a surgical edit — only the matched text is replaced.',
         inputSchema: z.object({
             filePath: z.string().describe('Path to the file'),
-            targetContent: z.string().describe('The exact text to find and replace (must match exactly)'),
+            targetContent: z.string().describe('The exact text to find and replace (must match exactly). Strip any L-prefix line numbers like "L12: " which are only for your reference.'),
             replacementContent: z.string().describe('The new text to replace it with')
         }),
         execute: async (params: { filePath: string; targetContent: string; replacementContent: string }) => {
@@ -124,25 +125,37 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
                 return { error: `File not found: ${absPath}` };
             }
 
+            // Stripping L-prefix line numbers (e.g., "L4: Hello" -> "Hello") from both search target and new content
+            const cleanTargetContent = params.targetContent.replace(/^L\d+:\s/gm, '');
+            const cleanReplacementContent = params.replacementContent.replace(/^L\d+:\s/gm, '');
+
             const content = fs.readFileSync(absPath, 'utf-8');
 
-            if (!content.includes(params.targetContent)) {
-                return { error: 'Target content not found in file. Verify exact text match including whitespace.' };
+            if (!content.includes(cleanTargetContent)) {
+                // If the replacement content already exists, it might have been applied by an inline review
+                if (content.includes(cleanReplacementContent)) {
+                    return { 
+                        success: true, 
+                        message: 'Change already applied (found in file).',
+                        file: params.filePath 
+                    };
+                }
+                return { error: 'Target content not found in file. Ensure you are providing the EXACT text without line number prefixes.' };
             }
 
-            const count = content.split(params.targetContent).length - 1;
+            const count = content.split(cleanTargetContent).length - 1;
             if (count > 1) {
                 return { error: `Found ${count} occurrences. Provide more context to make target unique.` };
             }
 
-            const updated = content.replace(params.targetContent, params.replacementContent);
+            const updated = content.replace(cleanTargetContent, cleanReplacementContent);
             fs.writeFileSync(absPath, updated, 'utf-8');
 
             return {
                 success: true,
                 file: params.filePath,
-                linesReplaced: params.targetContent.split('\n').length,
-                linesInserted: params.replacementContent.split('\n').length
+                linesReplaced: cleanTargetContent.split('\n').length,
+                linesInserted: cleanReplacementContent.split('\n').length
             };
         }
     } as any);

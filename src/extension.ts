@@ -14,6 +14,8 @@ import { CHAT_COMMANDS } from './chat/chat-constants';
 import { chatMessageListener } from './chat/chat-message-listener';
 import { SettingsManager } from './services/settings-manager';
 import { SettingsView } from './settings/settings-view';
+import { DiffContentProvider } from './chat/diff-content-provider';
+import { ReviewManager } from './chat/review-manager';
 
 // editor
 const editor = vscode.window.activeTextEditor;
@@ -35,6 +37,14 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, provider, {
             webviewOptions: { retainContextWhenHidden: true }
         })
+    );
+
+    // 4. Register Virtual Document Provider for Diffs
+    context.subscriptions.push(
+        vscode.workspace.registerTextDocumentContentProvider(
+            DiffContentProvider.scheme,
+            DiffContentProvider.getInstance()
+        )
     );
 
     // Register Load History Command
@@ -62,12 +72,19 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand(`${EXTENSION_NAME}.openSettings`, () => {
-            // Initialize Settings Manager (Singleton-ish or recreate)
-            // Ideally we should have a singleton or pass it around.
-            // For now, new instance is cheap as it just wraps context.
             const settingsManager = new SettingsManager(context);
             SettingsView.createOrShow(context, settingsManager);
         })
+    );
+
+    // 5. Register Review Manager (Accept/Reject Inline Review)
+    const reviewManager = ReviewManager.getInstance();
+    context.subscriptions.push(
+        vscode.commands.registerCommand('ai-companion.acceptReview', (hunkId: string) => reviewManager.acceptHunk(hunkId)),
+        vscode.commands.registerCommand('ai-companion.rejectReview', (hunkId: string) => reviewManager.rejectHunk(hunkId)),
+        vscode.commands.registerCommand('ai-companion.acceptAll', () => reviewManager.acceptAll()),
+        vscode.commands.registerCommand('ai-companion.rejectAll', () => reviewManager.rejectAll()),
+        vscode.languages.registerCodeLensProvider({ scheme: 'file' }, reviewManager)
     );
 
 

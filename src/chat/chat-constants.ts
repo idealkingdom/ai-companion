@@ -58,7 +58,8 @@ export enum CHAT_COMMANDS {
   CHAT_STREAM_CHUNK = 'chatStreamChunk',
   CHAT_STREAM_END = 'chatStreamEnd',
   CHAT_RETRY = 'chatRetry',
-  CHAT_AGENT_STEP = 'chatAgentStep'
+  CHAT_AGENT_STEP = 'chatAgentStep',
+  CHAT_APPROVAL_UPDATE = 'chatApprovalUpdate'
 }
 
 

@@ -9,6 +9,8 @@ import { ImageDescriptionService } from './image-description-service';
 import { SettingsManager } from '../services/settings-manager';
 import { WorkspaceIndexService } from '../services/workspace-index';
 import { createToolRegistry } from '../tools/tool-registry';
+import { handleInlineReview } from './chat-message-listener';
+import { ReviewManager } from './review-manager';
 
 export interface AgentStepEvent {
     type: 'tool_call' | 'tool_result' | 'thinking' | 'text_chunk';
@@ -251,6 +253,7 @@ export class ChatCoreService {
         settings: any, onChunk?: (text: string) => void,
         onAgentStep?: (step: AgentStepEvent) => void
     ): Promise<string> {
+        ReviewManager.getInstance().startTurn();
 
         // Resolve the agent's system prompt
         const agent = settings.prompts.find((p: any) => p.id === data.agentId);
@@ -301,6 +304,15 @@ RULES:
                         diffReviewRequired: opts.diffReviewRequired,
                         toolCallId
                     } as any);
+
+                    // --- LIVE EDIT: Trigger inline review immediately ---
+                    if (opts.diffReviewRequired) {
+                        try {
+                            await handleInlineReview(toolCallId, toolName, args);
+                        } catch (e) {
+                            outputChannel.appendLine(`[Agentic] Failed to trigger Live Edit: ${e}`);
+                        }
+                    }
                 }
             }
         });

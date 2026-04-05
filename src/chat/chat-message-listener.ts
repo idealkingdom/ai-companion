@@ -16,7 +16,9 @@ import * as os from 'os';
 import * as crypto from 'crypto';
 import { SettingsManager } from '../services/settings-manager';
 import { ApprovalService } from "./approval-service";
-
+import { DiffContentProvider } from "./diff-content-provider";
+import { ReviewManager } from "./review-manager";
+import * as Diff from 'diff';
 
 // message sent from client js
 export async function chatMessageListener(message: any) {
@@ -540,47 +542,10 @@ export async function chatMessageListener(message: any) {
 
         case 'chatReviewDiff':
             {
-                const { toolName, args } = message.data;
-                const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
-                
-                let originalContent = '';
-                let proposedContent = '';
-                let filePath = '';
-
-                if (toolName === 'create_file') {
-                    filePath = path.isAbsolute(args.filePath) ? args.filePath : path.join(workspaceRoot, args.filePath);
-                    if (fs.existsSync(filePath)) {
-                        originalContent = fs.readFileSync(filePath, 'utf-8');
-                    } else {
-                        originalContent = ''; // New file
-                    }
-                    proposedContent = args.content;
-                } else if (toolName === 'chunk_replace') {
-                    filePath = path.isAbsolute(args.filePath) ? args.filePath : path.join(workspaceRoot, args.filePath);
-                    if (fs.existsSync(filePath)) {
-                        originalContent = fs.readFileSync(filePath, 'utf-8');
-                        proposedContent = originalContent.replace(args.targetContent, args.replacementContent);
-                    }
-                }
-
-                if (filePath) {
-                    const tempDir = path.join(os.tmpdir(), 'ai-companion-diffs');
-                    if (!fs.existsSync(tempDir)) {
-                        fs.mkdirSync(tempDir, { recursive: true });
-                    }
-
-                    const fileName = path.basename(filePath);
-                    const leftPath = path.join(tempDir, `original_${fileName}`);
-                    const rightPath = path.join(tempDir, `proposed_${fileName}`);
-
-                    fs.writeFileSync(leftPath, originalContent);
-                    fs.writeFileSync(rightPath, proposedContent);
-
-                    vscode.commands.executeCommand('vscode.diff', 
-                        vscode.Uri.file(leftPath), 
-                        vscode.Uri.file(rightPath), 
-                        `${fileName} ↔ ${fileName} (Proposed)`);
-                }
+                const { toolCallId, toolName, args } = message.data;
+                outputChannel.appendLine(`Received chatReviewDiff for tool: ${toolName}`);
+                // Re-reveal the existing review
+                await handleInlineReview(toolCallId, toolName, args);
                 break;
             }
 
@@ -590,22 +555,182 @@ export async function chatMessageListener(message: any) {
         default:
             outputChannel.appendLine('Unknown message received:' + message);
     }
+}
 
+function formatMessageWithFiles(originalMessage: string, files: any[]): string {
+    let fullMessage = originalMessage;
 
-    function formatMessageWithFiles(originalMessage: string, files: any[]): string {
-        let fullMessage = originalMessage;
+    if (files && Array.isArray(files) && files.length > 0) {
+        fullMessage += "\n\n--- ATTACHED CONTEXT ---\n";
 
-        if (files && Array.isArray(files) && files.length > 0) {
-            fullMessage += "\n\n--- ATTACHED CONTEXT ---\n";
-
-            files.forEach((file: any) => {
-                fullMessage += `\nFile: ${file.name}\n`;
-                // Wrap content in Markdown code blocks
-                fullMessage += "```" + (file.language || '') + "\n";
-                fullMessage += (file.content || '') + "\n";
-                fullMessage += "```\n";
-            });
-        }
-        return fullMessage;
+        files.forEach((file: any) => {
+            fullMessage += `\nFile: ${file.name}\n`;
+            // Wrap content in Markdown code blocks
+            fullMessage += "```" + (file.language || '') + "\n";
+            fullMessage += (file.content || '') + "\n";
+            fullMessage += "```\n";
+        });
     }
-};
+    return fullMessage;
+}
+
+/**
+ * Opens a native VS Code side-by-side diff view showing original vs proposed content.
+ * Does NOT modify the file buffer — the user reviews visually and clicks Approve/Deny in the chat.
+ * Works for ALL files regardless of git status.
+ */
+/**
+ * Applies a proposed change to the editor buffer and initiates an inline review.
+ * Uses robust line-level diffing to find only changed hunks and handles L-prefixes.
+ */
+export async function handleInlineReview(
+    toolCallId: string, 
+    toolName: string, 
+    args: any
+) {
+    try {
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+        
+        let filePath = '';
+        if (toolName === 'create_file' || toolName === 'chunk_replace') {
+            filePath = path.isAbsolute(args.filePath) ? args.filePath : path.join(workspaceRoot, args.filePath);
+        }
+
+        if (!filePath) { 
+            outputChannel.appendLine(`[InlineReview] No filePath provided for ${toolName}. Skipping.`);
+            return; 
+        }
+
+        // 0. Handle non-existent files (Create empty for preview)
+        if (!fs.existsSync(filePath)) {
+            if (toolName === 'create_file') {
+                const dir = path.dirname(filePath);
+                if (!fs.existsSync(dir)) { fs.mkdirSync(dir, { recursive: true }); }
+                fs.writeFileSync(filePath, '', 'utf8');
+                outputChannel.appendLine(`[InlineReview] Created placeholder for new file: ${filePath}`);
+            } else {
+                outputChannel.appendLine(`[InlineReview] File not found: ${filePath}. Cannot preview.`);
+                return;
+            }
+        }
+
+        const fileUri = vscode.Uri.file(filePath);
+        const fileName = path.basename(filePath);
+        
+        const doc = await vscode.workspace.openTextDocument(fileUri);
+        const editor = await vscode.window.showTextDocument(doc);
+
+        // Read the latest buffer content (for the AI to apply its next hunk against)
+        const latestContent = doc.getText();
+        
+        // Read the INITIAL content from the start of the turn (for the diff's Left side)
+        const startOfTurnContent = ReviewManager.getInstance().getOriginalTurnContent(fileUri) || latestContent;
+
+        // --- OPTIMIZATION: If review already active for this tool, just reveal it ---
+        if (ReviewManager.getInstance().hasReviewsForTool(toolCallId)) {
+            ReviewManager.getInstance().refreshDecorations();
+            return;
+        }
+
+        // 1. Prepare proposed content (Always against LATEST buffer state)
+        let fullProposedContent: string;
+        if (toolName === 'create_file') {
+            const cleanContent = (args.content || '').replace(/^L\d+:\s/gm, '');
+            fullProposedContent = cleanContent;
+        } else {
+            const cleanTarget = args.targetContent.replace(/^L\d+:\s/gm, '');
+            const cleanReplacement = (args.replacementContent || '').replace(/^L\d+:\s/gm, '');
+
+            if (latestContent.includes(cleanTarget)) {
+                fullProposedContent = latestContent.replace(cleanTarget, cleanReplacement);
+            } else {
+                outputChannel.appendLine(`[SplitReview] Error: Target text not found in ${fileName}. (Matches are case-sensitive and must be exact).`);
+                ApprovalService.getInstance().resolveApproval(toolCallId, false);
+                return;
+            }
+        }
+
+        // 2. Open Split Diff Overview (Original Turn State vs Current Buffer)
+        const originalVirtualUri = vscode.Uri.parse(`${DiffContentProvider.scheme}:original-${fileName}?${fileUri.toString()}`);
+        DiffContentProvider.getInstance().updateContent(originalVirtualUri, startOfTurnContent);
+        
+        // Show the editor toolbar buttons
+        vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', true);
+
+        await vscode.commands.executeCommand('vscode.diff', 
+            originalVirtualUri, 
+            fileUri, 
+            `${fileName} (Review Changes)`
+        );
+
+        // 3. Apply changes directly to the buffer 
+        const edit = new vscode.WorkspaceEdit();
+        const fullRange = new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length));
+        edit.replace(fileUri, fullRange, fullProposedContent);
+        
+        const success = await vscode.workspace.applyEdit(edit);
+        if (!success) {
+            outputChannel.appendLine(`[SplitReview] Failed to apply changes to buffer for ${fileName}.`);
+            ApprovalService.getInstance().resolveApproval(toolCallId, false);
+            return;
+        }
+
+        // 4. Identify hunks for granular 'Keep | Undo' Lenses
+        // We diff latestContent vs fullProposedContent to find where THIS hunk ended up
+        const hunks = Diff.diffLines(latestContent, fullProposedContent);
+        let finalLineCounter = 0;
+        let originalLineCounter = 0;
+        let hunkCounter = 0;
+
+        for (const hunk of hunks) {
+            const lines = hunk.value.split('\n');
+            if (lines[lines.length - 1] === '') { lines.pop(); }
+
+            if (!hunk.added && !hunk.removed) {
+                finalLineCounter += lines.length;
+                originalLineCounter += lines.length;
+            } else if (hunk.added) {
+                // This is a NEW or REPLACEMENT block in the final buffer
+                const hunkId = `${toolCallId}:hunk${hunkCounter++}`;
+                const range = new vscode.Range(
+                    new vscode.Position(finalLineCounter, 0),
+                    new vscode.Position(finalLineCounter + lines.length - 1, 1000)
+                );
+
+                // Find corresponding original lines if it was a replacement
+                // (Advanced: we could check if previous hunk was 'removed')
+                // For now, store whatever lines were added.
+                ReviewManager.getInstance().registerHunk({
+                    id: hunkId,
+                    toolCallId,
+                    uri: fileUri,
+                    range,
+                    originalLines: [], // Simplified undo: just delete added lines
+                    proposedLines: lines
+                });
+                finalLineCounter += lines.length;
+            } else if (hunk.removed) {
+                // If it's a pure removal, we can put an 'Undo Delete' lens at the current line
+                const hunkId = `${toolCallId}:hunk${hunkCounter++}`;
+                const range = new vscode.Range(
+                    new vscode.Position(finalLineCounter, 0),
+                    new vscode.Position(finalLineCounter, 1000)
+                );
+                
+                ReviewManager.getInstance().registerHunk({
+                    id: hunkId,
+                    toolCallId,
+                    uri: fileUri,
+                    range,
+                    originalLines: lines,
+                    proposedLines: []
+                });
+                originalLineCounter += lines.length;
+            }
+        }
+
+        outputChannel.appendLine(`[SplitReview] Applied changes to ${fileName} and opened Split Diff.`);
+    } catch (e) {
+        outputChannel.appendLine(`[SplitReview] CRITICAL ERROR: ${e}`);
+    }
+}

@@ -3,6 +3,8 @@ import * as vscode from 'vscode';
 export class ApprovalService {
     private static instance: ApprovalService;
     private resolvers = new Map<string, (approved: boolean) => void>();
+    private _onDidResolveApproval = new vscode.EventEmitter<{ toolCallId: string, approved: boolean }>();
+    readonly onDidResolveApproval = this._onDidResolveApproval.event;
 
     private constructor() {}
 
@@ -37,6 +39,7 @@ export class ApprovalService {
         if (resolve) {
             resolve(approved);
             this.resolvers.delete(toolCallId);
+            this._onDidResolveApproval.fire({ toolCallId, approved });
         }
     }
 }
