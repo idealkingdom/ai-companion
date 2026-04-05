@@ -244,6 +244,7 @@ body {
 .gradient-text {
     background: linear-gradient(90deg, #fff, #a0a8ff);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
@@ -341,6 +342,7 @@ body {
 /* === SLIDER === */
 .styled-slider {
     -webkit-appearance: none;
+    appearance: none;
     width: 100%;
     height: 6px;
     border-radius: 3px;
@@ -489,4 +491,88 @@ body {
     opacity: 0;
     transform: translateY(20px);
     pointer-events: none;
+}
+
+.permission-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    border: 1px solid var(--panel-border);
+    transition: all 0.3s ease;
+}
+
+.permission-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.perm-content h3 {
+    margin-bottom: 6px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.perm-description {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    max-width: 450px;
+    line-height: 1.5;
+}
+
+.switch-container {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 26px;
+    flex-shrink: 0;
+}
+
+.switch-container input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--input-bg);
+    transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 34px;
+    border: 1px solid var(--input-border);
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 4px;
+    bottom: 3px;
+    background-color: #abb2bf;
+    transition: .3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+input:checked + .toggle-slider {
+    background: var(--accent-gradient);
+    border-color: transparent;
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(24px);
+    background-color: white;
+}
+
+input:focus + .toggle-slider {
+    box-shadow: 0 0 0 3px var(--accent-glow);
 }

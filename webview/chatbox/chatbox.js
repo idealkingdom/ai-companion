@@ -667,7 +667,7 @@ function appendUserMessage(message, images = [], files = []) {
  * Shows what the agent is doing (reading, editing, searching, etc.)
  */
 function renderAgentStep(step) {
-    if (!step) return;
+    if (!step) { return; }
 
     // Find or create the agent steps container
     let stepsContainer = chatbox.querySelector('.agent-steps-container:last-child');
@@ -694,14 +694,38 @@ function renderAgentStep(step) {
         const icon = icons[step.toolName] || '🛠️';
         const argsPreview = step.args ? JSON.stringify(step.args).substring(0, 120) : '';
 
-        stepEl.innerHTML = `
-            <div class="step-header">
-                <span class="step-icon">${icon}</span>
-                <span class="step-tool-name">${step.toolName}</span>
-                <span class="step-status running">Running</span>
-            </div>
-            <div class="step-args">${argsPreview}</div>
-        `;
+        if (step.approvalRequired) {
+            stepEl.classList.add('approval-pending');
+            
+            let reviewBtn = '';
+            if (step.diffReviewRequired) {
+                const escapedArgs = JSON.stringify(step.args).replace(/'/g, "\\'");
+                reviewBtn = `<button class="review-btn" onclick="reviewDiff('${step.toolCallId}', '${step.toolName}', '${escapedArgs}')">Review Changes</button>`;
+            }
+
+            stepEl.innerHTML = `
+                <div class="step-header">
+                    <span class="step-icon">${icon}</span>
+                    <span class="step-tool-name">${step.toolName}</span>
+                    <span class="step-status awaiting">Awaiting Approval</span>
+                </div>
+                <div class="step-args">${argsPreview}</div>
+                <div class="step-actions">
+                    ${reviewBtn}
+                    <button class="approve-btn" onclick="approveTool('${step.toolCallId}', true)">Approve</button>
+                    <button class="deny-btn" onclick="approveTool('${step.toolCallId}', false)">Deny</button>
+                </div>
+            `;
+        } else {
+            stepEl.innerHTML = `
+                <div class="step-header">
+                    <span class="step-icon">${icon}</span>
+                    <span class="step-tool-name">${step.toolName}</span>
+                    <span class="step-status running">Running</span>
+                </div>
+                <div class="step-args">${argsPreview}</div>
+            `;
+        }
     } else if (step.type === 'tool_result') {
         // Find the last running step and mark it as done
         const lastRunning = stepsContainer.querySelector('.step-status.running:last-child') ||
@@ -726,6 +750,37 @@ function renderAgentStep(step) {
     stepsContainer.appendChild(stepEl);
     scrollToBottom();
 }
+
+window.approveTool = (toolCallId, approved) => {
+    sendMessage('chatToolApproval', { toolCallId, approved });
+    
+    // Find the button that was clicked to identify the card
+    const btn = document.querySelector(`.approve-btn[onclick*="${toolCallId}"], .deny-btn[onclick*="${toolCallId}"]`);
+    if (btn) {
+        const card = btn.closest('.agent-step-card');
+        if (card) {
+            card.classList.remove('approval-pending');
+            const status = card.querySelector('.step-status');
+            if (status) {
+                status.textContent = approved ? 'Approved' : 'Denied';
+                status.className = `step-status ${approved ? 'approved' : 'denied'}`;
+            }
+            const actions = card.querySelector('.step-actions');
+            if (actions) { actions.remove(); }
+            
+            // If approved, it will soon transition to "Running" when the backend continues
+        }
+    }
+};
+
+window.reviewDiff = (toolCallId, toolName, argsStr) => {
+    try {
+        const args = JSON.parse(argsStr);
+        sendMessage('chatReviewDiff', { toolCallId, toolName, args });
+    } catch (e) {
+        console.error('Failed to parse diff args', e);
+    }
+};
 
 
 function appendAIMessage(response) {

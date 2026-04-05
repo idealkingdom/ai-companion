@@ -9,7 +9,12 @@ let currentSettings = {
         textModel: 'gpt-4o', imageModel: 'gpt-4o-mini', baseUrl: '', apiKey: '', provider: 'OpenAI',
         providerSettings: {}
     },
-    prompts: []
+    prompts: [],
+    permissions: {
+        readFilesConfirmation: false,
+        writeFilesConfirmation: true,
+        runCommandsConfirmation: true
+    }
 };
 
 // Default lists to show before fetching
@@ -33,6 +38,9 @@ const imageModelInput = document.getElementById('imageModelInput');
 const tempInput = document.getElementById('tempInput');
 const tempValue = document.getElementById('tempValue');
 const contextInput = document.getElementById('contextInput');
+const readFilesConfirmationToggle = document.getElementById('readFilesConfirmationToggle');
+const writeFilesConfirmationToggle = document.getElementById('writeFilesConfirmationToggle');
+const runCommandsConfirmationToggle = document.getElementById('runCommandsConfirmationToggle');
 const showKeyToggleBtn = document.getElementById('showKeyToggleBtn');
 let isKeyVisible = false;
 // --- INITIALIZATION ---
@@ -95,22 +103,24 @@ modelInputs.forEach(input => {
         const provider = currentSettings.models.provider;
 
         // Ensure structure
-        if (!currentSettings.models.providerSettings) currentSettings.models.providerSettings = {};
+        if (!currentSettings.models.providerSettings) {
+             currentSettings.models.providerSettings = {};
+        }
         if (!currentSettings.models.providerSettings[provider]) {
             currentSettings.models.providerSettings[provider] = {};
         }
 
         // Update specific field
-        if (input === apiKeyInput) currentSettings.models.providerSettings[provider].apiKey = input.value;
-        if (input === baseUrlInput) currentSettings.models.providerSettings[provider].baseUrl = input.value;
-        if (input === textModelInput) currentSettings.models.providerSettings[provider].textModel = input.value;
-        if (input === imageModelInput) currentSettings.models.providerSettings[provider].imageModel = input.value;
+        if (input === apiKeyInput) { currentSettings.models.providerSettings[provider].apiKey = input.value; }
+        if (input === baseUrlInput) { currentSettings.models.providerSettings[provider].baseUrl = input.value; }
+        if (input === textModelInput) { currentSettings.models.providerSettings[provider].textModel = input.value; }
+        if (input === imageModelInput) { currentSettings.models.providerSettings[provider].imageModel = input.value; }
 
         // Also update the top-level active key for backward compatibility/immediate use
-        if (input === apiKeyInput) currentSettings.models.apiKey = input.value;
-        if (input === baseUrlInput) currentSettings.models.baseUrl = input.value;
-        if (input === textModelInput) currentSettings.models.textModel = input.value;
-        if (input === imageModelInput) currentSettings.models.imageModel = input.value;
+        if (input === apiKeyInput) { currentSettings.models.apiKey = input.value; }
+        if (input === baseUrlInput) { currentSettings.models.baseUrl = input.value; }
+        if (input === textModelInput) { currentSettings.models.textModel = input.value; }
+        if (input === imageModelInput) { currentSettings.models.imageModel = input.value; }
     });
 });
 
@@ -199,7 +209,7 @@ window.addEventListener('message', event => {
 // --- FUNCTIONS ---
 
 function populateForm() {
-    const { general, models } = currentSettings;
+    const { general, models, permissions } = currentSettings;
 
     // Models
     providerSelect.value = models.provider;
@@ -212,11 +222,23 @@ function populateForm() {
     tempInput.value = general.temperature;
     tempValue.textContent = general.temperature;
     contextInput.value = general.maxContextMessages;
+
+    // Permissions
+    if (permissions) {
+        if (readFilesConfirmationToggle) { readFilesConfirmationToggle.checked = permissions.readFilesConfirmation; }
+        if (writeFilesConfirmationToggle) { writeFilesConfirmationToggle.checked = permissions.writeFilesConfirmation; }
+        if (runCommandsConfirmationToggle) { runCommandsConfirmationToggle.checked = permissions.runCommandsConfirmation; }
+    }
 }
 
 function collectSettings() {
     currentSettings.general.temperature = parseFloat(tempInput.value);
     currentSettings.general.maxContextMessages = parseInt(contextInput.value);
+    
+    if (!currentSettings.permissions) currentSettings.permissions = {};
+    currentSettings.permissions.readFilesConfirmation = readFilesConfirmationToggle.checked;
+    currentSettings.permissions.writeFilesConfirmation = writeFilesConfirmationToggle.checked;
+    currentSettings.permissions.runCommandsConfirmation = runCommandsConfirmationToggle.checked;
 }
 
 function renderPrompts() {

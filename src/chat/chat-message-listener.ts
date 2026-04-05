@@ -15,6 +15,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as crypto from 'crypto';
 import { SettingsManager } from '../services/settings-manager';
+import { ApprovalService } from "./approval-service";
 
 
 // message sent from client js
@@ -528,7 +529,59 @@ export async function chatMessageListener(message: any) {
                 }
 
                 break;
+            }
 
+        case 'chatToolApproval':
+            {
+                const { toolCallId, approved } = message.data;
+                ApprovalService.getInstance().resolveApproval(toolCallId, approved);
+                break;
+            }
+
+        case 'chatReviewDiff':
+            {
+                const { toolName, args } = message.data;
+                const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+                
+                let originalContent = '';
+                let proposedContent = '';
+                let filePath = '';
+
+                if (toolName === 'create_file') {
+                    filePath = path.isAbsolute(args.filePath) ? args.filePath : path.join(workspaceRoot, args.filePath);
+                    if (fs.existsSync(filePath)) {
+                        originalContent = fs.readFileSync(filePath, 'utf-8');
+                    } else {
+                        originalContent = ''; // New file
+                    }
+                    proposedContent = args.content;
+                } else if (toolName === 'chunk_replace') {
+                    filePath = path.isAbsolute(args.filePath) ? args.filePath : path.join(workspaceRoot, args.filePath);
+                    if (fs.existsSync(filePath)) {
+                        originalContent = fs.readFileSync(filePath, 'utf-8');
+                        proposedContent = originalContent.replace(args.targetContent, args.replacementContent);
+                    }
+                }
+
+                if (filePath) {
+                    const tempDir = path.join(os.tmpdir(), 'ai-companion-diffs');
+                    if (!fs.existsSync(tempDir)) {
+                        fs.mkdirSync(tempDir, { recursive: true });
+                    }
+
+                    const fileName = path.basename(filePath);
+                    const leftPath = path.join(tempDir, `original_${fileName}`);
+                    const rightPath = path.join(tempDir, `proposed_${fileName}`);
+
+                    fs.writeFileSync(leftPath, originalContent);
+                    fs.writeFileSync(rightPath, proposedContent);
+
+                    vscode.commands.executeCommand('vscode.diff', 
+                        vscode.Uri.file(leftPath), 
+                        vscode.Uri.file(rightPath), 
+                        `${fileName} ↔ ${fileName} (Proposed)`);
+                }
+                break;
             }
 
 

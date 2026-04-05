@@ -1188,6 +1188,22 @@ details[open] summary .file-arrow {
     color: #4caf50;
 }
 
+.step-status.awaiting {
+    background: rgba(255, 152, 0, 0.15);
+    color: #ff9800;
+    border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+.step-status.denied {
+    background: rgba(244, 67, 54, 0.15);
+    color: #f44336;
+}
+
+.step-status.approved {
+    background: rgba(33, 150, 243, 0.15);
+    color: #2196f3;
+}
+
 @keyframes pulseGlow {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
@@ -1203,3 +1219,81 @@ details[open] summary .file-arrow {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+.agent-step-card.approval-pending {
+    border: 1px solid #ff980088;
+    box-shadow: 0 0 12px rgba(255, 152, 0, 0.1);
+}
+
+.step-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 10px;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.approve-btn, .deny-btn {
+    flex: 1;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    font-family: var(--font-ui);
+}
+
+.approve-btn {
+    background: var(--vscode-button-background, #007acc);
+    color: var(--vscode-button-foreground, #fff);
+}
+
+.deny-btn {
+    background: var(--vscode-button-secondaryBackground, #5f5f5f);
+    color: var(--vscode-button-secondaryForeground, #fff);
+}
+
+.approve-btn:hover, .deny-btn:hover {
+    opacity: 0.9;
+}
+
+.approve-btn:active, .deny-btn:active {
+    transform: translateY(1px);
+}
+
+.review-btn {
+    flex: 1.5;
+    background: transparent;
+    color: var(--vscode-textLink-foreground, #3794ff);
+    border: 1px solid var(--vscode-textLink-foreground, #3794ff);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: var(--font-ui);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.review-btn:hover {
+    background: var(--vscode-textLink-foreground, #3794ff);
+    color: #fff;
+}
+
+.review-btn::before {
+    content: '🔍';
+    font-size: 0.85rem;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+

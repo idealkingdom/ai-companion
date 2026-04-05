@@ -32,6 +32,11 @@ export interface AppSettings {
             }
         };
     };
+    permissions: {
+        readFilesConfirmation: boolean;
+        writeFilesConfirmation: boolean;
+        runCommandsConfirmation: boolean;
+    };
     prompts: PromptDef[];
 }
 
@@ -51,6 +56,11 @@ const DEFAULT_SETTINGS: AppSettings = {
             [MODEL_PROVIDER.OPEN_AI]: { apiKey: '', baseUrl: 'https://api.openai.com/v1', textModel: 'gpt-4o', imageModel: 'gpt-4o' },
             [MODEL_PROVIDER.GEMINI]: { apiKey: '', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', textModel: 'gemini-2.5-pro', imageModel: 'gemini-2.5-pro' }
         }
+    },
+    permissions: {
+        readFilesConfirmation: false,
+        writeFilesConfirmation: true,
+        runCommandsConfirmation: true
     },
     prompts: [
         {
@@ -91,6 +101,7 @@ export class SettingsManager {
         const merged = {
             general: { ...DEFAULT_SETTINGS.general, ...stored.general },
             models: { ...DEFAULT_SETTINGS.models, ...stored.models },
+            permissions: { ...DEFAULT_SETTINGS.permissions, ...stored.permissions },
             prompts: finalPrompts
         };
 

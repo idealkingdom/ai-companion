@@ -287,7 +287,23 @@ RULES:
         ];
 
         // Create tool registry
-        const tools = createToolRegistry(this.workspaceIndex);
+        const tools = createToolRegistry(this.workspaceIndex, {
+            readFilesConfirmation: settings.permissions?.readFilesConfirmation ?? false,
+            writeFilesConfirmation: settings.permissions?.writeFilesConfirmation ?? true,
+            runCommandsConfirmation: settings.permissions?.runCommandsConfirmation ?? true,
+            onApprovalRequest: async (toolCallId, toolName, args, opts) => {
+                if (onAgentStep) {
+                    onAgentStep({
+                        type: 'tool_call' as any,
+                        toolName,
+                        args,
+                        approvalRequired: true,
+                        diffReviewRequired: opts.diffReviewRequired,
+                        toolCallId
+                    } as any);
+                }
+            }
+        });
         await this.workspaceIndex.refresh();
 
         outputChannel.appendLine(`[Agentic] Tool names: ${Object.keys(tools).join(', ')}`);
