@@ -1,0 +1,56 @@
+    [webpack-cli] Compiler starting... 
+    [webpack-cli] Compiler is using config: '/home/idealkingdom/Desktop/Projects/ai-companion/webpack.config.js'
+    [webpack-cli] Compiler finished
+assets by chunk 5.76 MiB (id hint: vendors)
+  asset vendors-node_modules_pdf-parse_lib_pdf_js_v1_10_100_build_pdf_worker_js.extension.js 1.47 MiB [compared for emit] (id hint: vendors) 1 related asset
+  asset vendors-node_modules_pdf-parse_lib_pdf_js_v1_10_88_build_pdf_worker_js.extension.js 1.47 MiB [compared for emit] (id hint: vendors) 1 related asset
+  asset vendors-node_modules_pdf-parse_lib_pdf_js_v2_0_550_build_pdf_worker_js.extension.js 1.45 MiB [compared for emit] (id hint: vendors) 1 related asset
+  asset vendors-node_modules_pdf-parse_lib_pdf_js_v1_9_426_build_pdf_worker_js.extension.js 1.36 MiB [compared for emit] (id hint: vendors) 1 related asset
+  asset vendors-node_modules_vercel_oidc_dist_auth-config_js-node_modules_vercel_oidc_dist_token-util_js.extension.js 17.6 KiB [compared for emit] (id hint: vendors) 1 related asset
+asset extension.js 4.24 MiB [emitted] (name: main) 1 related asset
+asset node_modules_vercel_oidc_dist_token_js.extension.js 2.75 KiB [compared for emit] 1 related asset
+runtime modules 3.17 KiB 7 modules
+orphan modules 1.3 KiB [orphan] 2 modules
+modules by path ./node_modules/ 9.78 MiB 159 modules
+modules by path ./src/ 117 KiB
+  modules by path ./src/chat/*.ts 72.2 KiB 8 modules
+  modules by path ./src/*.ts 10.2 KiB 4 modules
+  modules by path ./src/tools/*.ts 16.5 KiB 3 modules
+  modules by path ./src/services/*.ts 8.94 KiB 2 modules
+  ./src/settings/settings-view.ts 5.83 KiB [built] [code generated]
+  ./src/api/ai.ts 3.61 KiB [built] [code generated]
++ 10 modules
+
+ERROR in /home/idealkingdom/Desktop/Projects/ai-companion/tsconfig.json
+/home/idealkingdom/Desktop/Projects/ai-companion/tsconfig.json
+[tsl] ERROR
+      TS6059: File '/home/idealkingdom/Desktop/Projects/ai-companion/test.ts' is not under 'rootDir' '/home/idealkingdom/Desktop/Projects/ai-companion/src'. 'rootDir' is expected to contain all source files.
+  The file is in the program because:
+    Root file specified for compilation
+  File is CommonJS module because '/home/idealkingdom/Desktop/Projects/ai-companion/package.json' does not have field "type"
+
+ERROR in /home/idealkingdom/Desktop/Projects/ai-companion/tsconfig.json
+/home/idealkingdom/Desktop/Projects/ai-companion/tsconfig.json
+[tsl] ERROR
+      TS6059: File '/home/idealkingdom/Desktop/Projects/ai-companion/test2.ts' is not under 'rootDir' '/home/idealkingdom/Desktop/Projects/ai-companion/src'. 'rootDir' is expected to contain all source files.
+  The file is in the program because:
+    Root file specified for compilation
+  File is CommonJS module because '/home/idealkingdom/Desktop/Projects/ai-companion/package.json' does not have field "type"
+
+ERROR in /home/idealkingdom/Desktop/Projects/ai-companion/test2.ts
+9:4-11
+[tsl] ERROR in /home/idealkingdom/Desktop/Projects/ai-companion/test2.ts(9,5)
+      TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Type '() => Promise<void>' is not assignable to type 'undefined'.
+
+ERROR in /home/idealkingdom/Desktop/Projects/ai-companion/test2.ts
+13:39-49
+[tsl] ERROR in /home/idealkingdom/Desktop/Projects/ai-companion/test2.ts(13,40)
+      TS2339: Property 'parameters' does not exist on type 'Tool<unknown, void>'.
+  Property 'parameters' does not exist on type '{ description?: string | undefined; title?: string | undefined; providerOptions?: SharedV3ProviderOptions | undefined; inputSchema: FlexibleSchema<unknown>; ... 5 more ...; onInputAvailable?: ((options: { ...; } & ToolExecutionOptions) => void | PromiseLike<...>) | undefined; } & { ...; } & { ...; } & { ...; }'.
+
+4 errors have detailed information that is not shown.
+Use 'stats.errorDetails: true' resp. '--stats-error-details' to show it.
+
+webpack 5.99.9 compiled with 4 errors in 5065 ms

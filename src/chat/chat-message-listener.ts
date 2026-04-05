@@ -72,6 +72,7 @@ export async function chatMessageListener(message: any) {
                 const rawText = message.data.message;
                 const files = message.data.files;
                 const images = message.data.images;
+                const agentId = message.data.agentId;
                 // This turns the text + files into one big Markdown string
                 const formattedMessage = formatMessageWithFiles(rawText, files);
 
@@ -87,17 +88,29 @@ export async function chatMessageListener(message: any) {
                 const aiData = {
                     ...message.data,
                     message: formattedMessage, // <--- Pass the FULL content
+                    agentId: agentId,          // <--- Pass the agent mode
                     files: [] // Clear files so Core doesn't double-append them
                 };
 
                 webview.postMessage({ command: CHAT_COMMANDS.CHAT_STREAM_START });
 
-                const aiResponse = await coreService.processChatRequest(aiData, async (chunk) => {
-                    await webview.postMessage({
-                        command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
-                        content: chunk
-                    });
-                });
+                const aiResponse = await coreService.processChatRequest(
+                    aiData,
+                    // onChunk — stream text to frontend
+                    async (chunk) => {
+                        await webview.postMessage({
+                            command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
+                            content: chunk
+                        });
+                    },
+                    // onAgentStep — stream tool telemetry to frontend
+                    async (step) => {
+                        await webview.postMessage({
+                            command: CHAT_COMMANDS.CHAT_AGENT_STEP,
+                            content: step
+                        });
+                    }
+                );
 
                 webview.postMessage({
                     command: CHAT_COMMANDS.CHAT_STREAM_END,

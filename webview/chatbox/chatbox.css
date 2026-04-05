@@ -1114,3 +1114,92 @@ details[open] summary .file-arrow {
     from { opacity: 0; transform: translateY(5px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   AGENT TELEMETRY CARDS — Live tool execution visualization
+   ═══════════════════════════════════════════════════════════ */
+
+.agent-steps-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 0;
+    margin: 4px 0;
+}
+
+.agent-step-card {
+    background: var(--vscode-editorWidget-background, rgba(30, 30, 30, 0.8));
+    border: 1px solid var(--vscode-editorWidget-border, rgba(80, 80, 80, 0.4));
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    font-family: var(--font-ui);
+    animation: stepSlideIn 0.2s ease-out;
+    backdrop-filter: blur(8px);
+}
+
+@keyframes stepSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.step-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.step-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.step-tool-name {
+    font-weight: 600;
+    color: var(--vscode-editor-foreground, #ccc);
+    font-family: var(--font-editor);
+    font-size: 0.78rem;
+}
+
+.step-status {
+    margin-left: auto;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 1px 8px;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.step-status.running {
+    background: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+    animation: pulseGlow 1.5s ease-in-out infinite;
+}
+
+.step-status.done {
+    background: rgba(76, 175, 80, 0.15);
+    color: #4caf50;
+}
+
+@keyframes pulseGlow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.step-args {
+    margin-top: 4px;
+    font-size: 0.72rem;
+    color: var(--vscode-descriptionForeground, #888);
+    font-family: var(--font-editor);
+    word-break: break-all;
+    max-height: 40px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

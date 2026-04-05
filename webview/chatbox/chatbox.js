@@ -662,6 +662,72 @@ function appendUserMessage(message, images = [], files = []) {
 }
 
 
+/**
+ * Renders an Agent tool step card in the chat log.
+ * Shows what the agent is doing (reading, editing, searching, etc.)
+ */
+function renderAgentStep(step) {
+    if (!step) return;
+
+    // Find or create the agent steps container
+    let stepsContainer = chatbox.querySelector('.agent-steps-container:last-child');
+    if (!stepsContainer) {
+        stepsContainer = document.createElement('div');
+        stepsContainer.className = 'agent-steps-container';
+        chatbox.appendChild(stepsContainer);
+    }
+
+    const stepEl = document.createElement('div');
+    stepEl.className = 'agent-step-card';
+
+    if (step.type === 'tool_call') {
+        const icons = {
+            'list_workspace': '📂',
+            'read_file_skeleton': '🦴',
+            'read_line_range': '📖',
+            'chunk_replace': '✏️',
+            'create_file': '📄',
+            'find_symbol': '🔍',
+            'run_command': '⚡',
+            'search_workspace': '🔎'
+        };
+        const icon = icons[step.toolName] || '🛠️';
+        const argsPreview = step.args ? JSON.stringify(step.args).substring(0, 120) : '';
+
+        stepEl.innerHTML = `
+            <div class="step-header">
+                <span class="step-icon">${icon}</span>
+                <span class="step-tool-name">${step.toolName}</span>
+                <span class="step-status running">Running</span>
+            </div>
+            <div class="step-args">${argsPreview}</div>
+        `;
+    } else if (step.type === 'tool_result') {
+        // Find the last running step and mark it as done
+        const lastRunning = stepsContainer.querySelector('.step-status.running:last-child') ||
+                           stepsContainer.querySelector('.step-status.running');
+        if (lastRunning) {
+            lastRunning.textContent = 'Done';
+            lastRunning.classList.remove('running');
+            lastRunning.classList.add('done');
+        }
+        // Don't create a new card for results
+        scrollToBottom();
+        return;
+    } else if (step.type === 'thinking') {
+        stepEl.innerHTML = `
+            <div class="step-header">
+                <span class="step-icon">✅</span>
+                <span class="step-tool-name">${step.text}</span>
+            </div>
+        `;
+    }
+
+    stepsContainer.appendChild(stepEl);
+    scrollToBottom();
+}
+
+
 function appendAIMessage(response) {
     const parsedResponse = marked.parse(response);
     const systemResponseHTML = `<div class="system-message">
@@ -1179,6 +1245,7 @@ window.addEventListener('message', event => {
             break;
 
         case CHAT_COMMANDS.CHAT_STREAM_END:
+            hideLoadingIndicator(); // Always hide loading, even if no chunks arrived
             if (activeStreamNode) {
                 setTimeout(() => {
                     hljs.highlightAll();
@@ -1214,6 +1281,11 @@ window.addEventListener('message', event => {
             const problemData = message.content;
             insertInlineFile(problemData.name, problemData.text, problemData.language, problemData.path);
             break;
+
+        case CHAT_COMMANDS.CHAT_AGENT_STEP:
+            renderAgentStep(message.content);
+            break;
+
         default:
             console.error('Unknown command:', message.command);
     }
