@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 import { fetchFilesWebView, getHTMLBase } from '../webviewshared';
+import { SettingsManager } from '../services/settings-manager';
 
 // import output channel for logging errors
 import { outputChannel } from '../logger';
@@ -20,7 +21,7 @@ import {
     ROLE,
     COMMANDS,
     WORKFLOWS
-    } from './chat-constants';
+} from './chat-constants';
 
 
 // MESSAGE LISTENER
@@ -39,25 +40,25 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     public static getInstance(context?: vscode.ExtensionContext): ChatViewProvider {
-    if (!this.instance) {
-      if (!context) {throw new Error('ChatViewProvider requires context on first getInstance() call.');}
-      this.instance = new ChatViewProvider(context);
-    }
-      return this.instance;
+        if (!this.instance) {
+            if (!context) { throw new Error('ChatViewProvider requires context on first getInstance() call.'); }
+            this.instance = new ChatViewProvider(context);
+        }
+        return this.instance;
     }
 
-    public static getContext(){
+    public static getContext() {
         return ChatViewProvider._context;
     }
 
-    public static getView(){
+    public static getView() {
         return ChatViewProvider._view;
     }
-    
+
     public resolveWebviewView(
         webviewView: vscode.WebviewView
     ) {
-        
+
 
         webviewView.webview.options = {
             enableScripts: true,
@@ -110,17 +111,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         });
 
         // LOAD THE CONSTANTS WE CAN USE IN THE WEBVIEW
+        const settingsManager = new SettingsManager(this.context);
+        const settings = settingsManager.getSettings();
+
         const SHARED_CONSTANTS = JSON.stringify({
             CHAT_COMMANDS: CHAT_COMMANDS,
             ROLE: ROLE,
             COMMANDS: COMMANDS,
-            WORKFLOWS: WORKFLOWS
+            WORKFLOWS: WORKFLOWS,
+            AGENTS: settings.prompts || []
         });
-        
+
         // Inject the constants into the HTML by replacing the {{constants}} placeholder
         webviewView.webview.html = webviewView.webview.html.replace(`"{{CONSTANTS}}"`, SHARED_CONSTANTS);
 
-        
+
 
         ChatViewProvider._view = webviewView;
         // =================================================================

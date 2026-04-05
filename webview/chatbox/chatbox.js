@@ -44,8 +44,67 @@ let attachedImages = [];
 let attachedFiles = [];
 
 // --- AUTOCOMPLETE STATE ---
-const { COMMANDS = [], WORKFLOWS = [] } = window.VS_CONSTANTS;
+const { COMMANDS = [], WORKFLOWS = [], AGENTS = [] } = window.VS_CONSTANTS;
 const autocompleteMenu = document.getElementById('autocomplete-menu');
+
+// --- MODE SWITCHER INITIALIZATION ---
+const modeDropdown = document.getElementById('modeDropdown');
+const modeSelected = document.getElementById('modeSelected');
+const modeOptions = document.getElementById('modeOptions');
+
+let activeAgentId = 'default';
+
+if (modeDropdown && AGENTS.length > 0) {
+    AGENTS.forEach(agent => {
+        if (!agent.isActive) { return; }
+        const opt = document.createElement('div');
+        opt.className = 'mode-option';
+        opt.dataset.value = agent.id;
+        opt.innerHTML = `<span class="mode-icon">🤖</span> ${escapeHtml(agent.name)}`;
+        modeOptions.appendChild(opt);
+    });
+}
+
+// Dropdown Interactions
+if (modeDropdown) {
+    // Open/Close
+    modeSelected.addEventListener('click', (e) => {
+        e.stopPropagation();
+        modeOptions.classList.toggle('hidden');
+        modeDropdown.classList.toggle('open');
+    });
+
+    // Select Option
+    modeOptions.addEventListener('click', (e) => {
+        const option = e.target.closest('.mode-option');
+        if (!option) { return; }
+        
+        activeAgentId = option.dataset.value;
+        const icon = option.querySelector('.mode-icon').innerHTML;
+        // Grab only the text content ignoring the icon span
+        const text = option.innerText.replace(icon, '').trim();
+        
+        // Update styling
+        modeOptions.querySelectorAll('.mode-option').forEach(o => o.classList.remove('selected'));
+        option.classList.add('selected');
+
+        // Update selected display
+        modeSelected.innerHTML = `<span class="mode-icon">${icon}</span> ${text}
+            <svg class="dropdown-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>`;
+
+        // Hide
+        modeOptions.classList.add('hidden');
+        modeDropdown.classList.remove('open');
+    });
+
+    // Close on outside click
+    document.addEventListener('click', () => {
+        if (!modeOptions.classList.contains('hidden')) {
+            modeOptions.classList.add('hidden');
+            modeDropdown.classList.remove('open');
+        }
+    });
+}
 let autocompleteActive = false;
 let autocompleteType = null; // '@' or '/'
 let selectedIndex = 0;
@@ -813,6 +872,8 @@ sendButton.addEventListener("click", event => {
 
             // CRITICAL: Send the attached files to the backend
             files: allFiles,
+            
+            agentId: activeAgentId,
 
             chat_id: chatLog.dataset.chatId,
             timestamp: new Date().toISOString()

@@ -37,7 +37,8 @@ export class ChatCoreService {
         chat_id: string,
         timestamp: string,
         files?: any[],
-        images?: any[]
+        images?: any[],
+        agentId?: string
     }, onChunk?: (text: string) => void): Promise<string> {
 
         const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
@@ -169,20 +170,25 @@ export class ChatCoreService {
                 targetModel = appSettings.models.textModel || 'gpt-4o';
             }
 
-            // --- SEQUENTIAL PROMPT EXECUTION ---
+            // --- SEQUENTIAL / AGENT OVERRIDE EXECUTION ---
+            
+            let steps: any[] = [];
+            
+            // 1. Explicit Agent Override from UI
+            if (data.agentId && data.agentId !== 'default') {
+                const explicitAgent = appSettings.prompts.find(p => p.id === data.agentId);
+                if (explicitAgent) { steps = [explicitAgent]; }
+            }
 
-            // 1. Get Active Prompts
-            const activePrompts = appSettings.prompts
-                .filter((p: any) => p.isActive)
-                .sort((a: any, b: any) => a.order - b.order);
-
-            // 2. Define Execution Loop
-            // If no prompts are active, we run once with the default system prompt.
-            // If prompts are active, we run sequentially.
-            // Note: The 'User Message' for Step N+1 is the 'AI Response' from Step N.
+            // 2. Fallback to active prompt sequences, or System Prompt
+            if (steps.length === 0) {
+                const activePrompts = appSettings.prompts
+                    .filter((p: any) => p.isActive)
+                    .sort((a: any, b: any) => a.order - b.order);
+                steps = activePrompts.length > 0 ? activePrompts : [{ content: appSettings.general.systemPrompt || "You are an expert AI assistant." }];
+            }
 
             let pipelineContext = finalCurrentMessage; // Start with user input (or multimodal array)
-            const steps = activePrompts.length > 0 ? activePrompts : [{ content: appSettings.general.systemPrompt || "You are a helpful assistant." }];
 
             // Global settings overrides
             const apiBaseUrl = appSettings.models.baseUrl;

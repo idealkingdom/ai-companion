@@ -18,7 +18,7 @@ let DEFAULT_MODELS = window.VS_MODELS || {
 };
 
 // --- DOM ELEMENTS ---
-const tabs = document.querySelectorAll('.nav-tab');
+const tabs = document.querySelectorAll('.nav-item');
 const contents = document.querySelectorAll('.tab-view');
 const saveBtn = document.getElementById('saveBtn');
 const addPromptBtn = document.getElementById('addPromptBtn');
@@ -33,9 +33,8 @@ const imageModelInput = document.getElementById('imageModelInput');
 const tempInput = document.getElementById('tempInput');
 const tempValue = document.getElementById('tempValue');
 const contextInput = document.getElementById('contextInput');
-const showKeyToggle = document.getElementById('showKeyToggle');
-
-
+const showKeyToggleBtn = document.getElementById('showKeyToggleBtn');
+let isKeyVisible = false;
 // --- INITIALIZATION ---
 window.addEventListener('DOMContentLoaded', () => {
     // Request settings from extension
@@ -134,8 +133,11 @@ tempInput.addEventListener('input', (e) => {
 });
 
 // Toggle API Key Visibility
-showKeyToggle.addEventListener('change', (e) => {
-    apiKeyInput.setAttribute('type', e.target.checked ? 'text' : 'password');
+showKeyToggleBtn.addEventListener('click', () => {
+    isKeyVisible = !isKeyVisible;
+    apiKeyInput.setAttribute('type', isKeyVisible ? 'text' : 'password');
+    // Change SVG or opacity slightly to indicate toggle
+    showKeyToggleBtn.style.opacity = isKeyVisible ? '1' : '0.5';
 });
 
 
@@ -147,6 +149,13 @@ saveBtn.addEventListener('click', () => {
         command: 'saveSettings',
         settings: currentSettings
     });
+    
+    // Toast UI Animation
+    const toast = document.getElementById('toastNotification');
+    if (toast) {
+        toast.classList.remove('hidden');
+        setTimeout(() => toast.classList.add('hidden'), 3000);
+    }
 });
 
 // Add Prompt Button
@@ -214,7 +223,7 @@ function renderPrompts() {
     promptsList.innerHTML = '';
 
     if (currentSettings.prompts.length === 0) {
-        promptsList.innerHTML = `<div class="empty-state" style="padding:20px; text-align:center; color:#8b949e">No prompt chains defined. Click '+ Add Prompt' to create one.</div>`;
+        promptsList.innerHTML = `<div class="empty-state" style="padding:40px; text-align:center; color:var(--text-muted); border: 2px dashed var(--panel-border); border-radius: 8px;">No Agent profiles defined. Click '+ New Agent' to build one.</div>`;
         return;
     }
 
@@ -223,28 +232,34 @@ function renderPrompts() {
 
     currentSettings.prompts.forEach((prompt, index) => {
         const item = document.createElement('div');
-        item.className = 'prompt-item';
+        item.className = 'agent-card';
 
-        // Define HTML structure
+        // Define HTML structure for the Agent Card
         item.innerHTML = `
-            <div class="prompt-header">
-                <div class="prompt-index">${index + 1}</div>
-                <input type="text" class="prompt-name-input" value="${escapeHtml(prompt.name)}" placeholder="Agent Name">
-                <div class="prompt-controls">
-                    <button class="icon-btn move-up" title="Move Up" ${index === 0 ? 'disabled' : ''}>▲</button>
-                    <button class="icon-btn move-down" title="Move Down" ${index === currentSettings.prompts.length - 1 ? 'disabled' : ''}>▼</button>
-                    
-                    <label class="switch" style="display:flex; align-items:center; margin:0 8px;">
-                        <input type="checkbox" class="active-toggle" ${prompt.isActive ? 'checked' : ''}>
-                         <!-- Basic toggle styling needed if not in CSS, assuming browser default or simple checkbox for now to save space -->
-                    </label>
-                    <button class="icon-btn delete" title="Delete">🗑️</button>
+            <div class="agent-card-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <div class="agent-avatar" style="display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:8px; background:rgba(92,110,255,0.1); color:var(--accent-color);">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                </div>
+                <div class="prompt-controls" style="display:flex; gap: 8px;">
+                    <button class="icon-btn move-up" title="Move Left" style="background:transparent; border:none; cursor:pointer; color:var(--text-muted);" ${index === 0 ? 'disabled' : ''}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+                    </button>
+                    <button class="icon-btn move-down" title="Move Right" style="background:transparent; border:none; cursor:pointer; color:var(--text-muted);" ${index === currentSettings.prompts.length - 1 ? 'disabled' : ''}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+                    </button>
+                    <button class="icon-btn delete" title="Delete" style="background:transparent; border:none; cursor:pointer; color:#ff5c5c;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2-2h2"/></svg>
+                    </button>
                 </div>
             </div>
-            <div class="prompt-body">
+            <div class="prompt-body" style="margin-top: 16px;">
+                <div class="form-group mb-3" style="margin-bottom:12px;">
+                    <label>Agent Name</label>
+                    <input type="text" class="styled-input prompt-name-input" value="${escapeHtml(prompt.name)}" placeholder="e.g. Assistant">
+                </div>
                 <div class="form-group">
-                    <label>System Prompt</label>
-                    <textarea rows="3" class="prompt-text" placeholder="e.g. You are a helpful assistant...">${escapeHtml(prompt.content)}</textarea>
+                    <label>Identity / System Prompt</label>
+                    <textarea rows="4" class="styled-input prompt-text" placeholder="e.g. You are an expert AI...">${escapeHtml(prompt.content)}</textarea>
                 </div>
             </div>
         `;
@@ -259,11 +274,6 @@ function renderPrompts() {
         // Content Change
         item.querySelector('.prompt-text').addEventListener('input', (e) => {
             prompt.content = e.target.value;
-        });
-
-        // Toggle Active
-        item.querySelector('.active-toggle').addEventListener('change', (e) => {
-            prompt.isActive = e.target.checked;
         });
 
         // Move Up
@@ -297,18 +307,6 @@ function renderPrompts() {
             currentSettings.prompts.forEach((p, i) => p.order = i + 1);
             renderPrompts();
         });
-
-        // Expand/Collapse (Clicking header)
-        const header = item.querySelector('.prompt-header');
-        const content = item.querySelector('.prompt-body');
-        header.addEventListener('click', (e) => {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
-            item.classList.toggle('expanded');
-            content.style.display = content.style.display === 'none' ? 'block' : 'none';
-        });
-
-        // Init state
-        content.style.display = 'block';
 
         promptsList.appendChild(item);
     });

@@ -52,7 +52,22 @@ const DEFAULT_SETTINGS: AppSettings = {
             [MODEL_PROVIDER.GEMINI]: { apiKey: '', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', textModel: 'gemini-2.5-pro', imageModel: 'gemini-2.5-pro' }
         }
     },
-    prompts: []
+    prompts: [
+        {
+            id: 'agent-assistant-1',
+            name: 'Assistant',
+            content: 'You are a helpful and expert AI coding assistant. Provide clean, secure, and well-documented code.',
+            isActive: true,
+            order: 1
+        },
+        {
+            id: 'agent-architect-2',
+            name: 'Architect',
+            content: 'You are a Senior Technical Lead and Systems Architect. When analyzing problems, outline the solution step-by-step, listing prerequisites, edge cases, and architectural diagrams before writing any code.',
+            isActive: true,
+            order: 2
+        }
+    ]
 };
 
 export class SettingsManager {
@@ -66,11 +81,17 @@ export class SettingsManager {
             return DEFAULT_SETTINGS;
         }
 
+        let finalPrompts = stored.prompts || [];
+        if (finalPrompts.length === 0) {
+            // Guarantee predefined agents load securely for existing profiles
+            finalPrompts = [...DEFAULT_SETTINGS.prompts];
+        }
+
         // Ensure structure (naive merge)
         const merged = {
             general: { ...DEFAULT_SETTINGS.general, ...stored.general },
             models: { ...DEFAULT_SETTINGS.models, ...stored.models },
-            prompts: stored.prompts || []
+            prompts: finalPrompts
         };
 
         // Ensure providerSettings exists inside models if it wasn't there (though spread above handles it if stored.models has it)

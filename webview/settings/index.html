@@ -1,135 +1,177 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Companion Settings</title>
     <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
     <script>
         window.VS_MODELS = "{{MODELS}}";
     </script>
 </head>
+<body class="dark-theme">
+    <div class="app-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-box">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    </svg>
+                </div>
+                <div class="header-text">
+                    <h2>AI Companion</h2>
+                    <span class="badge">Configuration</span>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-tab="general">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    General
+                </button>
+                <button class="nav-item" data-tab="providers">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+                    Providers & Models
+                </button>
+                <button class="nav-item" data-tab="agents">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    Agent Hub
+                </button>
+            </nav>
 
-<body>
-    <div class="main-layout">
-        <header class="top-nav">
-            <div class="logo-section">
-                <h2>AI Companion</h2>
-                <span class="badge">Settings</span>
+            <div class="sidebar-footer">
+                <button id="saveBtn" class="primary-btn glass-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    Save Changes
+                </button>
             </div>
-            <div class="tabs-section">
-                <button class="nav-tab active" data-tab="general">General</button>
-                <button class="nav-tab" data-tab="prompts">Prompt Chains</button>
-            </div>
-            <div class="actions-section">
-                <button id="saveBtn" class="primary-btn">Save Changes</button>
-            </div>
-        </header>
+        </aside>
 
-        <div class="content-wrapper">
+        <!-- Main Content -->
+        <main class="content-area">
+            
             <!-- GENERAL TAB -->
             <section id="general" class="tab-view active">
-                <div class="container-width">
-                    <div class="grid-layout">
-                        <!-- Model Config Card -->
-                        <div class="card full-width">
-                            <div class="card-header">
-                                <h3>Model Configuration</h3>
-                                <p class="card-desc">Configure your LLM provider and API details.</p>
-                            </div>
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="form-group col-4">
-                                        <label>Provider</label>
-                                        <select id="providerSelect">
-                                            <option value="OpenAI">OpenAI</option>
-                                            <option value="Gemini">Google Gemini</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group col-8">
-                                        <label>API Key</label>
-                                        <div class="input-group">
-                                            <input type="password" id="apiKeyInput" placeholder="sk-...">
-                                            <div class="checkbox-wrapper">
-                                                <label class="modern-checkbox">
-                                                    <input type="checkbox" id="showKeyToggle">
-                                                    <span class="checkbox-box"></span>
-                                                    <span class="label-text">Show API Key</span>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>Base URL (Optional)</label>
-                                    <input type="text" id="baseUrlInput" placeholder="https://api.openai.com/v1">
-                                </div>
-                                <div class="row">
-                                    <div class="form-group half">
-                                        <label>Text Model</label>
-                                        <select id="textModelInput">
-                                            <!-- Populated by JS -->
-                                        </select>
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="imageModel">Image Model (Vision)</label>
-                                        <select id="imageModelInput">
-                                            <!-- Populated by JS -->
-                                        </select>
-                                        <small>Model used for reading images (e.g., gpt-4o, gemini-1.5-flash).</small>
-                                    </div>
-
-
+                <div class="view-header">
+                    <h1>General Parameters</h1>
+                    <p>Global parameters that apply to all interactions.</p>
+                </div>
+                
+                <div class="glass-panel">
+                    <div class="panel-section">
+                        <h3>Session Tuning</h3>
+                        <p class="section-desc">Adjust the global creativity and memory scope.</p>
+                        
+                        <div class="field-row mt-4">
+                            <div class="form-group flex-1">
+                                <label>Model Temperature <span class="highlight-val" id="tempValue">0.7</span></label>
+                                <div class="slider-wrapper">
+                                    <input type="range" id="tempInput" class="styled-slider" min="0" max="2" step="0.1" value="0.7">
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- Parameters Card -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h3>Parameters</h3>
-                            </div>
-                            <div class="card-body">
-                                <div class="form-group">
-                                    <label>Temperature <span id="tempValue">0.7</span></label>
-                                    <input type="range" id="tempInput" min="0" max="2" step="0.1" value="0.7">
-                                </div>
-                                <div class="form-group">
-                                    <label>Max Context</label>
-                                    <input type="number" id="contextInput" value="10" min="1" max="50">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="card info-card">
-                            <div class="card-body">
-                                <p>ℹ️ These settings apply globally across all chat sessions.</p>
+                            <div class="form-group flex-1">
+                                <label>Max Context (Messages)</label>
+                                <input type="number" id="contextInput" class="styled-input" value="10" min="1" max="50">
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- PROMPTS TAB -->
-            <section id="prompts" class="tab-view">
-                <div class="container-width">
-                    <div class="header-actions">
-                        <div class="header-text">
-                            <h2>Sequential Agents</h2>
-                            <p>Chain agents together. The output of Agent 1 becomes the input for Agent 2.</p>
-                        </div>
-                        <button id="addPromptBtn" class="secondary-btn">+ Add Agent</button>
-                    </div>
+            <!-- PROVIDERS TAB -->
+            <section id="providers" class="tab-view">
+                <div class="view-header">
+                    <h1>Model Providers</h1>
+                    <p>Connect your active intelligence. Designed for OpenAI, Gemini, custom base URLs (Ollama), and cloud OSS providers (OpenRouter/Groq).</p>
+                </div>
 
-                    <div id="promptsList" class="prompts-grid">
-                        <!-- Injected JS -->
+                <div class="glass-panel hover-glow">
+                    <div class="panel-section">
+                        <div class="field-row">
+                            <div class="form-group flex-1">
+                                <label class="gradient-text">Active Global Provider</label>
+                                <select id="providerSelect" class="styled-input select-lg">
+                                    <option value="OpenAI">OpenAI Compatible API (Default)</option>
+                                    <option value="Gemini">Google Gemini AI</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="divider"></div>
+
+                        <h3>Endpoint Details</h3>
+                        
+                        <div class="field-row mt-4">
+                            <div class="form-group flex-1">
+                                <label>Base URL <span class="hint-text">(Empty = Default for Provider)</span></label>
+                                <input type="text" id="baseUrlInput" class="styled-input default-ph" placeholder="e.g. http://localhost:11434/v1">
+                            </div>
+                        </div>
+
+                        <div class="field-row mt-3">
+                            <div class="form-group flex-1">
+                                <label>API Key / Token</label>
+                                <div class="input-merged">
+                                    <input type="password" id="apiKeyInput" class="styled-input" placeholder="sk-...">
+                                    <button class="icon-toggle-btn" id="showKeyToggleBtn" title="Toggle visibility">
+                                        <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-panel mt-4">
+                    <div class="panel-section">
+                        <h3>Model Selection</h3>
+                        <p class="section-desc">Select the specific LLM variant to handle chat and image tasks.</p>
+                        <div class="field-row mt-4">
+                            <div class="form-group flex-1">
+                                <label>Primary Text Model</label>
+                                <select id="textModelInput" class="styled-input">
+                                    <option value="">Loading...</option>
+                                </select>
+                            </div>
+                            <div class="form-group flex-1">
+                                <label>Image Model (Vision)</label>
+                                <select id="imageModelInput" class="styled-input">
+                                    <option value="">Loading...</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
-        </div>
+
+            <!-- AGENT HUB TAB -->
+            <section id="agents" class="tab-view">
+                <div class="view-header actions-header">
+                    <div>
+                        <h1>Agent Profiles</h1>
+                        <p>Define custom agent identities and working pipelines.</p>
+                    </div>
+                    <button id="addPromptBtn" class="secondary-btn glass-btn accent-glow">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        New Agent
+                    </button>
+                </div>
+
+                <div id="promptsList" class="agent-grid">
+                    <!-- Javascript populates Agent Cards here -->
+                </div>
+            </section>
+
+        </main>
     </div>
+    
+    <!-- Notification Overlay -->
+    <div id="toastNotification" class="toast hidden">
+        <span>Settings successfully saved!</span>
+    </div>
+
     <script type="module" src="settings.js"></script>
 </body>
-
 </html>
