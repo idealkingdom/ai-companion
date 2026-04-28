@@ -53,7 +53,7 @@ export class ChatCoreService {
             controller.abort();
             this.activeAbortControllers.delete(chatId);
             ApprovalService.getInstance().clearAllApprovals();
-            ReviewManager.getInstance().discardAll();
+            ReviewManager.getInstance().discardAll().catch(e => console.error(e));
             outputChannel.appendLine(`[ChatCore] Cancelled request for chatId=${chatId} and flushed pending approvals & staging.`);
             return true;
         }
@@ -324,6 +324,7 @@ RULES:
             writeFilesConfirmation: settings.permissions?.writeFilesConfirmation ?? true,
             runCommandsConfirmation: settings.permissions?.runCommandsConfirmation ?? true,
             onApprovalRequest: async (toolCallId, toolName, args, opts) => {
+                if (abortSignal?.aborted) return;
                 if (onAgentStep) {
                     onAgentStep({
                         type: 'tool_call' as any,
@@ -363,6 +364,7 @@ RULES:
                     baseUrl: baseUrl,
                     abortSignal: abortSignal,
                     onStepFinish: (event: any) => {
+                        if (abortSignal?.aborted) return;
                         stepCount++;
                         outputChannel.appendLine(`[Agentic] Step ${stepCount} finished`);
 

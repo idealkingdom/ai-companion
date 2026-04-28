@@ -128,8 +128,22 @@ export class ReviewManager {
     /**
      * Discards all staged changes.
      */
-    public discardAll() {
+    public async discardAll() {
         this.startTurn();
+        await this.closeDiffEditors();
+    }
+
+    private async closeDiffEditors() {
+        for (const tabGroup of vscode.window.tabGroups.all) {
+            for (const tab of tabGroup.tabs) {
+                if (tab.input instanceof vscode.TabInputTextDiff) {
+                    if (tab.input.original.scheme === DiffContentProvider.scheme || 
+                        tab.input.modified.scheme === DiffContentProvider.scheme) {
+                        await vscode.window.tabGroups.close(tab);
+                    }
+                }
+            }
+        }
     }
 
     public async commitCurrent() {
