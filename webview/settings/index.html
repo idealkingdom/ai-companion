@@ -16,8 +16,17 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <div class="logo-box">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#spesGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="ai-premium-logo">
+                      <defs>
+                        <linearGradient id="spesGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stop-color="#00f2fe" />
+                          <stop offset="100%" stop-color="#4facfe" />
+                        </linearGradient>
+                      </defs>
+                      <path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/>
+                      <path d="M12 22V12"/>
+                      <path d="M12 12L2 7"/>
+                      <path d="M12 12l10-5"/>
                     </svg>
                 </div>
                 <div class="header-text">
@@ -39,9 +48,10 @@
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                     Agent Hub
                 </button>
-                <button class="nav-item" data-tab="permissions">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                    Permissions
+
+                <button class="nav-item" data-tab="appearance">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+                    Appearance
                 </button>
             </nav>
 
@@ -168,50 +178,26 @@
                 </div>
             </section>
             
-            <!-- PERMISSIONS TAB -->
-            <section id="permissions" class="tab-view">
+
+            
+            <!-- APPEARANCE TAB -->
+            <section id="appearance" class="tab-view">
                 <div class="view-header">
-                    <h1>Safety & Permissions</h1>
-                    <p>Precisely control the agent's autonomy and resource access.</p>
+                    <h1>Appearance Settings</h1>
+                    <p>Hack the chat experience. Write custom CSS to override layout, fonts, and colors.</p>
                 </div>
 
                 <div class="glass-panel">
                     <div class="panel-section">
-                        <div class="permission-item">
-                            <div class="perm-content">
-                                <h3>File Reading</h3>
-                                <p class="perm-description">Confirm each attempt to list workspace or read specific file content. Minimizes data leaks during scanning.</p>
-                            </div>
-                            <label class="switch-container">
-                                <input type="checkbox" id="readFilesConfirmationToggle">
-                                <span class="toggle-slider"></span>
-                            </label>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <h3 style="margin: 0;">Custom CSS</h3>
                         </div>
+                        <p class="section-desc">Add global CSS overrides to style the chatbox natively. E.g. <code>:root { --app-bg: #1e1e1e; --font-ui: "Inter"; }</code></p>
                         
-                        <div class="divider"></div>
-
-                        <div class="permission-item">
-                            <div class="perm-content">
-                                <h3>File Writing & Edits</h3>
-                                <p class="perm-description">Confirm file creation and surgical modifications. Allows Review with Diff comparison before applying changes.</p>
+                        <div class="field-row mt-4">
+                            <div class="form-group flex-1">
+                                <textarea id="customCssInput" class="styled-input styled-textarea code-font" rows="22" placeholder="/* --- Custom CSS Examples --- &#10;&#10;:root {&#10;  --font-ui: 'Segoe UI';&#10;  --font-editor: 'Fira Code';&#10;}&#10;&#10;body {&#10;  font-size: 15px !important;&#10;} */" spellcheck="false" style="width: 100%; box-sizing: border-box; resize: vertical; min-height: 450px; font-family: var(--font-editor, monospace);"></textarea>
                             </div>
-                            <label class="switch-container">
-                                <input type="checkbox" id="writeFilesConfirmationToggle" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
-
-                        <div class="divider"></div>
-
-                        <div class="permission-item">
-                            <div class="perm-content">
-                                <h3>Terminal Execution</h3>
-                                <p class="perm-description">Confirm before running shell or build commands. Highly recommended for workspace integrity.</p>
-                            </div>
-                            <label class="switch-container">
-                                <input type="checkbox" id="runCommandsConfirmationToggle" checked>
-                                <span class="toggle-slider"></span>
-                            </label>
                         </div>
                     </div>
                 </div>

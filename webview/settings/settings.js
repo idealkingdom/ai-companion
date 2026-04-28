@@ -14,6 +14,11 @@ let currentSettings = {
         readFilesConfirmation: false,
         writeFilesConfirmation: true,
         runCommandsConfirmation: true
+    },
+    ui: {
+        fontFamily: '',
+        fontSize: '',
+        themeColor: 'adaptive'
     }
 };
 
@@ -38,9 +43,7 @@ const imageModelInput = document.getElementById('imageModelInput');
 const tempInput = document.getElementById('tempInput');
 const tempValue = document.getElementById('tempValue');
 const contextInput = document.getElementById('contextInput');
-const readFilesConfirmationToggle = document.getElementById('readFilesConfirmationToggle');
-const writeFilesConfirmationToggle = document.getElementById('writeFilesConfirmationToggle');
-const runCommandsConfirmationToggle = document.getElementById('runCommandsConfirmationToggle');
+const customCssInput = document.getElementById('customCssInput');
 const showKeyToggleBtn = document.getElementById('showKeyToggleBtn');
 let isKeyVisible = false;
 // --- INITIALIZATION ---
@@ -159,6 +162,7 @@ saveBtn.addEventListener('click', () => {
         command: 'saveSettings',
         settings: currentSettings
     });
+    applyUISettings(currentSettings.ui);
     
     // Toast UI Animation
     const toast = document.getElementById('toastNotification');
@@ -208,8 +212,23 @@ window.addEventListener('message', event => {
 
 // --- FUNCTIONS ---
 
+let uiStyleNode = null;
+
+function applyUISettings(uiData) {
+    if (!uiData) return;
+    
+    if (!uiStyleNode) {
+        uiStyleNode = document.createElement('style');
+        document.head.appendChild(uiStyleNode);
+    }
+    
+    let styleRules = uiData.customCss || '';
+    
+    uiStyleNode.innerHTML = styleRules;
+}
+
 function populateForm() {
-    const { general, models, permissions } = currentSettings;
+    const { general, models, permissions, ui } = currentSettings;
 
     // Models
     providerSelect.value = models.provider;
@@ -223,11 +242,10 @@ function populateForm() {
     tempValue.textContent = general.temperature;
     contextInput.value = general.maxContextMessages;
 
-    // Permissions
-    if (permissions) {
-        if (readFilesConfirmationToggle) { readFilesConfirmationToggle.checked = permissions.readFilesConfirmation; }
-        if (writeFilesConfirmationToggle) { writeFilesConfirmationToggle.checked = permissions.writeFilesConfirmation; }
-        if (runCommandsConfirmationToggle) { runCommandsConfirmationToggle.checked = permissions.runCommandsConfirmation; }
+    // UI
+    if (ui) {
+        if (customCssInput) { customCssInput.value = ui.customCss || ''; }
+        applyUISettings(ui);
     }
 }
 
@@ -235,12 +253,10 @@ function collectSettings() {
     currentSettings.general.temperature = parseFloat(tempInput.value);
     currentSettings.general.maxContextMessages = parseInt(contextInput.value);
     
-    if (!currentSettings.permissions) {
-        currentSettings.permissions = {};
+    if (!currentSettings.ui) {
+        currentSettings.ui = {};
     }
-    currentSettings.permissions.readFilesConfirmation = readFilesConfirmationToggle.checked;
-    currentSettings.permissions.writeFilesConfirmation = writeFilesConfirmationToggle.checked;
-    currentSettings.permissions.runCommandsConfirmation = runCommandsConfirmationToggle.checked;
+    if (customCssInput) { currentSettings.ui.customCss = customCssInput.value; }
 }
 
 function renderPrompts() {
