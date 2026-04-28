@@ -316,6 +316,7 @@ RULES:
 
         // Create tool registry
         const tools = createToolRegistry(this.workspaceIndex, {
+            abortSignal: abortSignal,
             readFilesConfirmation: settings.permissions?.readFilesConfirmation ?? false,
             writeFilesConfirmation: settings.permissions?.writeFilesConfirmation ?? true,
             runCommandsConfirmation: settings.permissions?.runCommandsConfirmation ?? true,

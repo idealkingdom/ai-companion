@@ -11,6 +11,7 @@ export interface ToolRegistryOptions {
     writeFilesConfirmation: boolean;
     runCommandsConfirmation: boolean;
     onApprovalRequest?: (toolCallId: string, toolName: string, args: any, options: { diffReviewRequired?: boolean }) => Promise<void>;
+    abortSignal?: AbortSignal;
 }
 
 /**
@@ -37,6 +38,9 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
 
         if (originalExecute) {
             toolDef.execute = async (params: any, { toolCallId }: { toolCallId: string }) => {
+                if (options?.abortSignal?.aborted) {
+                    throw new Error('Request cancelled by user.');
+                }
                 let requireConfirmation = false;
                 let diffReviewRequired = false;
 
