@@ -60,7 +60,8 @@ body {
 .logo-box {
     width: 40px;
     height: 40px;
-    background: linear-gradient(135deg, var(--accent-color), #8894ff);
+    background: rgba(92, 110, 255, 0.1);
+    border: 1px solid rgba(92, 110, 255, 0.3);
     border-radius: 10px;
     display: flex;
     align-items: center;
@@ -69,7 +70,7 @@ body {
 }
 
 .logo-box svg {
-    color: white;
+    color: var(--accent-color);
 }
 
 .header-text h2 {
@@ -284,6 +285,43 @@ body {
 
 .styled-input.default-ph::placeholder {
     color: rgba(255, 255, 255, 0.2);
+}
+
+.styled-textarea {
+    background: rgba(10, 10, 12, 0.8) !important;
+    color: #e0e6ed !important;
+    border: 1px solid rgba(92, 110, 255, 0.2) !important;
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5) !important;
+    line-height: 1.5 !important;
+    padding: 16px !important;
+    border-radius: 12px !important;
+    transition: all 0.3s ease !important;
+}
+
+.styled-textarea:focus {
+    border-color: var(--accent-color) !important;
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5), 0 0 15px rgba(92, 110, 255, 0.2) !important;
+}
+
+/* Custom Scrollbar for hackable CSS workspace */
+.styled-textarea::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.styled-textarea::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+}
+
+.styled-textarea::-webkit-scrollbar-thumb {
+    background: rgba(92, 110, 255, 0.3);
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.styled-textarea::-webkit-scrollbar-thumb:hover {
+    background: rgba(92, 110, 255, 0.6);
 }
 
 .select-lg {

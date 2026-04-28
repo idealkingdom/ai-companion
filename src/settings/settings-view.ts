@@ -6,6 +6,7 @@ import { OutputChannel } from 'vscode';
 import { SettingsManager } from '../services/settings-manager';
 import { MODEL_PROVIDER_OPTIONS } from '../constants';
 import { outputChannel } from '../logger';
+import { ChatViewProvider } from '../chat/chat-view-provider';
 
 
 export class SettingsView {
@@ -42,6 +43,15 @@ export class SettingsView {
                     case 'saveSettings':
                         await this._settingsManager.updateSettings(message.settings);
                         vscode.window.showInformationMessage('Settings saved successfully!');
+                        
+                        const chatView = ChatViewProvider.getView();
+                        if (chatView && chatView.webview) {
+                            chatView.webview.postMessage({
+                                command: 'uiSettingsUpdate',
+                                ui: message.settings.ui
+                            });
+                        }
+                        vscode.commands.executeCommand('ai-companion.updateUISettings', message.settings.ui);
                         break;
 
 

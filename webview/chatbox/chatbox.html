@@ -32,17 +32,20 @@
     <div class="chat-container new-chat">
       <main id="chatLog" data-chat-id="" class="chat-log">
         <div id="chatWelcomeMessage" class="chat-message-welcome">
-          <span class="logo"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="lucide lucide-bot-message-square-icon lucide-bot-message-square">
-              <path d="M12 6V2H8" />
-              <path d="M15 11v2" />
-              <path d="M2 12h2" />
-              <path d="M20 12h2" />
-              <path
-                d="M20 16a2 2 0 0 1-2 2H8.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 4 20.286V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z" />
-              <path d="M9 11v2" />
-            </svg></span>
+          <span class="logo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="url(#spesGradWelcome)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="ai-premium-logo">
+              <defs>
+                <linearGradient id="spesGradWelcome" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#00f2fe" />
+                  <stop offset="100%" stop-color="#4facfe" />
+                </linearGradient>
+              </defs>
+              <path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/>
+              <path d="M12 22V12"/>
+              <path d="M12 12L2 7"/>
+              <path d="M12 12l10-5"/>
+            </svg>
+          </span>
           Ask your Companion anything to get started.
         </div>
         <div id="chatMessages" class="chat-messages">
@@ -54,116 +57,146 @@
 
 
 
-        <div id="staging-bar" class="staging-bar hidden">
-          <div class="staging-info">
-            <svg class="staging-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-            <span id="staging-count">0 Files With Changes</span>
+        <!-- Unified Chat Input Container -->
+        <div class="unified-input-container">
+          
+          <!-- Premium Staging Bar -->
+          <div id="staging-bar" class="staging-bar-premium">
+            <div class="staging-left">
+              <svg class="file-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+              <span id="staging-count">0 Files With Changes</span>
+            </div>
+            <div class="staging-right">
+              <button id="staging-review-btn" class="premium-action-btn primary" onclick="sendMessage('chatReviewDiff', { isGlobalReview: true })">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><polyline points="20 6 9 17 4 12"></polyline><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                Review Changes
+              </button>
+              <button id="staging-approve-btn" class="premium-action-btn success" title="Commit all changes to disk" onclick="sendMessage('chatToolApproval', { approved: true })">✓</button>
+              <button id="staging-discard-btn" class="premium-action-btn danger" title="Discard all staged changes" onclick="sendMessage('chatToolApproval', { approved: false })">✕</button>
+            </div>
           </div>
-          <div class="staging-actions">
-            <button id="staging-review-btn" class="staging-btn secondary">Review All</button>
-            <div class="staging-divider"></div>
-            <button id="staging-approve-btn" class="staging-btn primary" title="Commit all changes to disk">Approve</button>
-            <button id="staging-discard-btn" class="staging-btn danger" title="Discard all staged changes">Discard</button>
-          </div>
-        </div>
 
-        <div class="input-area-container">
           <span data-placeholder="Ask AI Companion..." role="textbox" contenteditable class="textarea" id="messageInput"
             tabindex="0" aria-label="Ask AI Companion...">
           </span>
 
           <div id="autocomplete-menu" class="autocomplete-menu hidden"></div>
 
-        </div>
+          <div class="input-actions-toolbar">
+            <div class="toolbar-left-actions">
+              
+              <!-- Attach -->
+              <div class="context-menu-wrapper">
+                <div id="context-menu" class="context-menu hidden">
+                  <div class="context-header">CURRENT</div>
+                  <button class="context-item" data-type="current-file">
+                    <svg class="ctx-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>Active File</span>
+                  </button>
+                  <button class="context-item" data-type="selection">
+                    <svg class="ctx-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                    </svg>
+                    <span>Selection</span>
+                  </button>
+                  <div class="context-divider"></div>
+                  <div class="context-header">WORKSPACE</div>
+                  <button class="context-item" data-type="search-files">
+                    <svg class="ctx-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <span>Pick File...</span>
+                  </button>
+                  <button class="context-item" data-type="problems">
+                    <svg class="ctx-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Problems</span>
+                  </button>
+                </div>
 
-        <div class="input-toolbar">
-
-
-
-          <div class="context-menu-wrapper">
-
-            <div id="context-menu" class="context-menu hidden">
-
-              <div class="context-header">CURRENT</div>
-              <button class="context-item" data-type="current-file">
-                <svg class="ctx-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                  stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <span>Active File</span>
-              </button>
-              <button class="context-item" data-type="selection">
-                <svg class="ctx-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                  stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-                </svg>
-                <span>Selection</span>
-              </button>
-
-              <div class="context-divider"></div>
-
-              <div class="context-header">WORKSPACE</div>
-              <button class="context-item" data-type="search-files">
-                <svg class="ctx-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                  stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <span>Pick File...</span>
-              </button>
-              <button class="context-item" data-type="problems">
-                <svg class="ctx-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                  stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>Problems</span>
-              </button>
-            </div>
-
-            <button id="atch-ctx-button" class="toolbar-btn" title="Add File Context">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-                stroke="currentColor" class="size-6">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                  d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
-              </svg>
-              Attach
-            </button>
-
-          </div>
-
-          <div class="spacer">
-
-
-          </div>
-
-        </div>
-
-        <div class="chat-tools">
-          <div class="mode-dropdown" id="modeDropdown" tabindex="0">
-            <div class="mode-dropdown-selected" id="modeSelected">
-              <span class="mode-icon">💬</span> Default Chat
-              <svg class="dropdown-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" stroke-width="2">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </div>
-            <div class="mode-dropdown-options hidden" id="modeOptions">
-              <div class="mode-option selected" data-value="default">
-                <span class="mode-icon">💬</span> Default Chat
+                <button id="atch-ctx-button" class="toolbar-btn-pill" title="Add File Context" style="padding: 4px 8px;">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                </button>
               </div>
-              <!-- Agents will be injected here -->
+
+              <!-- Model Selection -->
+              <div class="context-menu-wrapper">
+                <button id="toolbar-model-btn" class="toolbar-btn-pill" title="Model Selection">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Z" />
+                  </svg>
+                  <span id="current-model-label">Loading...</span>
+                </button>
+                <div id="model-options-menu" class="context-menu hidden">
+                  <div class="context-header">AVAILABLE MODELS</div>
+                </div>
+              </div>
+
+              <!-- Permissions -->
+              <div class="context-menu-wrapper">
+                <button id="toolbar-perms-btn" class="toolbar-btn-pill" title="Permissions">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                  </svg>
+                  <span>Permissions</span>
+                </button>
+                <div id="perms-options-menu" class="context-menu hidden" style="width: 200px;">
+                  <div class="context-header">AGENT CAPABILITIES</div>
+                  <div class="context-item-perm">
+                    <span>Read Files</span>
+                    <select id="tb-read-perm" class="perm-select">
+                      <option value="ask">Always Ask</option>
+                      <option value="auto">Agent Decides</option>
+                    </select>
+                  </div>
+                  <div class="context-item-perm">
+                    <span>Write Files</span>
+                    <select id="tb-write-perm" class="perm-select">
+                      <option value="ask">Always Ask</option>
+                      <option value="auto">Agent Decides</option>
+                    </select>
+                  </div>
+                  <div class="context-item-perm">
+                    <span>Run Commands</span>
+                    <select id="tb-cmd-perm" class="perm-select">
+                      <option value="ask">Always Ask</option>
+                      <option value="auto">Agent Decides</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Agent Selector -->
+              <div class="mode-dropdown" id="modeDropdown" tabindex="0">
+                <div class="mode-dropdown-selected" id="modeSelected">
+                  <span class="mode-icon">💬</span> Default Chat
+                  <svg class="dropdown-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </div>
+                <div class="mode-dropdown-options hidden" id="modeOptions">
+                  <div class="mode-option selected" data-value="default">
+                    <span class="mode-icon">💬</span> Default Chat
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <div class="toolbar-right-actions">
+              <!-- Send Button -->
+              <button id="sendButton" class="send-btn-premium" type="submit" title="Send">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+                </svg>
+              </button>
             </div>
           </div>
-          <button id="sendButton" class="send-btn" type="submit" title="Send">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
-              stroke="currentColor" class="size-6">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-            </svg>
-          </button>
         </div>
 
 

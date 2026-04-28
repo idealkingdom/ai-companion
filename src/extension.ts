@@ -68,6 +68,19 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // Register UI Settings Command
+    context.subscriptions.push(
+        vscode.commands.registerCommand(`${EXTENSION_NAME}.updateUISettings`, (uiData) => {
+            const view = ChatViewProvider.getView();
+            if (view && view.webview) {
+                view.webview.postMessage({
+                    command: 'uiSettingsUpdate',
+                    ui: uiData
+                });
+            }
+        })
+    );
+
     // Register Settings Command
 
     context.subscriptions.push(

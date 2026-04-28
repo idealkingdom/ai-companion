@@ -29,7 +29,18 @@ const chatView = document.getElementById('chat-view');
 const historyView = document.getElementById('history-view');
 const historyListContainer = document.getElementById('history-list-container');
 const copyCodeBtnHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copy`;
-const aiIconBtnHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bot-message-square-icon lucide-bot-message-square"><path d="M12 6V2H8"/><path d="M15 11v2"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M20 16a2 2 0 0 1-2 2H8.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 4 20.286V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/><path d="M9 11v2"/></svg>`;
+const aiIconBtnHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="url(#spesGradBubble)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="ai-premium-logo">
+  <defs>
+    <linearGradient id="spesGradBubble" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe" />
+      <stop offset="100%" stop-color="#4facfe" />
+    </linearGradient>
+  </defs>
+  <path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/>
+  <path d="M12 22V12"/>
+  <path d="M12 12L2 7"/>
+  <path d="M12 12l10-5"/>
+</svg>`;
 const contextMenu = document.getElementById('context-menu');
 const attachBtn = document.getElementById('atch-ctx-button');
 
@@ -105,6 +116,117 @@ if (modeDropdown) {
         }
     });
 }
+
+// --- TOOLBAR DROPDOWNS INITIALIZATION ---
+const { MODELS, PERMISSIONS, UI } = window.VS_CONSTANTS;
+
+let uiStyleNode = null;
+
+function applyUISettings(uiData) {
+    if (!uiData) return;
+    
+    if (!uiStyleNode) {
+        uiStyleNode = document.createElement('style');
+        document.head.appendChild(uiStyleNode);
+    }
+    
+    let styleRules = uiData.customCss || '';
+    
+    uiStyleNode.innerHTML = styleRules;
+}
+
+if (UI) {
+    applyUISettings(UI);
+}
+
+const toolbarModelBtn = document.getElementById('toolbar-model-btn');
+const modelOptionsMenu = document.getElementById('model-options-menu');
+const currentModelLabel = document.getElementById('current-model-label');
+
+const toolbarPermsBtn = document.getElementById('toolbar-perms-btn');
+const permsOptionsMenu = document.getElementById('perms-options-menu');
+
+const tbReadPerm = document.getElementById('tb-read-perm');
+const tbWritePerm = document.getElementById('tb-write-perm');
+const tbCmdPerm = document.getElementById('tb-cmd-perm');
+
+if (MODELS && currentModelLabel && modelOptionsMenu) {
+    // Populate dropdown based on provider
+    const providerSettings = MODELS.providerSettings[MODELS.provider] || {};
+    currentModelLabel.textContent = providerSettings.textModel || MODELS.textModel;
+    
+    // Quick mock list of models based on provider (could be dynamic later)
+    const availableModels = MODELS.provider === 'Gemini' ? 
+        ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'] : 
+        ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
+
+    availableModels.forEach(m => {
+        const btn = document.createElement('button');
+        btn.className = 'context-item';
+        btn.innerHTML = `<span>${m}</span>`;
+        btn.addEventListener('click', () => {
+            currentModelLabel.textContent = m;
+            sendMessage('updateNestedSetting', { category: 'models', key: 'textModel', value: m });
+            // Update providerSettings as well
+            const pSettings = MODELS.providerSettings;
+            if (pSettings[MODELS.provider]) {
+                pSettings[MODELS.provider].textModel = m;
+                sendMessage('updateNestedSetting', { category: 'models', key: 'providerSettings', value: pSettings });
+            }
+            modelOptionsMenu.classList.add('hidden');
+        });
+        modelOptionsMenu.appendChild(btn);
+    });
+
+    toolbarModelBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        modelOptionsMenu.classList.toggle('hidden');
+        if (permsOptionsMenu) permsOptionsMenu.classList.add('hidden');
+        contextMenu.classList.add('hidden');
+    });
+}
+
+if (PERMISSIONS && toolbarPermsBtn && permsOptionsMenu) {
+    tbReadPerm.value = PERMISSIONS.readFilesConfirmation ? 'ask' : 'auto';
+    tbWritePerm.value = PERMISSIONS.writeFilesConfirmation ? 'ask' : 'auto';
+    tbCmdPerm.value = PERMISSIONS.runCommandsConfirmation ? 'ask' : 'auto';
+
+    tbWritePerm.addEventListener('change', (e) => {
+        const isAuto = e.target.value === 'auto';
+        sendMessage('updateNestedSetting', { category: 'permissions', key: 'writeFilesConfirmation', value: !isAuto });
+        // If file writing and edits is enabled (auto mode), auto file reading is enabled
+        if (isAuto) {
+            tbReadPerm.value = 'auto';
+            sendMessage('updateNestedSetting', { category: 'permissions', key: 'readFilesConfirmation', value: false });
+        }
+    });
+
+    tbReadPerm.addEventListener('change', (e) => {
+        const isAuto = e.target.value === 'auto';
+        sendMessage('updateNestedSetting', { category: 'permissions', key: 'readFilesConfirmation', value: !isAuto });
+    });
+
+    tbCmdPerm.addEventListener('change', (e) => {
+        const isAuto = e.target.value === 'auto';
+        sendMessage('updateNestedSetting', { category: 'permissions', key: 'runCommandsConfirmation', value: !isAuto });
+    });
+
+    toolbarPermsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        permsOptionsMenu.classList.toggle('hidden');
+        if (modelOptionsMenu) modelOptionsMenu.classList.add('hidden');
+        contextMenu.classList.add('hidden');
+    });
+}
+
+document.addEventListener('click', (e) => {
+    if (modelOptionsMenu && !modelOptionsMenu.contains(e.target) && !toolbarModelBtn.contains(e.target)) {
+        modelOptionsMenu.classList.add('hidden');
+    }
+    if (permsOptionsMenu && !permsOptionsMenu.contains(e.target) && !toolbarPermsBtn.contains(e.target)) {
+        permsOptionsMenu.classList.add('hidden');
+    }
+});
 let autocompleteActive = false;
 let autocompleteType = null; // '@' or '/'
 let selectedIndex = 0;
@@ -669,12 +791,65 @@ function appendUserMessage(message, images = [], files = []) {
 function renderAgentStep(step) {
     if (!step) { return; }
 
-    // Find or create the agent steps container
-    let stepsContainer = chatbox.querySelector('.agent-steps-container:last-child');
-    if (!stepsContainer) {
+    if (step.type === 'thinking') {
+        // Remove empty agent group if present
+        const activeGroup = chatbox.querySelector('details.agent-steps-group:not([data-finalized="true"])');
+        if (activeGroup) {
+            const stepsContainer = activeGroup.querySelector('.agent-steps-container');
+            if (stepsContainer && stepsContainer.children.length === 0) {
+                if (activeGroup.dataset.timer) {
+                    clearInterval(parseInt(activeGroup.dataset.timer));
+                }
+                activeGroup.remove();
+            }
+        }
+
+        // Thinking steps like "Agent completed in X steps" should be outside the dropdown
+        const thinkingEl = document.createElement('div');
+        thinkingEl.className = 'agent-step-card thinking';
+        thinkingEl.innerHTML = `
+            <div class="step-header">
+                <span class="step-icon">✦</span>
+                <span class="step-tool-name">${step.text}</span>
+            </div>
+        `;
+        chatbox.appendChild(thinkingEl);
+        scrollToBottom();
+        return;
+    }
+
+    // Find or create the active agent steps container wrapper
+    let detailsEl = chatbox.querySelector('details.agent-steps-group:not([data-finalized="true"])');
+    let stepsContainer;
+    if (!detailsEl) {
+        hideLoadingIndicator();
+        
+        detailsEl = document.createElement('details');
+        detailsEl.className = 'agent-steps-group';
+        detailsEl.open = true;
+        detailsEl.dataset.startTime = Date.now();
+        
+        const summary = document.createElement('summary');
+        summary.className = 'agent-steps-summary';
+        summary.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg> <span class="summary-text">Working...</span>`;
+        detailsEl.appendChild(summary);
+        
         stepsContainer = document.createElement('div');
         stepsContainer.className = 'agent-steps-container';
-        chatbox.appendChild(stepsContainer);
+        detailsEl.appendChild(stepsContainer);
+        
+        chatbox.appendChild(detailsEl);
+
+        detailsEl.dataset.timer = setInterval(() => {
+            const ms = Date.now() - parseInt(detailsEl.dataset.startTime);
+            const secs = Math.floor(ms / 1000);
+            const summaryText = summary.querySelector('.summary-text');
+            if (summaryText) {
+                summaryText.textContent = `Worked for ${secs}s`;
+            }
+        }, 1000);
+    } else {
+        stepsContainer = detailsEl.querySelector('.agent-steps-container');
     }
 
     const stepEl = (step.toolCallId && stepsContainer.querySelector(`[data-tool-call-id="${step.toolCallId}"]`)) || 
@@ -714,6 +889,24 @@ function renderAgentStep(step) {
             // Store args for later review
             window.pendingToolArgs = window.pendingToolArgs || {};
             window.pendingToolArgs[step.toolCallId] = step.args;
+
+            if (step.approvalRequired && !step.diffReviewRequired) {
+                stepEl.classList.add('approval-pending');
+                const actionsEl = document.createElement('div');
+                actionsEl.className = 'step-actions';
+                actionsEl.innerHTML = `
+                    <button class="approve-btn staging-btn primary" style="padding: 2px 8px; font-size: 11px;" onclick="approveTool('${step.toolCallId}', true)">Approve</button>
+                    <button class="deny-btn staging-btn danger" style="padding: 2px 8px; font-size: 11px;" onclick="approveTool('${step.toolCallId}', false)">Deny</button>
+                `;
+                stepEl.appendChild(actionsEl);
+                
+                const statusEl = stepEl.querySelector('.step-status');
+                if (statusEl) {
+                    statusEl.textContent = 'Waiting for Approval';
+                    statusEl.classList.remove('running');
+                    statusEl.classList.add('pending');
+                }
+            }
         }
 
     } else if (step.type === 'tool_result') {
@@ -733,13 +926,18 @@ function renderAgentStep(step) {
         scrollToBottom();
         return;
     } else if (step.type === 'thinking') {
-        stepEl.classList.add('thinking');
-        stepEl.innerHTML = `
+        // Thinking steps like "Agent completed in X steps" should be outside the dropdown
+        const thinkingEl = document.createElement('div');
+        thinkingEl.className = 'agent-step-card thinking';
+        thinkingEl.innerHTML = `
             <div class="step-header">
                 <span class="step-icon">✦</span>
                 <span class="step-tool-name">${step.text}</span>
             </div>
         `;
+        chatbox.appendChild(thinkingEl);
+        scrollToBottom();
+        return;
     }
 
     stepsContainer.appendChild(stepEl);
@@ -757,8 +955,21 @@ function updateStagingBar(count) {
     if (count > 0) {
         stagingBar.classList.remove('hidden');
         stagingCount.textContent = `${count} File${count > 1 ? 's' : ''} With Changes`;
+        
+        // Enable buttons
+        document.querySelectorAll('.premium-action-btn').forEach(btn => {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+        });
     } else {
-        stagingBar.classList.add('hidden');
+        stagingBar.classList.remove('hidden');
+        stagingCount.textContent = `0 Files With Changes`;
+        
+        // Disable buttons
+        document.querySelectorAll('.premium-action-btn').forEach(btn => {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+        });
     }
 }
 
@@ -1221,6 +1432,8 @@ window.addEventListener('DOMContentLoaded', () => {
     attachBtn.addEventListener('click', (e) => {
         e.stopPropagation(); // Prevent immediate closing
         contextMenu.classList.toggle('hidden');
+        if (modelOptionsMenu) modelOptionsMenu.classList.add('hidden');
+        if (permsOptionsMenu) permsOptionsMenu.classList.add('hidden');
     });
 
     // Close when clicking outside
@@ -1340,6 +1553,32 @@ window.addEventListener('message', event => {
 
         case CHAT_COMMANDS.CHAT_STREAM_END:
             hideLoadingIndicator(); // Always hide loading, even if no chunks arrived
+            
+            // Finalize open agent groups
+            document.querySelectorAll('details.agent-steps-group').forEach(group => {
+                const stepsContainer = group.querySelector('.agent-steps-container');
+                if (stepsContainer && stepsContainer.children.length === 0) {
+                    if (group.dataset.timer) {
+                        clearInterval(parseInt(group.dataset.timer));
+                    }
+                    group.remove();
+                } else {
+                    if (group.dataset.timer) {
+                        clearInterval(parseInt(group.dataset.timer));
+                        delete group.dataset.timer;
+                        
+                        const ms = Date.now() - parseInt(group.dataset.startTime);
+                        const secs = Math.floor(ms / 1000);
+                        const summaryText = group.querySelector('.summary-text');
+                        if (summaryText) {
+                            summaryText.textContent = `Worked for ${secs}s`;
+                        }
+                        group.open = false; // Close it to keep UI clean
+                    }
+                    group.dataset.finalized = "true";
+                }
+            });
+
             if (activeStreamNode) {
                 setTimeout(() => {
                     hljs.highlightAll();
@@ -1389,6 +1628,10 @@ window.addEventListener('message', event => {
 
         case 'chatStagingUpdate':
             updateStagingBar(message.content.stagedFilesCount);
+            break;
+
+        case 'uiSettingsUpdate':
+            applyUISettings(message.ui);
             break;
 
         default:

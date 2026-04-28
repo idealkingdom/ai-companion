@@ -37,6 +37,9 @@ export interface AppSettings {
         writeFilesConfirmation: boolean;
         runCommandsConfirmation: boolean;
     };
+    ui: {
+        customCss: string;
+    };
     prompts: PromptDef[];
 }
 
@@ -62,6 +65,9 @@ const DEFAULT_SETTINGS: AppSettings = {
         writeFilesConfirmation: true,
         runCommandsConfirmation: true
     },
+    ui: {
+        customCss: `/* ─── AI Companion Premium Styles ─── */\n\n/* 1. Global Typography */\nbody {\n    font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, sans-serif) !important;\n    -webkit-font-smoothing: antialiased;\n}\n\n/* 2. Input Editor Enhancements */\n#messageInput, code, .textarea {\n    font-family: var(--font-editor, monospace) !important;\n    font-size: 0.92rem !important;\n    line-height: 1.6 !important;\n}\n\n/* 3. Floating Bubble Adjustments */\n.message-body {\n    border-radius: 12px !important;\n    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;\n}\n`
+    },
     prompts: [
         {
             id: 'agent-assistant-1',
@@ -82,6 +88,8 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 export class SettingsManager {
     private static readonly KEY = 'aiCompanion.customSettings';
+    private static readonly _onDidUpdateSettings = new vscode.EventEmitter<AppSettings>();
+    public static readonly onDidUpdateSettings = SettingsManager._onDidUpdateSettings.event;
 
     constructor(private readonly context: vscode.ExtensionContext) { }
 
@@ -98,10 +106,11 @@ export class SettingsManager {
         }
 
         // Ensure structure (naive merge)
-        const merged = {
+        const merged: AppSettings = {
             general: { ...DEFAULT_SETTINGS.general, ...stored.general },
             models: { ...DEFAULT_SETTINGS.models, ...stored.models },
             permissions: { ...DEFAULT_SETTINGS.permissions, ...stored.permissions },
+            ui: { ...DEFAULT_SETTINGS.ui, ...stored.ui },
             prompts: finalPrompts
         };
 
@@ -124,6 +133,7 @@ export class SettingsManager {
         const current = this.getSettings();
         const updated = { ...current, ...newSettings };
         await this.context.globalState.update(SettingsManager.KEY, updated);
+        SettingsManager._onDidUpdateSettings.fire(updated);
     }
 
     public async resetSettings(): Promise<void> {
