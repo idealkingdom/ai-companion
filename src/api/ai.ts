@@ -40,7 +40,8 @@ export async function openAIStreamRequest(
     model: string,
     accessToken: string,
     temperature: number,
-    baseUrl?: string
+    baseUrl?: string,
+    abortSignal?: AbortSignal
 ) {
     const openai = createOpenAI({
         apiKey: accessToken,
@@ -52,6 +53,7 @@ export async function openAIStreamRequest(
             model: openai(model),
             messages: messages,
             temperature: temperature,
+            abortSignal: abortSignal,
         });
 
         return result;
@@ -75,6 +77,7 @@ export async function openAIAgenticRequest(
         maxSteps?: number;
         baseUrl?: string;
         onStepFinish?: (event: any) => void;
+        abortSignal?: AbortSignal;
     } = {}
 ) {
     const openai = createOpenAI({
@@ -94,6 +97,7 @@ export async function openAIAgenticRequest(
             tools: tools,
             stopWhen: stepCountIs(options.maxSteps || 15),
             temperature: temperature,
+            abortSignal: options.abortSignal,
             onStepFinish: (event: any) => {
                 outputChannel.appendLine(`[Agentic] Step finished. finishReason=${event.finishReason}, text length=${event.text?.length || 0}`);
                 if (options.onStepFinish) {

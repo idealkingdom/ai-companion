@@ -27,6 +27,30 @@
   --font-editor: var(--vscode-editor-font-family, "Fira Mono", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace);
 }
 
+/* Global Sleek Scrollbar */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(128, 128, 128, 0.4) transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.4);
+    border-radius: 6px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.6);
+}
+
 html, body {
   height: 100%;
   width: 100%;
@@ -54,39 +78,7 @@ body {
 
 
 
-/* Custom scrollbar styling */
-::-webkit-scrollbar {
-  /* Thin out the scrollbar track */
-  width: 10px;
-}
 
-::-webkit-scrollbar-track {
-  /* Set track color to a subtle app background */
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  /* Darker, defined thumb */
-  background-color: var(--vscode-scrollbarSlider-background, #686868);
-  border-radius: 5px;
-  border: 2px solid var(--app-bg, #252526); /* Border to simulate padding/margin */
-}
-
-::-webkit-scrollbar-thumb:hover {
-  /* Lighter color on hover for feedback */
-  background-color: var(--vscode-scrollbarSlider-hoverBackground, #888888);
-}
-
-::-webkit-scrollbar-button {
-  display: none;
-  width: 0;
-  height: 0;
-}
-
-/* Hide the corner where horizontal/vertical scrollbars meet */
-::-webkit-scrollbar-corner {
-  background: transparent;
-}
 
 /* --- VIEW CONTAINER STYLES --- */
 .view-container {
@@ -356,21 +348,6 @@ span.logo svg{
 .edit-textarea:focus {
   border-color: rgba(255, 255, 255, 0.5);
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.07);
-}
-
-/* Custom scrollbar inside edit textarea */
-.edit-textarea::-webkit-scrollbar {
-  width: 5px;
-}
-.edit-textarea::-webkit-scrollbar-track {
-  background: transparent;
-}
-.edit-textarea::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.25);
-  border-radius: 99px;
-}
-.edit-textarea::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.45);
 }
 
 .edit-actions {
@@ -940,20 +917,7 @@ details[open] summary .file-arrow {
   animation: slideUp 0.15s ease-out;
 }
 
-/* Custom scrollbar for autocomplete menu */
-.autocomplete-menu::-webkit-scrollbar {
-  width: 6px;
-}
-.autocomplete-menu::-webkit-scrollbar-track {
-  background: transparent;
-}
-.autocomplete-menu::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-}
-.autocomplete-menu::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
-}
+
 
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(10px); }
@@ -1422,6 +1386,15 @@ details[open] summary .file-arrow {
 .send-btn-premium:hover {
   transform: scale(1.05);
   background: var(--vscode-button-hoverBackground, #81d4fa);
+}
+
+.send-btn-premium.generating {
+  background: #f44336 !important;
+  color: #ffffff !important;
+}
+
+.send-btn-premium.generating:hover {
+  background: #d32f2f !important;
 }
 
 .send-btn-premium svg {

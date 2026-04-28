@@ -26,6 +26,7 @@ export interface AgentStepEvent {
 export class ChatCoreService {
 
     private workspaceIndex: WorkspaceIndexService;
+    private activeAbortControllers: Map<string, AbortController> = new Map();
 
     constructor(
         private readonly historyService: ChatHistoryService,
@@ -42,7 +43,19 @@ export class ChatCoreService {
     public generateChatID(): string {
         return crypto.randomUUID();
     }
-
+    /**
+     * Cancel ongoing AI generation
+     */
+    public cancelChatRequest(chatId: string): boolean {
+        const controller = this.activeAbortControllers.get(chatId);
+        if (controller) {
+            controller.abort();
+            this.activeAbortControllers.delete(chatId);
+            outputChannel.appendLine(`[ChatCore] Cancelled request for chatId=${chatId}`);
+            return true;
+        }
+        return false;
+    }
     /**
      * Processes the user's message:
      * 1. Saves Images to Disk (Hybrid Storage)
@@ -70,6 +83,9 @@ export class ChatCoreService {
         const temperature = appSettings.general.temperature;
 
         let aiResponseText = "";
+
+        const abortController = new AbortController();
+        this.activeAbortControllers.set(data.chat_id, abortController);
 
         try {
             // --- STEP A: HANDLE IMAGES ---
@@ -149,13 +165,13 @@ export class ChatCoreService {
                 aiResponseText = await this.processAgenticRequest(
                     data, finalContextMessages, finalCurrentMessage,
                     targetModel, apiKey || accessToken, temperature, apiBaseUrl,
-                    appSettings, onChunk, onAgentStep
+                    appSettings, onChunk, onAgentStep, abortController.signal
                 );
             } else {
                 aiResponseText = await this.processStandardRequest(
                     data, finalContextMessages, finalCurrentMessage,
                     targetModel, apiKey || accessToken, temperature, apiBaseUrl,
-                    appSettings, onChunk
+                    appSettings, onChunk, abortController.signal
                 );
             }
 
@@ -170,6 +186,8 @@ export class ChatCoreService {
             // Send error as a chunk so the UI updates
             if (onChunk) { onChunk(aiResponseText); }
             await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText);
+        } finally {
+            this.activeAbortControllers.delete(data.chat_id);
         }
 
         return aiResponseText;
@@ -196,7 +214,7 @@ export class ChatCoreService {
     private async processStandardRequest(
         data: any, contextMessages: any[], currentMessage: any,
         model: string, apiKey: string, temperature: number, baseUrl: string,
-        settings: any, onChunk?: (text: string) => void
+        settings: any, onChunk?: (text: string) => void, abortSignal?: AbortSignal
     ): Promise<string> {
 
         // Default Chat uses the global system prompt.
@@ -220,7 +238,7 @@ export class ChatCoreService {
 
             if (isLastStep && onChunk) {
                 const result = await openAIStreamRequest(
-                    apiPayload, model, apiKey, requestTemperature, baseUrl
+                    apiPayload, model, apiKey, requestTemperature, baseUrl, abortSignal
                 );
                 let fullText = '';
                 for await (const chunk of result.textStream) {
@@ -248,7 +266,8 @@ export class ChatCoreService {
         data: any, contextMessages: any[], currentMessage: any,
         model: string, apiKey: string, temperature: number, baseUrl: string,
         settings: any, onChunk?: (text: string) => void,
-        onAgentStep?: (step: AgentStepEvent) => void
+        onAgentStep?: (step: AgentStepEvent) => void,
+        abortSignal?: AbortSignal
     ): Promise<string> {
         ReviewManager.getInstance().startTurn();
 
@@ -330,6 +349,7 @@ RULES:
                 {
                     maxSteps: 15,
                     baseUrl: baseUrl,
+                    abortSignal: abortSignal,
                     onStepFinish: (event: any) => {
                         stepCount++;
                         outputChannel.appendLine(`[Agentic] Step ${stepCount} finished`);

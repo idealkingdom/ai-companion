@@ -62,7 +62,32 @@ export async function chatMessageListener(message: any) {
                 });
                 break;
             }
+        case 'searchWorkspaceFiles':
+            {
+                const query = message.data.query || '';
+                
+                const workspaceFiles = await vscode.workspace.findFiles(
+                    '**/*',
+                    '{**/node_modules/**,**/dist/**,**/build/**,**/.git/**,**/out/**,**/.vscode/**}'
+                );
 
+                const results = workspaceFiles
+                    .map(uri => vscode.workspace.asRelativePath(uri))
+                    .filter(p => p.toLowerCase().includes(query.toLowerCase()))
+                    .slice(0, 25)
+                    .map(p => ({
+                        label: p.split(/[\\/]/).pop() || p,
+                        description: p,
+                        path: p
+                    }));
+
+                await webview.postMessage({
+                    command: 'searchFilesResult',
+                    query: query,
+                    results: results
+                });
+                break;
+            }
         case 'updateNestedSetting': {
             const { category, key, value } = message.data;
             const currentSettings = settingsManager.getSettings();
@@ -187,6 +212,15 @@ export async function chatMessageListener(message: any) {
                 });
                 break;
             }
+        case 'cancelChatRequest':
+            {
+                const chatId = message.data.chat_id;
+                if (chatId) {
+                    coreService.cancelChatRequest(chatId);
+                }
+                break;
+            }
+
         // --- HISTORY: LOAD SPECIFIC CHAT ---
         case CHAT_COMMANDS.CHAT_LOAD:
             {
@@ -312,7 +346,39 @@ export async function chatMessageListener(message: any) {
                 });
                 break;
             }
+        case 'addFileByPath':
+            {
+                const relativePath = message.data.path;
+                if (!relativePath) { break; }
+                
+                try {
+                    // Locate absolute file path via workspace findFiles
+                    const files = await vscode.workspace.findFiles(relativePath, '{**/node_modules/**,**/dist/**,**/build/**,**/.git/**}');
+                    if (files.length === 0) {
+                        vscode.window.showErrorMessage(`File not found: ${relativePath}`);
+                        break;
+                    }
 
+                    const document = await vscode.workspace.openTextDocument(files[0]);
+                    const fileName = document.fileName.split(/[\\/]/).pop();
+                    const fileContent = document.getText();
+                    const languageId = document.languageId;
+
+                    await webview.postMessage({
+                        command: 'fileContextAdded',
+                        content: {
+                            name: fileName,
+                            text: fileContent,
+                            language: languageId,
+                            type: 'file',
+                            path: document.uri.fsPath
+                        }
+                    });
+                } catch (e) {
+                    vscode.window.showErrorMessage(`Failed to read file context: ${relativePath}`);
+                }
+                break;
+            }
         case CHAT_COMMANDS.ADD_CONTEXT:
             {
                 const editor = vscode.window.activeTextEditor;
@@ -628,12 +694,13 @@ export async function handleInlineReview(
 
         await reviewManager.ensureInitialized(fileUri);
         const shadowUri = reviewManager.getShadowUri(fileUri);
+        const originalUri = reviewManager.getOriginalUri(fileUri);
         
-        // Open the diff: Left = Current Workspace File, Right = Proposed Shadow
+        // Open the diff: Left = Original Workspace File (Virtual), Right = Proposed Shadow
         await vscode.commands.executeCommand('vscode.diff', 
-            fileUri, 
+            originalUri, 
             shadowUri, 
-            `${fileName} (Review Changes)`
+            `${fileName} (Proposed via ${toolName})`
         );
 
         outputChannel.appendLine(`[InlineReview] Opened diff for ${fileName}`);

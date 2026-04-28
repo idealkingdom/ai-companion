@@ -237,12 +237,24 @@ let triggerQuery = '';
 
 function updateAutocompleteItems(text) {
     const query = text.toLowerCase();
-    const source = autocompleteType === '@' ? COMMANDS : WORKFLOWS;
-
-    filteredItems = source.filter(item =>
-        item.label.toLowerCase().includes(query) ||
-        item.description.toLowerCase().includes(query)
-    );
+    
+    if (autocompleteType === '@') {
+        if (query.length > 0) {
+            // Request files from backend dynamically
+            vscode.postMessage({
+                command: 'searchWorkspaceFiles',
+                data: { query: text }
+            });
+            return;
+        } else {
+            filteredItems = COMMANDS;
+        }
+    } else {
+        filteredItems = WORKFLOWS.filter(item =>
+            item.label.toLowerCase().includes(query) ||
+            item.description.toLowerCase().includes(query)
+        );
+    }
 
     if (filteredItems.length === 0) {
         hideAutocomplete();
@@ -301,24 +313,35 @@ function confirmAutocompleteSelection() {
 
     if (triggerIndex !== -1) {
         // Special Handling for @file and @workspace
+        // Safe removal of trigger token without destroying other HTML elements (pills)
+        const deleteLength = 1 + (triggerQuery ? triggerQuery.length : 0);
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            if (range.startContainer.nodeType === Node.TEXT_NODE) {
+                const startOffset = Math.max(0, range.startOffset - deleteLength);
+                range.setStart(range.startContainer, startOffset);
+                range.deleteContents();
+            } else {
+                for (let i = 0; i < deleteLength; i++) {
+                    document.execCommand('delete', false, null);
+                }
+            }
+        }
+
         if (item.label === '@file') {
-            // Remove the "@file" text and trigger picker
-            const newText = text.substring(0, triggerIndex) + text.substring(cursorPosition);
-            chatMessage.innerText = newText;
-            setCaretPosition(chatMessage, triggerIndex);
             sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'pickFile' });
         } else if (item.label === '@workspace') {
-            // Remove the "@workspace" text and trigger workspace context
-            const newText = text.substring(0, triggerIndex) + text.substring(cursorPosition);
-            chatMessage.innerText = newText;
-            setCaretPosition(chatMessage, triggerIndex);
             sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'workspace' });
+        } else if (item.path) {
+            // User selected a specific file from search results
+            vscode.postMessage({
+                command: 'addFileByPath',
+                data: { path: item.path }
+            });
         } else {
             // Normal insertion for workflows and other commands
-            const textAfterCursor = text.substring(cursorPosition);
-            const newText = text.substring(0, triggerIndex) + item.label + ' ' + textAfterCursor;
-            chatMessage.innerText = newText;
-            setCaretPosition(chatMessage, triggerIndex + item.label.length + 1);
+            document.execCommand('insertHTML', false, item.label + '&nbsp;');
         }
     }
 
@@ -432,8 +455,31 @@ function showHistoryView(historyGroups) {
 
 
 
+let isGenerating = false;
+
 function toggleSendButton(mode = "off") {
-    mode === "disabled" ? sendButton.classList.add("disabled") : sendButton.classList.remove("disabled");
+    if (mode === "disabled") {
+        sendButton.classList.add("disabled");
+        sendButton.classList.remove("generating");
+        sendButton.title = "Send";
+        sendButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+  <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+</svg>`;
+    } else if (mode === "generating") {
+        sendButton.classList.remove("disabled");
+        sendButton.classList.add("generating");
+        sendButton.title = "Stop Request";
+        sendButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+  <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 7.5A2.25 2.25 0 0 1 7.5 5.25h9a2.25 2.25 0 0 1 2.25 2.25v9a2.25 2.25 0 0 1-2.25 2.25h-9a2.25 2.25 0 0 1-2.25-2.25v-9Z" />
+</svg>`;
+    } else {
+        sendButton.classList.remove("disabled");
+        sendButton.classList.remove("generating");
+        sendButton.title = "Send";
+        sendButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+  <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+</svg>`;
+    }
 }
 
 
@@ -1187,6 +1233,17 @@ function editUserMessage(btn) {
 
 // 1. Send Button Click
 sendButton.addEventListener("click", event => {
+    if (isGenerating) {
+        // Cancel ongoing request
+        vscode.postMessage({
+            command: 'cancelChatRequest',
+            data: { chat_id: chatLog.dataset.chatId }
+        });
+        isGenerating = false;
+        toggleSendButton("off");
+        hideLoadingIndicator();
+        return;
+    }
     const imagePills = chatMessage.querySelectorAll('.inline-attachment-pill[data-image="true"]');
     const dynamicAttachedImages = [];
     const usedNames = new Set();
@@ -1513,6 +1570,18 @@ let activeStreamNode = null;
 window.addEventListener('message', event => {
     const message = event.data;
     switch (message.command) {
+                case 'searchFilesResult':
+            {
+                if (autocompleteType !== '@') { break; }
+                filteredItems = message.results || [];
+                if (filteredItems.length === 0) {
+                    hideAutocomplete();
+                    break;
+                }
+                selectedIndex = 0;
+                renderAutocomplete();
+                break;
+            }
         case CHAT_COMMANDS.CHAT_REQUEST:
             hideLoadingIndicator();
             if (message.role === ROLE.USER) {
@@ -1524,10 +1593,12 @@ window.addEventListener('message', event => {
                 appendAIMessage(message.content);
             }
             // Re-enable send button
-            toggleSendButton(0);
+            toggleSendButton("off");
             break;
 
         case CHAT_COMMANDS.CHAT_STREAM_START:
+            isGenerating = true;
+            toggleSendButton("generating");
             activeStreamAccumulator = "";
             activeStreamNode = null;
             break;
@@ -1587,7 +1658,8 @@ window.addEventListener('message', event => {
             }
             activeStreamNode = null;
             activeStreamAccumulator = "";
-            toggleSendButton(0);
+            isGenerating = false;
+            toggleSendButton("off");
             break;
 
         // Case: Resetting the view / New Chat
