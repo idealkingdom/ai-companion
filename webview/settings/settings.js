@@ -44,6 +44,7 @@ const tempInput = document.getElementById('tempInput');
 const tempValue = document.getElementById('tempValue');
 const contextInput = document.getElementById('contextInput');
 const customCssInput = document.getElementById('customCssInput');
+const resetCssBtn = document.getElementById('resetCssBtn');
 const showKeyToggleBtn = document.getElementById('showKeyToggleBtn');
 let isKeyVisible = false;
 // --- INITIALIZATION ---
@@ -154,6 +155,17 @@ showKeyToggleBtn.addEventListener('click', () => {
 });
 
 
+
+if (resetCssBtn) {
+    resetCssBtn.addEventListener('click', () => {
+        const defaultCss = `/* ─── AI Companion Premium Styles ─── */\n\n/* 1. Global Typography */\nbody {\n    font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, sans-serif) !important;\n    -webkit-font-smoothing: antialiased;\n}\n\n/* 2. Input Editor Enhancements */\n#messageInput, code, .textarea {\n    font-family: var(--font-editor, monospace) !important;\n    font-size: 0.92rem !important;\n    line-height: 1.6 !important;\n}\n\n/* 3. Floating Bubble Adjustments */\n.message-body {\n    border-radius: 12px !important;\n    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;\n}\n`;
+        if (customCssInput) {
+            customCssInput.value = defaultCss;
+            // Apply changes directly
+            applyUISettings({ customCss: defaultCss });
+        }
+    });
+}
 
 // Save Button
 saveBtn.addEventListener('click', () => {
