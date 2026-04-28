@@ -61,32 +61,38 @@ export function createSysTools() {
             caseSensitive: z.boolean().optional().describe('Default false')
         }),
         execute: async (params: { query: string; fileGlob?: string; caseSensitive?: boolean }) => {
-            const grepArgs = params.caseSensitive ? '' : '-i';
-            const globArg = params.fileGlob ? `--include="${params.fileGlob}"` : '';
-
             return new Promise<{ results: any[] }>((resolve) => {
-                cp.exec(
-                    `grep -rn ${grepArgs} ${globArg} "${params.query}" "${workspaceRoot}" --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.git | head -30`,
-                    { timeout: 15000, maxBuffer: 1024 * 512 },
-                    (error, stdout) => {
-                        if (!stdout) {
-                            resolve({ results: [] });
-                            return;
-                        }
-                        const results = stdout.trim().split('\n').slice(0, 30).map((line: string) => {
-                            const match = line.match(/^(.+?):(\d+):(.*)$/);
-                            if (match) {
-                                return {
-                                    file: vscode.workspace.asRelativePath(match[1]),
-                                    line: parseInt(match[2]),
-                                    content: match[3].trim().substring(0, 200)
-                                };
-                            }
-                            return { file: '', line: 0, content: line.substring(0, 200) };
-                        });
-                        resolve({ results });
+                const args = ['-rn'];
+                if (!params.caseSensitive) {
+                    args.push('-i');
+                }
+                if (params.fileGlob) {
+                    args.push(`--include=${params.fileGlob}`);
+                }
+                args.push('--exclude-dir=node_modules');
+                args.push('--exclude-dir=dist');
+                args.push('--exclude-dir=.git');
+                args.push(params.query);
+                args.push(workspaceRoot);
+
+                cp.execFile('grep', args, { timeout: 15000, maxBuffer: 1024 * 1024 * 5 }, (error, stdout) => {
+                    if (!stdout) {
+                        resolve({ results: [] });
+                        return;
                     }
-                );
+                    const results = stdout.trim().split('\n').slice(0, 30).map((line: string) => {
+                        const match = line.match(/^(.+?):(\d+):(.*)$/);
+                        if (match) {
+                            return {
+                                file: vscode.workspace.asRelativePath(match[1]),
+                                line: parseInt(match[2]),
+                                content: match[3].trim().substring(0, 200)
+                            };
+                        }
+                        return { file: '', line: 0, content: line.substring(0, 200) };
+                    });
+                    resolve({ results });
+                });
             });
         }
     } as any);

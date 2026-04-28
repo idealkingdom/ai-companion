@@ -277,7 +277,8 @@ WORKFLOW:
 RULES:
 - NEVER read an entire large file. Use skeleton first, then line ranges.
 - When editing, provide the EXACT target text to replace (including whitespace).
-- Always verify your changes compile after editing.`;
+- Always verify your changes compile after editing.
+- Edits are STAGED for review. Inform the user that changes are staged and instruct them to click Approve in the UI.`;
 
         // Build payload
         const messages = [

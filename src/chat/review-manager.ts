@@ -144,7 +144,9 @@ export class ReviewManager {
         }
         
         const uris = this.getStagedUris();
-        if (uris.length === 0) return;
+        if (uris.length === 0) {
+            return;
+        }
         
         if (!targetUri || !this.shadowContents.has(targetUri.toString())) {
             targetUri = uris[this.currentReviewIndex];
@@ -206,7 +208,9 @@ export class ReviewManager {
         }
         
         const uris = this.getStagedUris();
-        if (uris.length === 0) return;
+        if (uris.length === 0) {
+            return;
+        }
         
         if (!targetUri || !this.shadowContents.has(targetUri.toString())) {
             targetUri = uris[this.currentReviewIndex];
@@ -238,14 +242,18 @@ export class ReviewManager {
 
     public openNextDiff() {
         const uris = this.getStagedUris();
-        if (uris.length === 0) return;
+        if (uris.length === 0) {
+            return;
+        }
         this.currentReviewIndex = (this.currentReviewIndex + 1) % uris.length;
         this.openDiffForIndex(this.currentReviewIndex);
     }
 
     public openPrevDiff() {
         const uris = this.getStagedUris();
-        if (uris.length === 0) return;
+        if (uris.length === 0) {
+            return;
+        }
         this.currentReviewIndex = (this.currentReviewIndex - 1 + uris.length) % uris.length;
         this.openDiffForIndex(this.currentReviewIndex);
     }

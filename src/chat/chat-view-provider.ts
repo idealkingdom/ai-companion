@@ -121,7 +121,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             ROLE: ROLE,
             COMMANDS: COMMANDS,
             WORKFLOWS: WORKFLOWS,
-            AGENTS: settings.prompts || []
+            AGENTS: settings.prompts || [],
+            MODELS: settings.models,
+            PERMISSIONS: settings.permissions,
+            UI: settings.ui
         });
 
         // Inject the constants into the HTML by replacing the {{constants}} placeholder
@@ -150,6 +153,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             webviewView.webview.postMessage({
                 command: 'chatStagingUpdate',
                 content: { stagedFilesCount: count }
+            });
+        });
+
+        // Listen for Settings updates globally
+        SettingsManager.onDidUpdateSettings((updated) => {
+            webviewView.webview.postMessage({
+                command: 'uiSettingsUpdate',
+                ui: updated.ui
             });
         });
 
