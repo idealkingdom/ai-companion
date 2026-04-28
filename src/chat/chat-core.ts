@@ -53,8 +53,7 @@ export class ChatCoreService {
             controller.abort();
             this.activeAbortControllers.delete(chatId);
             ApprovalService.getInstance().clearAllApprovals();
-            ReviewManager.getInstance().discardAll().catch(e => console.error(e));
-            outputChannel.appendLine(`[ChatCore] Cancelled request for chatId=${chatId} and flushed pending approvals & staging.`);
+            outputChannel.appendLine(`[ChatCore] Cancelled request for chatId=${chatId} and flushed pending approvals.`);
             return true;
         }
         return false;
@@ -185,8 +184,11 @@ export class ChatCoreService {
         } catch (error: any) {
             if (abortController.signal.aborted) {
                 outputChannel.appendLine(`[ChatCore] Request explicitly aborted by user for chatId=${data.chat_id}`);
-                aiResponseText = '*Generation cancelled.*';
-                if (onChunk) { onChunk('\n\n*Generation cancelled.*'); }
+                aiResponseText = '*Agent stopped.*';
+                if (onAgentStep) {
+                    onAgentStep({ type: 'thinking', text: '🛑 Agent stopped by user' } as any);
+                }
+                if (onChunk) { onChunk('\n\n*Agent stopped.*'); }
             } else {
                 console.error('Error fetching chat response:', error);
                 outputChannel.appendLine('[ChatCore] Error: ' + (error?.message || error));
