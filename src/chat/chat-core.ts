@@ -180,11 +180,16 @@ export class ChatCoreService {
             outputChannel.appendLine("Chat interaction saved and processed.");
 
         } catch (error: any) {
-            console.error('Error fetching chat response:', error);
-            outputChannel.appendLine('[ChatCore] Error: ' + (error?.message || error));
-            aiResponseText = 'Sorry, I could not process your request at this time. Error: ' + (error?.message || 'Unknown error');
-            // Send error as a chunk so the UI updates
-            if (onChunk) { onChunk(aiResponseText); }
+            if (abortController.signal.aborted) {
+                outputChannel.appendLine(`[ChatCore] Request explicitly aborted by user for chatId=${data.chat_id}`);
+                aiResponseText = '*Generation cancelled.*';
+                if (onChunk) { onChunk('\n\n*Generation cancelled.*'); }
+            } else {
+                console.error('Error fetching chat response:', error);
+                outputChannel.appendLine('[ChatCore] Error: ' + (error?.message || error));
+                aiResponseText = 'Sorry, I could not process your request at this time. Error: ' + (error?.message || 'Unknown error');
+                if (onChunk) { onChunk(aiResponseText); }
+            }
             await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText);
         } finally {
             this.activeAbortControllers.delete(data.chat_id);
@@ -242,6 +247,9 @@ export class ChatCoreService {
                 );
                 let fullText = '';
                 for await (const chunk of result.textStream) {
+                    if (abortSignal && abortSignal.aborted) {
+                        break;
+                    }
                     fullText += chunk;
                     onChunk(chunk);
                 }
@@ -384,6 +392,9 @@ RULES:
             // Consume the full stream to get ALL events (text + tools + errors)
             let fullText = '';
             for await (const part of result.fullStream) {
+                if (abortSignal && abortSignal.aborted) {
+                    break;
+                }
                 if (part.type === 'text-delta') {
                     fullText += part.text;
                     if (onChunk) { onChunk(part.text); }
