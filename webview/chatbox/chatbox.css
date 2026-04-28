@@ -13,8 +13,8 @@
   --system-msg-bg: var(--vscode-editorWidget-background, #e9e9e9);
   --system-msg-fg: var(--vscode-editorWidget-foreground, #222222);
   
-  --user-msg-bg: var(--vscode-button-background, #007acc);
-  --user-msg-fg: var(--vscode-button-foreground, #ffffff);
+  --user-msg-bg: var(--vscode-editor-inactiveSelectionBackground, rgba(128, 128, 128, 0.15));
+  --user-msg-fg: var(--text-color, #222222);
 
   --code-bg: var(--vscode-textCodeBlock-background, #f0f0f0);
   --code-fg: var(--vscode-editor-foreground, #333);
@@ -204,6 +204,7 @@ span.logo svg{
   max-width: 80%;
   background-color: var(--user-msg-bg);
   color: var(--user-msg-fg);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   border-bottom-right-radius: 2px;
   padding: 10px 16px;
@@ -736,27 +737,21 @@ span.logo svg{
   min-height: 48px; 
   max-height: 40vh; 
   width: 100% !important;
-  border-radius: 12px;
   box-sizing: border-box;
-  background: var(--input-bg);
+  background: transparent;
   color: var(--input-fg);
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-family: var(--font-editor);
-  border: 1px solid var(--border-color);
-  padding: 12px 16px;
-  padding-right: 3.5rem;
+  border: none;
+  padding: 14px 16px;
   line-height: 1.5;
-  transition: border 0.2s ease, box-shadow 0.2s ease;
   overflow-y: auto;
   scrollbar-width: thin;
-
   white-space: pre-wrap;
 }
 
 #messageInput:focus {
   outline: none;
-  border-color: var(--input-focus-border);
-  box-shadow: 0 0 0 2px var(--input-focus-border); 
 }
 
 .textarea[contenteditable]:empty::before {
@@ -769,46 +764,7 @@ span.logo svg{
   content: "";
 }
 
-.chat-tools {
-  position: absolute;
-  right: 8px;
-  bottom: 9px;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.send-btn {
-  background: transparent;
-  border: none;
-  border-radius: 50%;
-  padding: 0;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-}
-
-.send-btn svg {
-  width: 20px;
-  height: 20px;
-  display: block;
-  color: var(--vscode-foreground);
-
-}
-
-.send-btn:hover, .send-btn:focus {
-  background: var(--vscode-toolbar-hoverBackground);
-  outline: 1px dashed var(--vscode-toolbar-hoverOutline);
-  outline-offset: -1px;
-}
-
-.send-btn:active {
-  transform: scale(0.95);
-}
+/* chat-tools removed */
 
 .hidden {
   display: none;
@@ -947,9 +903,11 @@ details[open] summary .file-arrow {
 .chat-container.new-chat .editor-wrapper {
   margin-bottom: 30vh;
   max-width: 800px;
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+  background: var(--app-bg);
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.1));
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .inline-attachment-pill {
@@ -1043,26 +1001,29 @@ details[open] summary .file-arrow {
 /* === CUSTOM MODE DROPDOWN === */
 .mode-dropdown {
     position: relative;
-    margin-right: auto;
-    padding-left: 8px;
-    font-size: 0.85rem;
-    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--input-fg, rgba(255, 255, 255, 0.75));
     cursor: pointer;
     user-select: none;
     outline: none;
 }
 
 .mode-dropdown-selected {
+    background: rgba(128, 128, 128, 0.06);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 4px 8px;
-    border-radius: 4px;
-    transition: background 0.2s;
+    padding: 4px 12px;
+    border-radius: 20px;
+    transition: all 0.2s ease;
 }
 
 .mode-dropdown-selected:hover {
-    background: rgba(128, 128, 128, 0.1);
+    background: rgba(128, 128, 128, 0.12);
+    border-color: var(--input-focus-border);
+    color: var(--input-fg);
 }
 
 .dropdown-arrow {
@@ -1077,7 +1038,7 @@ details[open] summary .file-arrow {
 .mode-dropdown-options {
     position: absolute;
     bottom: calc(100% + 5px);
-    left: 8px;
+    left: 0;
     background: var(--vscode-dropdown-background);
     border: 1px solid var(--vscode-dropdown-border);
     border-radius: 6px;
@@ -1110,6 +1071,30 @@ details[open] summary .file-arrow {
     color: var(--vscode-list-activeSelectionForeground);
 }
 
+.context-item-perm {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--vscode-menu-foreground, var(--input-fg));
+}
+
+.perm-select {
+    background: var(--vscode-dropdown-background, var(--input-bg));
+    color: var(--vscode-dropdown-foreground, var(--input-fg));
+    border: 1px solid var(--vscode-dropdown-border, var(--border-color));
+    border-radius: 4px;
+    padding: 2px 4px;
+    font-size: 11px;
+    outline: none;
+    cursor: pointer;
+}
+
+.perm-select:focus {
+    border-color: var(--input-focus-border);
+}
+
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(5px); }
     to { opacity: 1; transform: translateY(0); }
@@ -1119,12 +1104,52 @@ details[open] summary .file-arrow {
    AGENT TELEMETRY CARDS — Live tool execution visualization
    ═══════════════════════════════════════════════════════════ */
 
+.agent-steps-group {
+    background: transparent;
+    margin: 8px 0;
+}
+
+.agent-steps-summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--text-color);
+    font-weight: 500;
+    user-select: none;
+    list-style: none; /* Hide default arrow */
+    transition: background 0.2s;
+    width: max-content;
+}
+
+.agent-steps-summary::-webkit-details-marker {
+    display: none;
+}
+
+.agent-steps-summary:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.agent-steps-summary .chevron {
+    transition: transform 0.2s;
+    opacity: 0.7;
+}
+
+.agent-steps-group[open] .agent-steps-summary .chevron {
+    transform: rotate(90deg);
+}
+
 .agent-steps-container {
     display: flex;
     flex-direction: column;
     gap: 6px;
     padding: 12px 0;
-    margin: 8px 0;
+    margin-left: 12px;
     border-left: 1px solid rgba(255, 255, 255, 0.05);
     padding-left: 12px;
 }
@@ -1311,96 +1336,189 @@ details[open] summary .file-arrow {
 }
 
 
-/* ─── STAGING BAR (Unified Review) ─── */
-.staging-bar {
+/* ─── UNIFIED CHAT INPUT CONTAINER ─── */
+.unified-input-container {
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  margin: 0 8px 8px 8px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+  position: relative;
+}
+
+.unified-input-container:focus-within {
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 2px var(--input-focus-border), 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+/* Bottom toolbar inside the unified input container */
+.input-actions-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: rgba(30, 35, 45, 0.8);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(80, 150, 255, 0.3);
-  border-bottom: none;
-  border-radius: 12px 12px 0 0;
-  margin: 0 8px;
-  animation: slideUpStaging 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
-  z-index: 10;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 0 0 12px 12px;
 }
 
-@keyframes slideUpStaging {
-  from { transform: translateY(100%); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.staging-bar.hidden {
-  display: none;
-}
-
-.staging-info {
+.toolbar-left-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #4fc3f7;
+  flex-wrap: wrap;
+}
+
+.toolbar-right-actions {
+  display: flex;
+  align-items: center;
+}
+
+/* Premium Pill Buttons for Toolbar */
+.toolbar-btn-pill {
+  background: rgba(128, 128, 128, 0.06);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  color: var(--input-fg, rgba(255, 255, 255, 0.75));
+  border-radius: 20px;
+  padding: 4px 12px;
   font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.staging-icon {
-  opacity: 0.8;
+.toolbar-btn-pill:hover {
+  background: rgba(128, 128, 128, 0.12);
+  border-color: var(--input-focus-border);
+  color: var(--input-fg);
 }
 
-.staging-actions {
+.toolbar-btn-pill svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Send Button Premium */
+.send-btn-premium {
+  background: var(--vscode-button-background, #4fc3f7);
+  color: var(--vscode-button-foreground, #121820);
+  border: none;
+  border-radius: 20px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.send-btn-premium:hover {
+  transform: scale(1.05);
+  background: var(--vscode-button-hoverBackground, #81d4fa);
+}
+
+.send-btn-premium svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+/* Premium Staging Bar */
+.staging-bar-premium {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.05));
+  border-radius: 12px 12px 0 0;
+  color: var(--text-color, rgba(255, 255, 255, 0.6));
+  font-size: 12px;
+  animation: fadeIn 0.3s ease;
+}
+
+.staging-left {
+  display: flex;
+  align-items: center;
+}
+
+.staging-right {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.staging-btn {
-  background: transparent;
-  border: none;
-  color: var(--vscode-foreground);
+.premium-action-btn {
+  background: rgba(128, 128, 128, 0.06);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  color: var(--input-fg, rgba(255, 255, 255, 0.8));
+  border-radius: 16px;
+  padding: 3px 10px;
   font-size: 11px;
   font-weight: 500;
-  padding: 4px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
   display: flex;
   align-items: center;
-  gap: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.staging-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+.premium-action-btn:hover:not(:disabled) {
+  background: rgba(128, 128, 128, 0.15);
+  border-color: var(--input-focus-border);
+  color: var(--input-fg);
 }
 
-.staging-btn.primary {
-  background: rgba(80, 150, 255, 0.2);
+.premium-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.premium-action-btn.primary {
+  background: rgba(79, 195, 247, 0.15);
   color: #4fc3f7;
-  border: 1px solid rgba(80, 150, 255, 0.4);
-}
-.staging-btn.primary:hover {
-  background: rgba(80, 150, 255, 0.3);
-  box-shadow: 0 0 8px rgba(80, 150, 255, 0.2);
+  border-color: rgba(79, 195, 247, 0.3);
 }
 
-.staging-btn.danger {
-  color: #ff5252;
-}
-.staging-btn.danger:hover {
-  background: rgba(255, 82, 82, 0.1);
-}
-
-.staging-btn.secondary {
-  color: #90a4ae;
+.premium-action-btn.primary:hover {
+  background: rgba(79, 195, 247, 0.25);
+  border-color: rgba(79, 195, 247, 0.4);
+  color: #fff;
 }
 
-.staging-divider {
-  width: 1px;
-  height: 14px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 0 4px;
+.premium-action-btn.success {
+  color: #4caf50;
 }
+
+.premium-action-btn.success:hover {
+  background: rgba(76, 175, 80, 0.15);
+  border-color: rgba(76, 175, 80, 0.3);
+}
+
+.premium-action-btn.danger {
+  color: #f44336;
+}
+
+.premium-action-btn.danger:hover {
+  background: rgba(244, 67, 54, 0.15);
+  border-color: rgba(244, 67, 54, 0.3);
+}
+
+
+.step-status.pending {
+    color: #eab308;
+}
+
+.step-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
