@@ -1122,178 +1122,285 @@ details[open] summary .file-arrow {
 .agent-steps-container {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 8px 0;
-    margin: 4px 0;
+    gap: 6px;
+    padding: 12px 0;
+    margin: 8px 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
+    padding-left: 12px;
 }
 
 .agent-step-card {
-    background: var(--vscode-editorWidget-background, rgba(30, 30, 30, 0.8));
-    border: 1px solid var(--vscode-editorWidget-border, rgba(80, 80, 80, 0.4));
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-size: 0.8rem;
+    background: rgba(40, 40, 42, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.75rem;
     font-family: var(--font-ui);
-    animation: stepSlideIn 0.2s ease-out;
-    backdrop-filter: blur(8px);
+    animation: stepFadeIn 0.3s ease-out;
+    backdrop-filter: blur(4px);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: all 0.2s ease;
 }
 
-@keyframes stepSlideIn {
-    from {
-        opacity: 0;
-        transform: translateX(-8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
+.agent-step-card:hover {
+    background: rgba(50, 50, 52, 0.6);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+@keyframes stepFadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .step-header {
     display: flex;
     align-items: center;
     gap: 8px;
+    width: 100%;
 }
 
 .step-icon {
-    font-size: 1rem;
-    flex-shrink: 0;
+    font-size: 0.9rem;
+    opacity: 0.7;
+    filter: grayscale(1);
 }
 
 .step-tool-name {
-    font-weight: 600;
-    color: var(--vscode-editor-foreground, #ccc);
+    font-weight: 500;
+    color: #4fc3f7; /* Cyan-blue accent */
     font-family: var(--font-editor);
-    font-size: 0.78rem;
+    font-size: 0.72rem;
+    letter-spacing: -0.2px;
 }
 
 .step-status {
     margin-left: auto;
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 1px 8px;
-    border-radius: 12px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
+    border: 1px solid transparent;
 }
 
 .step-status.running {
-    background: rgba(255, 193, 7, 0.15);
-    color: #ffc107;
-    animation: pulseGlow 1.5s ease-in-out infinite;
+    color: #ffca28;
+    border-color: rgba(255, 202, 40, 0.3);
+    box-shadow: 0 0 8px rgba(255, 202, 40, 0.1);
+    animation: statusPulse 2s infinite;
 }
 
 .step-status.done {
-    background: rgba(76, 175, 80, 0.15);
-    color: #4caf50;
+    color: #66bb6a;
+    border-color: rgba(102, 187, 106, 0.3);
+    opacity: 0.8;
 }
 
 .step-status.awaiting {
-    background: rgba(255, 152, 0, 0.15);
-    color: #ff9800;
-    border: 1px solid rgba(255, 152, 0, 0.3);
+    color: #ffa726;
+    border-color: rgba(255, 167, 38, 0.5);
+    background: rgba(255, 167, 38, 0.05);
 }
 
 .step-status.denied {
-    background: rgba(244, 67, 54, 0.15);
-    color: #f44336;
+    color: #ef5350;
+    border-color: rgba(239, 83, 80, 0.3);
 }
 
 .step-status.approved {
-    background: rgba(33, 150, 243, 0.15);
-    color: #2196f3;
+    color: #42a5f5;
+    border-color: rgba(66, 165, 245, 0.3);
 }
 
-@keyframes pulseGlow {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+@keyframes statusPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(0.98); }
 }
 
 .step-args {
-    margin-top: 4px;
-    font-size: 0.72rem;
-    color: var(--vscode-descriptionForeground, #888);
+    font-size: 0.68rem;
+    color: rgba(255, 255, 255, 0.4);
     font-family: var(--font-editor);
-    word-break: break-all;
-    max-height: 40px;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    padding-left: 20px;
 }
 
 .agent-step-card.approval-pending {
-    border: 1px solid #ff980088;
-    box-shadow: 0 0 12px rgba(255, 152, 0, 0.1);
+    border-color: rgba(255, 167, 38, 0.4);
+    background: rgba(255, 167, 38, 0.03);
+    box-shadow: 0 4px 15px rgba(255, 167, 38, 0.05);
 }
 
 .step-actions {
     display: flex;
-    gap: 8px;
-    margin-top: 10px;
-    border-top: 1px solid var(--border-color);
-    padding-top: 10px;
-    animation: fadeIn 0.3s ease-out;
+    gap: 6px;
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.approve-btn, .deny-btn {
-    flex: 1;
+.approve-btn, .deny-btn, .review-btn {
     border: none;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 0.75rem;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 0.68rem;
     font-weight: 600;
     cursor: pointer;
-    transition: opacity 0.2s, transform 0.1s;
-    font-family: var(--font-ui);
-}
-
-.approve-btn {
-    background: var(--vscode-button-background, #007acc);
-    color: var(--vscode-button-foreground, #fff);
-}
-
-.deny-btn {
-    background: var(--vscode-button-secondaryBackground, #5f5f5f);
-    color: var(--vscode-button-secondaryForeground, #fff);
-}
-
-.approve-btn:hover, .deny-btn:hover {
-    opacity: 0.9;
-}
-
-.approve-btn:active, .deny-btn:active {
-    transform: translateY(1px);
-}
-
-.review-btn {
-    flex: 1.5;
-    background: transparent;
-    color: var(--vscode-textLink-foreground, #3794ff);
-    border: 1px solid var(--vscode-textLink-foreground, #3794ff);
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     font-family: var(--font-ui);
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 4px;
 }
 
-.review-btn:hover {
-    background: var(--vscode-textLink-foreground, #3794ff);
+.approve-btn {
+    background: rgba(66, 165, 245, 0.1);
+    color: #42a5f5;
+    border: 1px solid rgba(66, 165, 245, 0.2);
+}
+
+.approve-btn:hover {
+    background: rgba(66, 165, 245, 0.2);
+    border-color: rgba(66, 165, 245, 0.4);
+}
+
+.deny-btn {
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.deny-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
     color: #fff;
 }
 
+.review-btn {
+    background: rgba(79, 195, 247, 0.1);
+    color: #4fc3f7;
+    border: 1px solid rgba(79, 195, 247, 0.3);
+    flex: 1.2;
+}
+
+.review-btn:hover {
+    background: rgba(79, 195, 247, 0.2);
+    border-color: #4fc3f7;
+}
+
 .review-btn::before {
-    content: '✨';
-    font-size: 0.85rem;
+    content: '◈';
+    font-size: 0.8rem;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+/* Thinking step style */
+.agent-step-card.thinking {
+    background: transparent;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    opacity: 0.6;
 }
 
+.agent-step-card.thinking .step-tool-name {
+    color: rgba(255, 255, 255, 0.5);
+    font-style: italic;
+}
+
+
+/* ─── STAGING BAR (Unified Review) ─── */
+.staging-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(30, 35, 45, 0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(80, 150, 255, 0.3);
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
+  margin: 0 8px;
+  animation: slideUpStaging 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+}
+
+@keyframes slideUpStaging {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.staging-bar.hidden {
+  display: none;
+}
+
+.staging-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #4fc3f7;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.staging-icon {
+  opacity: 0.8;
+}
+
+.staging-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.staging-btn {
+  background: transparent;
+  border: none;
+  color: var(--vscode-foreground);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.staging-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.staging-btn.primary {
+  background: rgba(80, 150, 255, 0.2);
+  color: #4fc3f7;
+  border: 1px solid rgba(80, 150, 255, 0.4);
+}
+.staging-btn.primary:hover {
+  background: rgba(80, 150, 255, 0.3);
+  box-shadow: 0 0 8px rgba(80, 150, 255, 0.2);
+}
+
+.staging-btn.danger {
+  color: #ff5252;
+}
+.staging-btn.danger:hover {
+  background: rgba(255, 82, 82, 0.1);
+}
+
+.staging-btn.secondary {
+  color: #90a4ae;
+}
+
+.staging-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 0 4px;
+}

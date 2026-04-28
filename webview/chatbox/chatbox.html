@@ -54,6 +54,19 @@
 
 
 
+        <div id="staging-bar" class="staging-bar hidden">
+          <div class="staging-info">
+            <svg class="staging-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            <span id="staging-count">0 Files With Changes</span>
+          </div>
+          <div class="staging-actions">
+            <button id="staging-review-btn" class="staging-btn secondary">Review All</button>
+            <div class="staging-divider"></div>
+            <button id="staging-approve-btn" class="staging-btn primary" title="Commit all changes to disk">Approve</button>
+            <button id="staging-discard-btn" class="staging-btn danger" title="Discard all staged changes">Discard</button>
+          </div>
+        </div>
+
         <div class="input-area-container">
           <span data-placeholder="Ask AI Companion..." role="textbox" contenteditable class="textarea" id="messageInput"
             tabindex="0" aria-label="Ask AI Companion...">

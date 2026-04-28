@@ -50,36 +50,29 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
                 }
 
                 if (requireConfirmation) {
-                    // --- TURN-BASED OPTIMIZATION: Semi-Automatic Mode for Write Tools ---
-                    // Instead of blocking with a popup for every hunk, we apply to buffer and continue.
                     if (diffReviewRequired) {
-                        const fileUri = vscode.Uri.file(path.join(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '', params.filePath));
-                        await ReviewManager.getInstance().captureOriginalContent(fileUri);
+                        // 1. Execute originally (This stages the changes in ReviewManager)
+                        const result = await originalExecute(params, { toolCallId });
                         
+                        // 2. Notify frontend about the staged changes
                         if (options?.onApprovalRequest) {
                             await options.onApprovalRequest(toolCallId, key, params, { diffReviewRequired });
                         }
                         
-                        // AUTO-APPROVE for the tool cycle (user reviews at the end of the turn)
-                        ApprovalService.getInstance().resolveApproval(toolCallId, true);
+                        return result;
                     } else {
-                        // 1. Notify frontend about approval request (for non-diff tools like run_command)
+                        // For non-diff tools (like run_command), we still block and wait for approval
                         if (options?.onApprovalRequest) {
                             await options.onApprovalRequest(toolCallId, key, params, { diffReviewRequired });
                         }
-                    }
-
-                    // 2. Wait for approval result (For write tools, this resolves immediately above)
-                    const approved = await ApprovalService.getInstance().waitForApproval(toolCallId);
-
-                    if (!approved) {
-                        return { 
-                            error: `Execution denied by user. Tool '${key}' was not executed for security reasons.` 
-                        };
+                        const approved = await ApprovalService.getInstance().waitForApproval(toolCallId);
+                        if (!approved) {
+                            return { error: `Execution denied by user. Tool '${key}' was not executed.` };
+                        }
+                        return originalExecute(params, { toolCallId });
                     }
                 }
 
-                // 3. Execute originally
                 return originalExecute(params, { toolCallId });
             };
         }

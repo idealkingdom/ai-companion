@@ -23,6 +23,7 @@ import {
     WORKFLOWS
 } from './chat-constants';
 import { ApprovalService } from './approval-service';
+import { ReviewManager } from './review-manager';
 
 
 // MESSAGE LISTENER
@@ -144,5 +145,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         // This tells VS Code: "When the HTML sends a message, run this function."
         webviewView.webview.onDidReceiveMessage(chatMessageListener);
 
+        // 6. Listen for Staging Updates
+        ReviewManager.getInstance().onDidUpdateStaging((count: number) => {
+            webviewView.webview.postMessage({
+                command: 'chatStagingUpdate',
+                content: { stagedFilesCount: count }
+            });
+        });
+
+        ChatViewProvider._view = webviewView;
     }
 }

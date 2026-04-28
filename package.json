@@ -61,16 +61,40 @@
         "icon": "$(settings-gear)"
       },
       {
+        "command": "ai-companion.prevDiff",
+        "category": "Spes AI Companion",
+        "title": "Previous File",
+        "icon": "$(chevron-left)"
+      },
+      {
+        "command": "ai-companion.nextDiff",
+        "category": "Spes AI Companion",
+        "title": "Next File",
+        "icon": "$(chevron-right)"
+      },
+      {
+        "command": "ai-companion.acceptCurrent",
+        "category": "Spes AI Companion",
+        "title": "Accept",
+        "icon": "$(check)"
+      },
+      {
+        "command": "ai-companion.rejectCurrent",
+        "category": "Spes AI Companion",
+        "title": "Reject",
+        "icon": "$(x)"
+      },
+      {
         "command": "ai-companion.acceptAll",
         "category": "Spes AI Companion",
         "title": "Accept All",
-        "icon": "$(check)"
+        "icon": "$(check-all)"
       },
       {
         "command": "ai-companion.rejectAll",
         "category": "Spes AI Companion",
         "title": "Reject All",
-        "icon": "$(x)"
+        "icon": "$(clear-all)"
       }
     ],
     "viewsContainers": {
@@ -87,7 +111,8 @@
         {
           "type": "webview",
           "id": "ai-companion",
-          "name": "Chat"
+          "name": "Chat",
+          "icon": "resources/bot-message-square.svg"
         }
       ]
     },
@@ -111,14 +136,34 @@
       ],
       "editor/title": [
         {
+          "command": "ai-companion.prevDiff",
+          "when": "ai-companion.reviewPending",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ai-companion.nextDiff",
+          "when": "ai-companion.reviewPending",
+          "group": "navigation@2"
+        },
+        {
+          "command": "ai-companion.acceptCurrent",
+          "when": "ai-companion.reviewPending",
+          "group": "navigation@3"
+        },
+        {
+          "command": "ai-companion.rejectCurrent",
+          "when": "ai-companion.reviewPending",
+          "group": "navigation@4"
+        },
+        {
           "command": "ai-companion.acceptAll",
           "when": "ai-companion.reviewPending",
-          "group": "navigation"
+          "group": "navigation@5"
         },
         {
           "command": "ai-companion.rejectAll",
           "when": "ai-companion.reviewPending",
-          "group": "navigation"
+          "group": "navigation@6"
         }
       ]
     }

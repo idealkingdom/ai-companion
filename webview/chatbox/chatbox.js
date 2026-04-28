@@ -677,84 +677,66 @@ function renderAgentStep(step) {
         chatbox.appendChild(stepsContainer);
     }
 
-    const stepEl = document.createElement('div');
-    stepEl.className = 'agent-step-card';
+    const stepEl = (step.toolCallId && stepsContainer.querySelector(`[data-tool-call-id="${step.toolCallId}"]`)) || 
+                   document.createElement('div');
+    
+    if (!stepEl.parentNode) {
+        stepEl.className = 'agent-step-card';
+    }
 
     if (step.type === 'tool_call') {
         const icons = {
-            'list_workspace': '📂',
-            'read_file_skeleton': '🦴',
-            'read_line_range': '📖',
-            'chunk_replace': '✏️',
-            'create_file': '📄',
-            'find_symbol': '🔍',
+            'list_workspace': '○',
+            'read_file_skeleton': '▢',
+            'read_line_range': '▤',
+            'chunk_replace': '◇',
+            'create_file': '▷',
+            'find_symbol': '◎',
             'run_command': '⚡',
-            'search_workspace': '🔎'
+            'search_workspace': '◈'
         };
         const icon = icons[step.toolName] || '🛠️';
         const argsPreview = step.args ? JSON.stringify(step.args).substring(0, 120) : '';
 
-        if (step.approvalRequired) {
-            stepEl.classList.add('approval-pending');
-            
-            let reviewBtn = '';
-            if (step.diffReviewRequired) {
-                // Store args in a global map instead of passing through HTML attributes to avoid quoting hell
-                window.pendingToolArgs = window.pendingToolArgs || {};
-                window.pendingToolArgs[step.toolCallId] = step.args;
-                
-                reviewBtn = `<button class="review-btn" onclick="reviewDiff('${step.toolCallId}', '${step.toolName}')">Review Changes</button>`;
-            }
+        // All tools now show as "Running" initially. 
+        // Write tools will quickly flip to "Done" (Staged) when the result arrives.
+        stepEl.innerHTML = `
+            <div class="step-header">
+                <span class="step-icon">${icon}</span>
+                <span class="step-tool-name">${step.toolName}</span>
+                <span class="step-status running">Running</span>
+            </div>
+            <div class="step-args">${argsPreview}</div>
+        `;
 
-            let actions = `
-                ${reviewBtn}
-                <button class="approve-btn" onclick="approveTool('${step.toolCallId}', true)">✅ Approve</button>
-                <button class="deny-btn" onclick="approveTool('${step.toolCallId}', false)">❌ Deny</button>
-            `;
-
-            // If we have an inline review via "Review Changes", hide the simple Approve/Deny
-            // to force the user to interact with the CodeLens in the editor.
-            if (step.diffReviewRequired) {
-                actions = reviewBtn;
-            }
-
-            stepEl.innerHTML = `
-                <div class="step-header">
-                    <span class="step-icon">${icon}</span>
-                    <span class="step-tool-name">${step.toolName}</span>
-                    <span class="step-status awaiting">Awaiting Approval</span>
-                </div>
-                <div class="step-args">${argsPreview}</div>
-                <div class="step-actions">
-                    ${actions}
-                </div>
-            `;
-        } else {
-            stepEl.innerHTML = `
-                <div class="step-header">
-                    <span class="step-icon">${icon}</span>
-                    <span class="step-tool-name">${step.toolName}</span>
-                    <span class="step-status running">Running</span>
-                </div>
-                <div class="step-args">${argsPreview}</div>
-            `;
+        if (step.toolCallId) {
+            stepEl.dataset.toolCallId = step.toolCallId;
+            // Store args for later review
+            window.pendingToolArgs = window.pendingToolArgs || {};
+            window.pendingToolArgs[step.toolCallId] = step.args;
         }
+
     } else if (step.type === 'tool_result') {
-        // Find the last running step and mark it as done
-        const lastRunning = stepsContainer.querySelector('.step-status.running:last-child') ||
-                           stepsContainer.querySelector('.step-status.running');
-        if (lastRunning) {
-            lastRunning.textContent = 'Done';
-            lastRunning.classList.remove('running');
-            lastRunning.classList.add('done');
+        // Find the specific card by toolCallId or fallback to last running
+        let targetCard = null;
+        if (step.toolCallId) {
+            targetCard = stepsContainer.querySelector(`[data-tool-call-id="${step.toolCallId}"]`);
         }
-        // Don't create a new card for results
+        
+        const statusEl = (targetCard || stepsContainer).querySelector('.step-status.running');
+        if (statusEl) {
+            const isStaged = step.result && (typeof step.result.message === 'string' && step.result.message.includes('staged'));
+            statusEl.textContent = isStaged ? 'Staged' : 'Done';
+            statusEl.classList.remove('running');
+            statusEl.classList.add('done');
+        }
         scrollToBottom();
         return;
     } else if (step.type === 'thinking') {
+        stepEl.classList.add('thinking');
         stepEl.innerHTML = `
             <div class="step-header">
-                <span class="step-icon">✅</span>
+                <span class="step-icon">✦</span>
                 <span class="step-tool-name">${step.text}</span>
             </div>
         `;
@@ -763,6 +745,40 @@ function renderAgentStep(step) {
     stepsContainer.appendChild(stepEl);
     scrollToBottom();
 }
+
+/** ─── STAGING BAR LOGIC ─── **/
+function updateStagingBar(count) {
+    const stagingBar = document.getElementById('staging-bar');
+    const stagingCount = document.getElementById('staging-count');
+    if (!stagingBar || !stagingCount) {
+        return;
+    }
+
+    if (count > 0) {
+        stagingBar.classList.remove('hidden');
+        stagingCount.textContent = `${count} File${count > 1 ? 's' : ''} With Changes`;
+    } else {
+        stagingBar.classList.add('hidden');
+    }
+}
+
+// Global button listeners (can stay at top level but wrapped in check)
+document.addEventListener('DOMContentLoaded', () => {
+    const stagingReviewBtn = document.getElementById('staging-review-btn');
+    const stagingApproveBtn = document.getElementById('staging-approve-btn');
+    const stagingDiscardBtn = document.getElementById('staging-discard-btn');
+
+    if (stagingReviewBtn) {
+        stagingReviewBtn.onclick = () => sendMessage('chatReviewDiff', { isGlobalReview: true });
+    }
+    if (stagingApproveBtn) {
+        stagingApproveBtn.onclick = () => sendMessage('chatToolApproval', { approved: true });
+    }
+    if (stagingDiscardBtn) {
+        stagingDiscardBtn.onclick = () => sendMessage('chatToolApproval', { approved: false });
+    }
+});
+
 
 window.approveTool = (toolCallId, approved) => {
     sendMessage('chatToolApproval', { toolCallId, approved });
@@ -852,6 +868,8 @@ function resetChat(content) {
     showChatView(); // Make sure we're on the chat view
     chatMessage.focus();
 }
+
+
 
 /**
  * Retry: keep the user message, remove only all AI messages following it.
@@ -1363,8 +1381,14 @@ window.addEventListener('message', event => {
             break;
 
         case CHAT_COMMANDS.CHAT_APPROVAL_UPDATE:
-            const { toolCallId, approved } = message.data;
-            updateCardApproval(toolCallId, approved);
+            {
+                const { toolCallId, approved } = message.data;
+                updateCardApproval(toolCallId, approved);
+                break;
+            }
+
+        case 'chatStagingUpdate':
+            updateStagingBar(message.content.stagedFilesCount);
             break;
 
         default:

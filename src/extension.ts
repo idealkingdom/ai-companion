@@ -77,14 +77,15 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // 5. Register Review Manager (Accept/Reject Inline Review)
+    // 5. Register Review Manager Commands
     const reviewManager = ReviewManager.getInstance();
     context.subscriptions.push(
-        vscode.commands.registerCommand('ai-companion.acceptReview', (hunkId: string) => reviewManager.acceptHunk(hunkId)),
-        vscode.commands.registerCommand('ai-companion.rejectReview', (hunkId: string) => reviewManager.rejectHunk(hunkId)),
-        vscode.commands.registerCommand('ai-companion.acceptAll', () => reviewManager.acceptAll()),
-        vscode.commands.registerCommand('ai-companion.rejectAll', () => reviewManager.rejectAll()),
-        vscode.languages.registerCodeLensProvider({ scheme: 'file' }, reviewManager)
+        vscode.commands.registerCommand('ai-companion.nextDiff', () => reviewManager.openNextDiff()),
+        vscode.commands.registerCommand('ai-companion.prevDiff', () => reviewManager.openPrevDiff()),
+        vscode.commands.registerCommand('ai-companion.acceptCurrent', () => reviewManager.commitCurrent()),
+        vscode.commands.registerCommand('ai-companion.rejectCurrent', () => reviewManager.discardCurrent()),
+        vscode.commands.registerCommand('ai-companion.acceptAll', () => reviewManager.commitAll()),
+        vscode.commands.registerCommand('ai-companion.rejectAll', () => reviewManager.discardAll())
     );
 
 

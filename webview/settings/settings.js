@@ -235,7 +235,9 @@ function collectSettings() {
     currentSettings.general.temperature = parseFloat(tempInput.value);
     currentSettings.general.maxContextMessages = parseInt(contextInput.value);
     
-    if (!currentSettings.permissions) currentSettings.permissions = {};
+    if (!currentSettings.permissions) {
+        currentSettings.permissions = {};
+    }
     currentSettings.permissions.readFilesConfirmation = readFilesConfirmationToggle.checked;
     currentSettings.permissions.writeFilesConfirmation = writeFilesConfirmationToggle.checked;
     currentSettings.permissions.runCommandsConfirmation = runCommandsConfirmationToggle.checked;
@@ -335,7 +337,9 @@ function renderPrompts() {
 }
 
 function escapeHtml(unsafe) {
-    if (!unsafe) return "";
+    if (!unsafe) {
+        return "";
+    }
     return unsafe
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
@@ -347,13 +351,17 @@ function populateModelDropdowns(provider, selectedText, selectedImage) {
     const data = DEFAULT_MODELS[provider] || DEFAULT_MODELS['OpenAI'];
 
     // Safety check: specific model data might not be loaded yet
-    if (!data) return;
+    if (!data) {
+        return;
+    }
 
     // Structure from backend is { name: '...', models: { text: [], image: [] } }
     // But we should also fail-safe if structure is flat
     const source = data.models || data;
 
-    if (!source || !source.text) return;
+    if (!source || !source.text) {
+        return;
+    }
 
     let textList = [...source.text];
     let imageList = [...source.image];

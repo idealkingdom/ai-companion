@@ -1,35 +1,27 @@
 import * as vscode from 'vscode';
-import { ApprovalService } from './approval-service';
+import { DiffContentProvider } from './diff-content-provider';
 
-export interface PendingHunk {
-    id: string; // toolCallId:hunkIndex
-    toolCallId: string;
-    uri: vscode.Uri;
-    range: vscode.Range;       // Range of the NEW code in the buffer
-    originalLines: string[];   // What was there before THIS specific hunk
-    proposedLines: string[];   // What is there now
-}
-
-export class ReviewManager implements vscode.CodeLensProvider {
+/**
+ * ReviewManager - The Staging Buffer
+ * This class manages the "Shadow" state of the workspace during an AI turn.
+ * All AI edits are applied to the shadow state first.
+ * The user can review the total diff and commit when ready.
+ */
+export class ReviewManager {
     private static instance: ReviewManager;
-    private hunks = new Map<string, PendingHunk>();
     
-    // Track the content of files BEFORE the entire turn started
-    // Key: uri.toString(), Value: original text
-    private turnOriginalContents = new Map<string, string>();
+    private _onDidUpdateStaging = new vscode.EventEmitter<number>();
+    readonly onDidUpdateStaging = this._onDidUpdateStaging.event;
+
+    // Original content of files at the start of the turn
+    private originalContents = new Map<string, string>();
     
-    private _onDidChangeCodeLenses = new vscode.EventEmitter<void>();
-    readonly onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
+    // Current "Shadow" content with all AI edits applied so far
+    private shadowContents = new Map<string, string>();
 
-    private changeDecorationType = vscode.window.createTextEditorDecorationType({
-        backgroundColor: 'rgba(0, 255, 0, 0.05)', 
-        isWholeLine: true,
-    });
+    private currentReviewIndex = 0;
 
-    private constructor() {
-        vscode.window.onDidChangeActiveTextEditor(() => this.refreshDecorations());
-        vscode.workspace.onDidChangeTextDocument(() => this.refreshDecorations());
-    }
+    private constructor() {}
 
     public static getInstance(): ReviewManager {
         if (!ReviewManager.instance) {
@@ -38,154 +30,238 @@ export class ReviewManager implements vscode.CodeLensProvider {
         return ReviewManager.instance;
     }
 
-    /**
-     * Call this at the start of an AI turn to capture the current state of files.
-     */
     public startTurn() {
-        this.turnOriginalContents.clear();
-        this.hunks.clear();
-        this._onDidChangeCodeLenses.fire();
+        this.originalContents.clear();
+        this.shadowContents.clear();
+        this.currentReviewIndex = 0;
         vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', false);
+        this._onDidUpdateStaging.fire(0);
     }
 
     /**
-     * Captures the original content of a file if it hasn't been captured yet this turn.
+     * Ensures we have the initial state for a file.
      */
-    public async captureOriginalContent(uri: vscode.Uri) {
+    public async ensureInitialized(uri: vscode.Uri) {
         const key = uri.toString();
-        if (!this.turnOriginalContents.has(key)) {
+        if (!this.originalContents.has(key)) {
             try {
                 const doc = await vscode.workspace.openTextDocument(uri);
-                this.turnOriginalContents.set(key, doc.getText());
+                const content = doc.getText();
+                this.originalContents.set(key, content);
+                this.shadowContents.set(key, content);
             } catch (e) {
-                // If it's a new file, original is empty
-                this.turnOriginalContents.set(key, '');
+                this.originalContents.set(key, '');
+                this.shadowContents.set(key, '');
             }
         }
     }
 
-    public hasReviewsForTool(toolCallId: string): boolean {
-        return Array.from(this.hunks.values()).some(h => h.toolCallId === toolCallId);
-    }
-
-    public registerHunk(hunk: PendingHunk) {
-        this.hunks.set(hunk.id, hunk);
-        vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', true);
-        this._onDidChangeCodeLenses.fire();
-        this.refreshDecorations();
-    }
-
-    public async acceptHunk(hunkId: string) {
-        this.completeHunk(hunkId);
-    }
-
-    public async rejectHunk(hunkId: string) {
-        const hunk = this.hunks.get(hunkId);
-        if (!hunk) { return; }
-
-        const editor = vscode.window.visibleTextEditors.find(e => e.document.uri.toString() === hunk.uri.toString());
-        if (editor) {
-            await editor.edit(editBuilder => {
-                editBuilder.replace(hunk.range, hunk.originalLines.join('\n') + (hunk.originalLines.length > 0 ? '\n' : ''));
-            });
-        }
-        this.completeHunk(hunkId);
-    }
-
-    private completeHunk(hunkId: string) {
-        this.hunks.delete(hunkId);
-
-        if (this.hunks.size === 0) {
-            vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', false);
-        }
-
-        this._onDidChangeCodeLenses.fire();
-        this.refreshDecorations();
+    /**
+     * Gets the latest shadow content for a file (or real content if not modified yet).
+     */
+    public getShadowContent(uri: vscode.Uri): string {
+        return this.shadowContents.get(uri.toString()) || '';
     }
 
     /**
-     * Finalize all changes: Clear turn cache and stop tracking.
+     * Updates the shadow content for a file and notifies the diff view.
      */
-    public async acceptAll() {
-        // Resolve any blocking approvals
-        const tools = new Set(Array.from(this.hunks.values()).map(h => h.toolCallId));
-        for (const toolId of tools) {
-            ApprovalService.getInstance().resolveApproval(toolId, true);
+    public updateShadow(uri: vscode.Uri, content: string) {
+        const key = uri.toString();
+        this.shadowContents.set(key, content);
+        
+        // Update virtual document for diffing
+        const shadowUri = this.getShadowUri(uri);
+        DiffContentProvider.getInstance().updateContent(shadowUri, content);
+        
+        vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', true);
+        this._onDidUpdateStaging.fire(this.shadowContents.size);
+    }
+
+    /**
+     * Commits all staged changes in the shadow buffer to the actual workspace.
+     */
+    public async commitAll() {
+        const edit = new vscode.WorkspaceEdit();
+        const committedUris: vscode.Uri[] = [];
+        for (const [uriStr, content] of this.shadowContents.entries()) {
+            const uri = vscode.Uri.parse(uriStr);
+            const original = this.originalContents.get(uriStr);
+            
+            if (original !== content) {
+                committedUris.push(uri);
+                try {
+                    // We need a range to replace. If file exists, replace full range.
+                    // If it doesn't exist, WorkspaceEdit.createFile can be used, 
+                    // but replace on a new URI also works if we open it.
+                    const doc = await vscode.workspace.openTextDocument(uri);
+                    const fullRange = new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length));
+                    edit.replace(uri, fullRange, content);
+                } catch (e) {
+                    // New file case
+                    edit.createFile(uri, { overwrite: true });
+                    edit.insert(uri, new vscode.Position(0, 0), content);
+                }
+            }
         }
         
-        this.hunks.clear();
-        this.turnOriginalContents.clear();
-        vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', false);
-        this._onDidChangeCodeLenses.fire();
-        this.refreshDecorations();
+        const success = await vscode.workspace.applyEdit(edit);
+        if (success) {
+            for (const uri of committedUris) {
+                try {
+                    const doc = await vscode.workspace.openTextDocument(uri);
+                    await doc.save();
+                } catch (e) {
+                    console.error(`Failed to auto-save committed file ${uri.toString()}:`, e);
+                }
+            }
+            this.startTurn(); // Reset after successful commit
+        }
+        this._onDidUpdateStaging.fire(this.shadowContents.size);
+        return success;
     }
 
     /**
-     * Revert all changes in the turn: Use turnOriginalContents to restore files.
+     * Discards all staged changes.
      */
-    public async rejectAll() {
-        for (const [uriStr, originalContent] of this.turnOriginalContents.entries()) {
-            const uri = vscode.Uri.parse(uriStr);
-            const edit = new vscode.WorkspaceEdit();
-            
-            try {
-                const doc = await vscode.workspace.openTextDocument(uri);
-                const fullRange = new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length));
-                edit.replace(uri, fullRange, originalContent);
-                await vscode.workspace.applyEdit(edit);
-            } catch (e) {
-                // File might have been new and deleted
-            }
-        }
-
-        // Resolve any blocking approvals as DENIED
-        const tools = new Set(Array.from(this.hunks.values()).map(h => h.toolCallId));
-        for (const toolId of tools) {
-            ApprovalService.getInstance().resolveApproval(toolId, false);
-        }
-
-        this.hunks.clear();
-        this.turnOriginalContents.clear();
-        vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', false);
-        this._onDidChangeCodeLenses.fire();
-        this.refreshDecorations();
+    public discardAll() {
+        this.startTurn();
     }
 
-    public getOriginalTurnContent(uri: vscode.Uri): string | undefined {
-        return this.turnOriginalContents.get(uri.toString());
-    }
-
-    public refreshDecorations() {
+    public async commitCurrent() {
+        let targetUri: vscode.Uri | undefined;
+        
         const activeEditor = vscode.window.activeTextEditor;
-        if (!activeEditor) { return; }
-
-        const docUri = activeEditor.document.uri.toString();
-        const editorHunks = Array.from(this.hunks.values()).filter(h => h.uri.toString() === docUri);
-        activeEditor.setDecorations(this.changeDecorationType, editorHunks.map(h => h.range));
-    }
-
-    public getCleanContent(document: vscode.TextDocument): string {
-        return document.getText();
-    }
-
-    provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
-        const lenses: vscode.CodeLens[] = [];
-        const docUri = document.uri.toString();
-
-        for (const hunk of this.hunks.values()) {
-            if (hunk.uri.toString() === docUri) {
-                lenses.push(new vscode.CodeLens(hunk.range, {
-                    title: '$(check) Keep',
-                    command: 'ai-companion.acceptReview',
-                    arguments: [hunk.id]
-                }));
-                lenses.push(new vscode.CodeLens(hunk.range, {
-                    title: '$(x) Undo',
-                    command: 'ai-companion.rejectReview',
-                    arguments: [hunk.id]
-                }));
+        if (activeEditor) {
+            const activeUri = activeEditor.document.uri;
+            if (activeUri.scheme === DiffContentProvider.scheme) {
+                if (activeUri.query) {
+                    targetUri = vscode.Uri.parse(activeUri.query);
+                }
+            } else {
+                targetUri = activeUri;
             }
         }
-        return lenses;
+        
+        const uris = this.getStagedUris();
+        if (uris.length === 0) return;
+        
+        if (!targetUri || !this.shadowContents.has(targetUri.toString())) {
+            targetUri = uris[this.currentReviewIndex];
+        }
+        
+        const uriStr = targetUri.toString();
+        const content = this.shadowContents.get(uriStr);
+        const original = this.originalContents.get(uriStr);
+        
+        if (content !== undefined && original !== content) {
+            const edit = new vscode.WorkspaceEdit();
+            try {
+                const doc = await vscode.workspace.openTextDocument(targetUri);
+                const fullRange = new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length));
+                edit.replace(targetUri, fullRange, content);
+            } catch (e) {
+                edit.createFile(targetUri, { overwrite: true });
+                edit.insert(targetUri, new vscode.Position(0, 0), content);
+            }
+            
+            const success = await vscode.workspace.applyEdit(edit);
+            if (success) {
+                try {
+                    const doc = await vscode.workspace.openTextDocument(targetUri);
+                    await doc.save();
+                } catch (e) {
+                    console.error(`Failed to auto-save committed file ${uriStr}:`, e);
+                }
+            }
+        }
+        
+        // Remove from staged
+        this.shadowContents.delete(uriStr);
+        this.originalContents.delete(uriStr);
+        
+        const remainingUris = this.getStagedUris();
+        if (remainingUris.length === 0) {
+            this.startTurn();
+        } else {
+            this.currentReviewIndex = this.currentReviewIndex % remainingUris.length;
+            this.openDiffForIndex(this.currentReviewIndex);
+            this._onDidUpdateStaging.fire(remainingUris.length);
+        }
+    }
+
+    public discardCurrent() {
+        let targetUri: vscode.Uri | undefined;
+        
+        const activeEditor = vscode.window.activeTextEditor;
+        if (activeEditor) {
+            const activeUri = activeEditor.document.uri;
+            if (activeUri.scheme === DiffContentProvider.scheme) {
+                if (activeUri.query) {
+                    targetUri = vscode.Uri.parse(activeUri.query);
+                }
+            } else {
+                targetUri = activeUri;
+            }
+        }
+        
+        const uris = this.getStagedUris();
+        if (uris.length === 0) return;
+        
+        if (!targetUri || !this.shadowContents.has(targetUri.toString())) {
+            targetUri = uris[this.currentReviewIndex];
+        }
+        
+        const uriStr = targetUri.toString();
+        
+        this.shadowContents.delete(uriStr);
+        this.originalContents.delete(uriStr);
+        
+        const remainingUris = this.getStagedUris();
+        if (remainingUris.length === 0) {
+            this.startTurn();
+        } else {
+            this.currentReviewIndex = this.currentReviewIndex % remainingUris.length;
+            this.openDiffForIndex(this.currentReviewIndex);
+            this._onDidUpdateStaging.fire(remainingUris.length);
+        }
+    }
+
+    public getShadowUri(uri: vscode.Uri): vscode.Uri {
+        const fileName = uri.path.split('/').pop() || 'file';
+        return vscode.Uri.parse(`${DiffContentProvider.scheme}:proposed-${fileName}?${uri.toString()}`);
+    }
+
+    public getStagedUris(): vscode.Uri[] {
+        return Array.from(this.shadowContents.keys()).map(uriStr => vscode.Uri.parse(uriStr));
+    }
+
+    public openNextDiff() {
+        const uris = this.getStagedUris();
+        if (uris.length === 0) return;
+        this.currentReviewIndex = (this.currentReviewIndex + 1) % uris.length;
+        this.openDiffForIndex(this.currentReviewIndex);
+    }
+
+    public openPrevDiff() {
+        const uris = this.getStagedUris();
+        if (uris.length === 0) return;
+        this.currentReviewIndex = (this.currentReviewIndex - 1 + uris.length) % uris.length;
+        this.openDiffForIndex(this.currentReviewIndex);
+    }
+
+    public openDiffForIndex(index: number) {
+        const uris = this.getStagedUris();
+        if (index >= 0 && index < uris.length) {
+            this.currentReviewIndex = index;
+            const fileUri = uris[index];
+            const shadowUri = this.getShadowUri(fileUri);
+            const fileName = fileUri.path.split('/').pop() || 'file';
+            vscode.commands.executeCommand('vscode.diff', 
+                fileUri, 
+                shadowUri, 
+                `${fileName} (Review Changes ${index + 1}/${uris.length})`
+            );
+        }
     }
 }

@@ -53,6 +53,13 @@ export async function chatMessageListener(message: any) {
                     command: CHAT_COMMANDS.CHAT_RESET,
                     content: { uid: newChatId }
                 });
+
+                // Sync the initial staging state
+                const count = ReviewManager.getInstance().getStagedUris().length;
+                await webview.postMessage({
+                    command: 'chatStagingUpdate',
+                    content: { stagedFilesCount: count }
+                });
                 break;
             }
 
@@ -536,6 +543,11 @@ export async function chatMessageListener(message: any) {
         case 'chatToolApproval':
             {
                 const { toolCallId, approved } = message.data;
+                if (approved) {
+                    await ReviewManager.getInstance().commitAll();
+                } else {
+                    ReviewManager.getInstance().discardAll();
+                }
                 ApprovalService.getInstance().resolveApproval(toolCallId, approved);
                 break;
             }
@@ -574,163 +586,48 @@ function formatMessageWithFiles(originalMessage: string, files: any[]): string {
     return fullMessage;
 }
 
-/**
- * Opens a native VS Code side-by-side diff view showing original vs proposed content.
- * Does NOT modify the file buffer — the user reviews visually and clicks Approve/Deny in the chat.
- * Works for ALL files regardless of git status.
- */
-/**
- * Applies a proposed change to the editor buffer and initiates an inline review.
- * Uses robust line-level diffing to find only changed hunks and handles L-prefixes.
- */
 export async function handleInlineReview(
-    toolCallId: string, 
-    toolName: string, 
-    args: any
+    toolCallId?: string, 
+    toolName?: string, 
+    args?: any
 ) {
     try {
+        const reviewManager = ReviewManager.getInstance();
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
         
-        let filePath = '';
-        if (toolName === 'create_file' || toolName === 'chunk_replace') {
-            filePath = path.isAbsolute(args.filePath) ? args.filePath : path.join(workspaceRoot, args.filePath);
-        }
+        let fileUri: vscode.Uri | undefined;
 
-        if (!filePath) { 
-            outputChannel.appendLine(`[InlineReview] No filePath provided for ${toolName}. Skipping.`);
-            return; 
-        }
-
-        // 0. Handle non-existent files (Create empty for preview)
-        if (!fs.existsSync(filePath)) {
-            if (toolName === 'create_file') {
-                const dir = path.dirname(filePath);
-                if (!fs.existsSync(dir)) { fs.mkdirSync(dir, { recursive: true }); }
-                fs.writeFileSync(filePath, '', 'utf8');
-                outputChannel.appendLine(`[InlineReview] Created placeholder for new file: ${filePath}`);
-            } else {
-                outputChannel.appendLine(`[InlineReview] File not found: ${filePath}. Cannot preview.`);
+        // A. Global Review Mode (User clicked "Review All")
+        if (!args || !args.filePath && !args.TargetFile) {
+            const stagedUris = Array.from(reviewManager.getStagedUris());
+            if (stagedUris.length === 0) {
+                vscode.window.showInformationMessage('No changes currently staged.');
                 return;
             }
-        }
-
-        const fileUri = vscode.Uri.file(filePath);
-        const fileName = path.basename(filePath);
-        
-        const doc = await vscode.workspace.openTextDocument(fileUri);
-        const editor = await vscode.window.showTextDocument(doc);
-
-        // Read the latest buffer content (for the AI to apply its next hunk against)
-        const latestContent = doc.getText();
-        
-        // Read the INITIAL content from the start of the turn (for the diff's Left side)
-        const startOfTurnContent = ReviewManager.getInstance().getOriginalTurnContent(fileUri) || latestContent;
-
-        // --- OPTIMIZATION: If review already active for this tool, just reveal it ---
-        if (ReviewManager.getInstance().hasReviewsForTool(toolCallId)) {
-            ReviewManager.getInstance().refreshDecorations();
+            reviewManager.openDiffForIndex(0);
             return;
-        }
-
-        // 1. Prepare proposed content (Always against LATEST buffer state)
-        let fullProposedContent: string;
-        if (toolName === 'create_file') {
-            const cleanContent = (args.content || '').replace(/^L\d+:\s/gm, '');
-            fullProposedContent = cleanContent;
         } else {
-            const cleanTarget = args.targetContent.replace(/^L\d+:\s/gm, '');
-            const cleanReplacement = (args.replacementContent || '').replace(/^L\d+:\s/gm, '');
-
-            if (latestContent.includes(cleanTarget)) {
-                fullProposedContent = latestContent.replace(cleanTarget, cleanReplacement);
-            } else {
-                outputChannel.appendLine(`[SplitReview] Error: Target text not found in ${fileName}. (Matches are case-sensitive and must be exact).`);
-                ApprovalService.getInstance().resolveApproval(toolCallId, false);
-                return;
-            }
+            // B. Specific Tool Review
+            const filePathParam = args.filePath || args.TargetFile;
+            const filePath = path.isAbsolute(filePathParam) ? filePathParam : path.join(workspaceRoot, filePathParam);
+            fileUri = vscode.Uri.file(filePath);
         }
 
-        // 2. Open Split Diff Overview (Original Turn State vs Current Buffer)
-        const originalVirtualUri = vscode.Uri.parse(`${DiffContentProvider.scheme}:original-${fileName}?${fileUri.toString()}`);
-        DiffContentProvider.getInstance().updateContent(originalVirtualUri, startOfTurnContent);
-        
-        // Show the editor toolbar buttons
-        vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', true);
+        if (!fileUri) { return; }
+        const fileName = path.basename(fileUri.fsPath);
 
+        await reviewManager.ensureInitialized(fileUri);
+        const shadowUri = reviewManager.getShadowUri(fileUri);
+        
+        // Open the diff: Left = Current Workspace File, Right = Proposed Shadow
         await vscode.commands.executeCommand('vscode.diff', 
-            originalVirtualUri, 
             fileUri, 
+            shadowUri, 
             `${fileName} (Review Changes)`
         );
 
-        // 3. Apply changes directly to the buffer 
-        const edit = new vscode.WorkspaceEdit();
-        const fullRange = new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length));
-        edit.replace(fileUri, fullRange, fullProposedContent);
-        
-        const success = await vscode.workspace.applyEdit(edit);
-        if (!success) {
-            outputChannel.appendLine(`[SplitReview] Failed to apply changes to buffer for ${fileName}.`);
-            ApprovalService.getInstance().resolveApproval(toolCallId, false);
-            return;
-        }
-
-        // 4. Identify hunks for granular 'Keep | Undo' Lenses
-        // We diff latestContent vs fullProposedContent to find where THIS hunk ended up
-        const hunks = Diff.diffLines(latestContent, fullProposedContent);
-        let finalLineCounter = 0;
-        let originalLineCounter = 0;
-        let hunkCounter = 0;
-
-        for (const hunk of hunks) {
-            const lines = hunk.value.split('\n');
-            if (lines[lines.length - 1] === '') { lines.pop(); }
-
-            if (!hunk.added && !hunk.removed) {
-                finalLineCounter += lines.length;
-                originalLineCounter += lines.length;
-            } else if (hunk.added) {
-                // This is a NEW or REPLACEMENT block in the final buffer
-                const hunkId = `${toolCallId}:hunk${hunkCounter++}`;
-                const range = new vscode.Range(
-                    new vscode.Position(finalLineCounter, 0),
-                    new vscode.Position(finalLineCounter + lines.length - 1, 1000)
-                );
-
-                // Find corresponding original lines if it was a replacement
-                // (Advanced: we could check if previous hunk was 'removed')
-                // For now, store whatever lines were added.
-                ReviewManager.getInstance().registerHunk({
-                    id: hunkId,
-                    toolCallId,
-                    uri: fileUri,
-                    range,
-                    originalLines: [], // Simplified undo: just delete added lines
-                    proposedLines: lines
-                });
-                finalLineCounter += lines.length;
-            } else if (hunk.removed) {
-                // If it's a pure removal, we can put an 'Undo Delete' lens at the current line
-                const hunkId = `${toolCallId}:hunk${hunkCounter++}`;
-                const range = new vscode.Range(
-                    new vscode.Position(finalLineCounter, 0),
-                    new vscode.Position(finalLineCounter, 1000)
-                );
-                
-                ReviewManager.getInstance().registerHunk({
-                    id: hunkId,
-                    toolCallId,
-                    uri: fileUri,
-                    range,
-                    originalLines: lines,
-                    proposedLines: []
-                });
-                originalLineCounter += lines.length;
-            }
-        }
-
-        outputChannel.appendLine(`[SplitReview] Applied changes to ${fileName} and opened Split Diff.`);
+        outputChannel.appendLine(`[InlineReview] Opened diff for ${fileName}`);
     } catch (e) {
-        outputChannel.appendLine(`[SplitReview] CRITICAL ERROR: ${e}`);
+        outputChannel.appendLine(`[InlineReview] Error: ${e}`);
     }
 }

@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { WorkspaceIndexService } from '../services/workspace-index';
+import { ReviewManager } from '../chat/review-manager';
 
 /**
  * Creates the file & AST tools for the agentic loop.
@@ -121,41 +122,40 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
         }),
         execute: async (params: { filePath: string; targetContent: string; replacementContent: string }) => {
             const absPath = resolvePath(params.filePath);
-            if (!fs.existsSync(absPath)) {
-                return { error: `File not found: ${absPath}` };
-            }
+            const fileUri = vscode.Uri.file(absPath);
+            
+            // 1. Ensure the file is initialized in the staging buffer
+            const reviewManager = ReviewManager.getInstance();
+            await reviewManager.ensureInitialized(fileUri);
 
-            // Stripping L-prefix line numbers (e.g., "L4: Hello" -> "Hello") from both search target and new content
+            // 2. Get current shadow content (latest state with any previous edits)
+            const content = reviewManager.getShadowContent(fileUri);
+
+            // 3. Prepare edits
             const cleanTargetContent = params.targetContent.replace(/^L\d+:\s/gm, '');
             const cleanReplacementContent = params.replacementContent.replace(/^L\d+:\s/gm, '');
 
-            const content = fs.readFileSync(absPath, 'utf-8');
-
             if (!content.includes(cleanTargetContent)) {
-                // If the replacement content already exists, it might have been applied by an inline review
                 if (content.includes(cleanReplacementContent)) {
-                    return { 
-                        success: true, 
-                        message: 'Change already applied (found in file).',
-                        file: params.filePath 
-                    };
+                    return { success: true, message: 'Change already staged.', file: params.filePath };
                 }
-                return { error: 'Target content not found in file. Ensure you are providing the EXACT text without line number prefixes.' };
+                return { error: 'Target content not found in staging buffer. Ensure you are providing the EXACT text without line number prefixes.' };
             }
 
             const count = content.split(cleanTargetContent).length - 1;
             if (count > 1) {
-                return { error: `Found ${count} occurrences. Provide more context to make target unique.` };
+                return { error: `Found ${count} occurrences in staging. Provide more context to make target unique.` };
             }
 
+            // 4. Update the shadow content (staging)
             const updated = content.replace(cleanTargetContent, cleanReplacementContent);
-            fs.writeFileSync(absPath, updated, 'utf-8');
+            reviewManager.updateShadow(fileUri, updated);
 
             return {
                 success: true,
+                message: 'Changes staged for review.',
                 file: params.filePath,
-                linesReplaced: cleanTargetContent.split('\n').length,
-                linesInserted: cleanReplacementContent.split('\n').length
+                linesReplaced: cleanTargetContent.split('\n').length
             };
         }
     } as any);
@@ -169,14 +169,20 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
         }),
         execute: async (params: { filePath: string; content: string }) => {
             const absPath = resolvePath(params.filePath);
-            const dir = path.dirname(absPath);
+            const fileUri = vscode.Uri.file(absPath);
+            
+            const reviewManager = ReviewManager.getInstance();
+            await reviewManager.ensureInitialized(fileUri);
 
-            if (!fs.existsSync(dir)) {
-                fs.mkdirSync(dir, { recursive: true });
-            }
+            const cleanContent = params.content.replace(/^L\d+:\s/gm, '');
+            reviewManager.updateShadow(fileUri, cleanContent);
 
-            fs.writeFileSync(absPath, params.content, 'utf-8');
-            return { success: true, file: params.filePath, lines: params.content.split('\n').length };
+            return { 
+                success: true, 
+                message: 'New file staged for creation.',
+                file: params.filePath, 
+                lines: cleanContent.split('\n').length 
+            };
         }
     } as any);
 

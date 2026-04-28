@@ -18,6 +18,9 @@ export interface AgentStepEvent {
     args?: any;
     result?: any;
     text?: string;
+    toolCallId?: string;
+    approvalRequired?: boolean;
+    diffReviewRequired?: boolean;
 }
 
 export class ChatCoreService {
@@ -196,15 +199,9 @@ export class ChatCoreService {
         settings: any, onChunk?: (text: string) => void
     ): Promise<string> {
 
-        let steps: any[] = [];
-
-        // Active prompt sequence or system prompt
-        const activePrompts = settings.prompts
-            .filter((p: any) => p.isActive)
-            .sort((a: any, b: any) => a.order - b.order);
-        steps = activePrompts.length > 0
-            ? activePrompts
-            : [{ content: settings.general.systemPrompt || "You are an expert AI assistant." }];
+        // Default Chat uses the global system prompt.
+        const systemPrompt = settings.general.systemPrompt || "You are an expert AI assistant.";
+        const steps = [{ content: systemPrompt }];
 
         let pipelineContext = currentMessage;
         let aiResponseText = "";
@@ -343,7 +340,8 @@ RULES:
                                 onAgentStep({
                                     type: 'tool_call',
                                     toolName: tc.toolName,
-                                    args: tc.args
+                                    args: tc.args,
+                                    toolCallId: tc.toolCallId // CRITICAL FIX
                                 });
                             }
                         }
@@ -353,7 +351,8 @@ RULES:
                                 onAgentStep({
                                     type: 'tool_result',
                                     toolName: tr.toolName,
-                                    result: this.summarizeToolResult(tr.result)
+                                    result: this.summarizeToolResult(tr.result),
+                                    toolCallId: tr.toolCallId // CRITICAL FIX
                                 });
                             }
                         }

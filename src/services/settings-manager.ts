@@ -67,14 +67,14 @@ const DEFAULT_SETTINGS: AppSettings = {
             id: 'agent-assistant-1',
             name: 'Assistant',
             content: 'You are a helpful and expert AI coding assistant. Provide clean, secure, and well-documented code.',
-            isActive: true,
+            isActive: false,
             order: 1
         },
         {
             id: 'agent-architect-2',
             name: 'Architect',
             content: 'You are a Senior Technical Lead and Systems Architect. When analyzing problems, outline the solution step-by-step, listing prerequisites, edge cases, and architectural diagrams before writing any code.',
-            isActive: true,
+            isActive: false,
             order: 2
         }
     ]
