@@ -73,6 +73,10 @@ export class ReviewManager {
         // Update virtual document for diffing
         const shadowUri = this.getShadowUri(uri);
         DiffContentProvider.getInstance().updateContent(shadowUri, content);
+
+        const originalUri = this.getOriginalUri(uri);
+        const originalContent = this.originalContents.get(key) || '';
+        DiffContentProvider.getInstance().updateContent(originalUri, originalContent);
         
         vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', true);
         this._onDidUpdateStaging.fire(this.shadowContents.size);
@@ -236,6 +240,11 @@ export class ReviewManager {
         return vscode.Uri.parse(`${DiffContentProvider.scheme}:proposed-${fileName}?${uri.toString()}`);
     }
 
+    public getOriginalUri(uri: vscode.Uri): vscode.Uri {
+        const fileName = uri.path.split('/').pop() || 'file';
+        return vscode.Uri.parse(`${DiffContentProvider.scheme}:original-${fileName}?${uri.toString()}`);
+    }
+
     public getStagedUris(): vscode.Uri[] {
         return Array.from(this.shadowContents.keys()).map(uriStr => vscode.Uri.parse(uriStr));
     }
@@ -264,9 +273,10 @@ export class ReviewManager {
             this.currentReviewIndex = index;
             const fileUri = uris[index];
             const shadowUri = this.getShadowUri(fileUri);
+            const originalUri = this.getOriginalUri(fileUri);
             const fileName = fileUri.path.split('/').pop() || 'file';
             vscode.commands.executeCommand('vscode.diff', 
-                fileUri, 
+                originalUri, 
                 shadowUri, 
                 `${fileName} (Review Changes ${index + 1}/${uris.length})`
             );
