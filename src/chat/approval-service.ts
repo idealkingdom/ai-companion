@@ -42,4 +42,15 @@ export class ApprovalService {
             this._onDidResolveApproval.fire({ toolCallId, approved });
         }
     }
+
+    /**
+     * Resolves all pending approval requests as denied.
+     */
+    public clearAllApprovals() {
+        for (const [toolCallId, resolve] of this.resolvers.entries()) {
+            resolve(false);
+            this._onDidResolveApproval.fire({ toolCallId, approved: false });
+        }
+        this.resolvers.clear();
+    }
 }

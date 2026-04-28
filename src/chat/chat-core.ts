@@ -11,6 +11,7 @@ import { WorkspaceIndexService } from '../services/workspace-index';
 import { createToolRegistry } from '../tools/tool-registry';
 import { handleInlineReview } from './chat-message-listener';
 import { ReviewManager } from './review-manager';
+import { ApprovalService } from './approval-service';
 
 export interface AgentStepEvent {
     type: 'tool_call' | 'tool_result' | 'thinking' | 'text_chunk';
@@ -51,7 +52,9 @@ export class ChatCoreService {
         if (controller) {
             controller.abort();
             this.activeAbortControllers.delete(chatId);
-            outputChannel.appendLine(`[ChatCore] Cancelled request for chatId=${chatId}`);
+            ApprovalService.getInstance().clearAllApprovals();
+            ReviewManager.getInstance().discardAll();
+            outputChannel.appendLine(`[ChatCore] Cancelled request for chatId=${chatId} and flushed pending approvals & staging.`);
             return true;
         }
         return false;
@@ -248,7 +251,7 @@ export class ChatCoreService {
                 let fullText = '';
                 for await (const chunk of result.textStream) {
                     if (abortSignal && abortSignal.aborted) {
-                        break;
+                        throw new Error('AbortError');
                     }
                     fullText += chunk;
                     onChunk(chunk);
@@ -394,7 +397,7 @@ RULES:
             let fullText = '';
             for await (const part of result.fullStream) {
                 if (abortSignal && abortSignal.aborted) {
-                    break;
+                    throw new Error('AbortError');
                 }
                 if (part.type === 'text-delta') {
                     fullText += part.text;
@@ -432,6 +435,9 @@ RULES:
 
             return fullText;
         } catch (error: any) {
+            if (abortSignal?.aborted) {
+                throw error; // Let the top-level catch handle the cancellation gracefully
+            }
             outputChannel.appendLine(`[Agentic] ERROR: ${error?.message || error}`);
             const errorMsg = `Agent error: ${error?.message || 'Unknown error'}`;
             if (onAgentStep) {
