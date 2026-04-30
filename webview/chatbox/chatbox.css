@@ -95,75 +95,33 @@ body {
   display: flex;
 }
 
-/* --- PREMIUM HEADER STYLES --- */
-.premium-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  z-index: 100;
-  flex-shrink: 0;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.header-title {
-  font-family: 'Outfit', sans-serif;
-  font-weight: 600;
-  font-size: 0.85rem;
-  opacity: 0.8;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-
-.header-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-color);
-  opacity: 0.6;
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-}
-
-.header-btn:hover {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.05);
-}
-
+/* --- STATUS PILLS (Unified Toolbar) --- */
 .status-pills {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .status-pill {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 8px;
+  padding: 3px 10px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 6px;
-  font-size: 0.75rem;
+  border-radius: 16px;
+  font-size: 0.72rem;
   font-weight: 500;
-  cursor: help;
+  cursor: pointer;
   transition: all 0.2s ease;
+  color: var(--text-color);
+  opacity: 0.8;
 }
 
 .status-pill:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.1);
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
 }
 
 .pill-icon {
@@ -172,13 +130,12 @@ body {
 
 .pill-value {
   font-family: var(--font-editor);
-  opacity: 0.9;
 }
 
 /* Specific Pill Highlights */
-#pill-context:hover { border-color: rgba(0, 242, 254, 0.3); }
-#pill-reviews:hover { border-color: rgba(255, 107, 107, 0.3); }
-#pill-tokens:hover { border-color: rgba(255, 212, 59, 0.3); }
+#pill-context:hover { border-color: rgba(0, 242, 254, 0.4); }
+#pill-reviews:hover { border-color: rgba(255, 107, 107, 0.4); }
+#pill-tokens:hover { border-color: rgba(255, 212, 59, 0.4); }
 
 
 span.logo{
@@ -1493,11 +1450,11 @@ details[open] summary .file-arrow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.05);
-  border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.05));
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 12px 12px 0 0;
-  color: var(--text-color, rgba(255, 255, 255, 0.6));
+  color: var(--text-color, rgba(255, 255, 255, 0.8));
   font-size: 12px;
   animation: fadeIn 0.3s ease;
 }
@@ -1539,34 +1496,10 @@ details[open] summary .file-arrow {
   pointer-events: none;
 }
 
-.premium-action-btn.primary {
-  background: rgba(79, 195, 247, 0.15);
-  color: #4fc3f7;
-  border-color: rgba(79, 195, 247, 0.3);
-}
-
 .premium-action-btn.primary:hover {
   background: rgba(79, 195, 247, 0.25);
   border-color: rgba(79, 195, 247, 0.4);
   color: #fff;
-}
-
-.premium-action-btn.success {
-  color: #4caf50;
-}
-
-.premium-action-btn.success:hover {
-  background: rgba(76, 175, 80, 0.15);
-  border-color: rgba(76, 175, 80, 0.3);
-}
-
-.premium-action-btn.danger {
-  color: #f44336;
-}
-
-.premium-action-btn.danger:hover {
-  background: rgba(244, 67, 54, 0.15);
-  border-color: rgba(244, 67, 54, 0.3);
 }
 
 

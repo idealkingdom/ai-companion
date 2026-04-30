@@ -126,13 +126,6 @@ if (modeDropdown) {
 }
 
 // --- PREMIUM HEADER WIRING ---
-const backBtn = document.getElementById('backToHistoryBtn');
-if (backBtn) {
-    backBtn.addEventListener('click', () => {
-        vscode.postMessage({ command: CHAT_COMMANDS.HISTORY_LOAD });
-    });
-}
-
 function updateContextCountPill() {
     const pill = document.getElementById('count-context');
     if (!pill) return;

@@ -30,30 +30,6 @@
 
   <div id="chat-view" class="view-container active-view">
     <div class="chat-container new-chat">
-      <header id="chat-header" class="premium-header">
-        <div class="header-left">
-          <button id="backToHistoryBtn" class="header-btn" title="Back to History">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-          </button>
-          <div class="header-title">Chat Session</div>
-        </div>
-        <div class="header-right">
-          <div class="status-pills">
-            <div class="status-pill" id="pill-context" title="Active Context (Files/Attachments)">
-              <span class="pill-icon">📎</span>
-              <span class="pill-value" id="count-context">0</span>
-            </div>
-            <div class="status-pill" id="pill-reviews" title="Pending Code Reviews">
-              <span class="pill-icon">📝</span>
-              <span class="pill-value" id="count-reviews">0</span>
-            </div>
-            <div class="status-pill" id="pill-tokens" title="Estimated Token Usage">
-              <span class="pill-icon">🔤</span>
-              <span class="pill-value" id="count-tokens">0</span>
-            </div>
-          </div>
-        </div>
-      </header>
       <main id="chatLog" data-chat-id="" class="chat-log">
         <div id="chatWelcomeMessage" class="chat-message-welcome">
           <span class="logo">
@@ -64,13 +40,11 @@
                   <stop offset="100%" stop-color="#4facfe" />
                 </linearGradient>
               </defs>
-              <path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/>
-              <path d="M12 22V12"/>
-              <path d="M12 12L2 7"/>
-              <path d="M12 12l10-5"/>
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
             </svg>
           </span>
-          Ask your Companion anything to get started.
+          <h1 class="welcome-title">AI Companion</h1>
+          <p class="welcome-subtitle">Ask anything about your code, or start a new task.</p>
         </div>
         <div id="chatMessages" class="chat-messages">
         </div>
@@ -84,19 +58,23 @@
         <!-- Unified Chat Input Container -->
         <div class="unified-input-container">
           
-          <!-- Premium Staging Bar -->
+          <!-- Premium Staging Bar (Now with Status Pills) -->
           <div id="staging-bar" class="staging-bar-premium">
             <div class="staging-left">
-              <svg class="file-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-              <span id="staging-count">0 Files With Changes</span>
-            </div>
-            <div class="staging-right">
-              <button id="staging-review-btn" class="premium-action-btn primary" onclick="sendMessage('chatReviewDiff', { isGlobalReview: true })">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><polyline points="20 6 9 17 4 12"></polyline><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-                Review Changes
-              </button>
-              <button id="staging-approve-btn" class="premium-action-btn success" title="Commit all changes to disk" onclick="sendMessage('chatToolApproval', { approved: true })">✓</button>
-              <button id="staging-discard-btn" class="premium-action-btn danger" title="Discard all staged changes" onclick="sendMessage('chatToolApproval', { approved: false })">✕</button>
+              <div class="status-pills">
+                <div class="status-pill" id="pill-context" title="Active Context (Files/Attachments)">
+                  <span class="pill-icon">📎</span>
+                  <span class="pill-value" id="count-context">0</span>
+                </div>
+                <div class="status-pill" id="pill-reviews" title="Click to Review Pending Changes" onclick="sendMessage('chatReviewDiff', { isGlobalReview: true })">
+                  <span class="pill-icon">📝</span>
+                  <span class="pill-value" id="count-reviews">0</span>
+                </div>
+                <div class="status-pill" id="pill-tokens" title="Estimated Token Usage">
+                  <span class="pill-icon">🔤</span>
+                  <span class="pill-value" id="count-tokens">0</span>
+                </div>
+              </div>
             </div>
           </div>
 
