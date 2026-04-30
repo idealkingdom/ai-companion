@@ -20,6 +20,10 @@ import { DiffContentProvider } from "./diff-content-provider";
 import { ReviewManager } from "./review-manager";
 import * as Diff from 'diff';
 
+// For Handshake/Syncing
+const chunkAcks = new Map<string, (val: any) => void>();
+let nextSeq = 0;
+
 // message sent from client js
 export async function chatMessageListener(message: any) {
 
@@ -137,16 +141,38 @@ export async function chatMessageListener(message: any) {
                     files: [] // Clear files so Core doesn't double-append them
                 };
 
+                let chatId = aiData.chat_id;
+                if (!chatId || chatId === "") {
+                    chatId = coreService.generateChatID();
+                    // Update webview with the new ID so future cancellations/messages use it
+                    await webview.postMessage({
+                        command: CHAT_COMMANDS.CHAT_ID_UPDATE,
+                        content: { uid: chatId }
+                    });
+                    // Update the data object we pass to the core service
+                    aiData.chat_id = chatId;
+                }
+
                 webview.postMessage({ command: CHAT_COMMANDS.CHAT_STREAM_START });
 
                 const aiResponse = await coreService.processChatRequest(
                     aiData,
                     // onChunk — stream text to frontend
                     async (chunk) => {
+                        const seq = ++nextSeq;
+                        const ackPromise = new Promise(resolve => {
+                            chunkAcks.set(seq.toString(), resolve);
+                        });
+
                         await webview.postMessage({
                             command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
-                            content: chunk
+                            content: chunk,
+                            seq: seq
                         });
+
+                        // Wait for webview to acknowledge receipt before sending next chunk
+                        // This ensures backend and UI are perfectly synced for cancellation
+                        await ackPromise;
                     },
                     // onAgentStep — stream tool telemetry to frontend
                     async (step) => {
@@ -212,11 +238,34 @@ export async function chatMessageListener(message: any) {
                 });
                 break;
             }
+
+        case CHAT_COMMANDS.CHAT_CHUNK_ACK:
+            {
+                const seq = message.seq?.toString();
+                if (seq && chunkAcks.has(seq)) {
+                    const resolver = chunkAcks.get(seq);
+                    if (resolver) { resolver(true); }
+                    chunkAcks.delete(seq);
+                }
+                break;
+            }
+
         case 'cancelChatRequest':
             {
                 const chatId = message.data.chat_id;
+                outputChannel.appendLine(`[Cancel] Received cancelChatRequest for chatId=${chatId}`);
                 if (chatId) {
-                    coreService.cancelChatRequest(chatId);
+                    // 1. Abort the backend stream
+                    const cancelled = coreService.cancelChatRequest(chatId);
+                    outputChannel.appendLine(`[Cancel] AbortController found and aborted: ${cancelled}`);
+
+                    // 2. Flush all pending chunk ACKs to unblock the backend
+                    //    (the backend is waiting for ACKs that will never come because the UI stopped)
+                    for (const [seq, resolver] of chunkAcks.entries()) {
+                        resolver(false);
+                    }
+                    chunkAcks.clear();
+                    outputChannel.appendLine(`[Cancel] Flushed all pending chunk ACKs`);
                 }
                 break;
             }
@@ -637,7 +686,16 @@ export async function chatMessageListener(message: any) {
                 break;
             }
 
-
+        case CHAT_COMMANDS.CHAT_CHUNK_ACK:
+            {
+                const seq = message.data.seq;
+                const resolver = chunkAcks.get(seq.toString());
+                if (resolver) {
+                    resolver(true);
+                    chunkAcks.delete(seq.toString());
+                }
+                break;
+            }
 
         // Handle other messages here
         default:

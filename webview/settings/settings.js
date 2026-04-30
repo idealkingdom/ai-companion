@@ -45,8 +45,171 @@ const tempValue = document.getElementById('tempValue');
 const contextInput = document.getElementById('contextInput');
 const customCssInput = document.getElementById('customCssInput');
 const resetCssBtn = document.getElementById('resetCssBtn');
+const themeTemplateSelect = document.getElementById('themeTemplateSelect');
 const showKeyToggleBtn = document.getElementById('showKeyToggleBtn');
 let isKeyVisible = false;
+
+// --- THEME TEMPLATES ---
+const THEME_TEMPLATES = {
+    default: `/* ─── Default — Clean & Minimal ─── */
+
+/* Typography */
+body {
+    font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, sans-serif) !important;
+    -webkit-font-smoothing: antialiased;
+}
+
+#messageInput, code, .textarea {
+    font-family: var(--font-editor, monospace) !important;
+    font-size: 0.92rem !important;
+    line-height: 1.6 !important;
+}
+
+/* Bubble */
+.message-body {
+    border-radius: 12px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+`,
+    futuristic: `/* ─── Futuristic — Neon & Glassmorphism ─── */
+
+:root {
+    --app-bg: #0a0a1a !important;
+    --chat-bg: #070714 !important;
+    --text-color: #e0e8ff !important;
+    --border-color: rgba(0, 242, 254, 0.15) !important;
+    --input-bg: rgba(15, 15, 40, 0.8) !important;
+    --input-fg: #c8d6ff !important;
+    --input-focus-border: #00f2fe !important;
+    --user-msg-bg: rgba(79, 172, 254, 0.08) !important;
+    --code-bg: rgba(0, 242, 254, 0.05) !important;
+}
+
+body {
+    font-family: 'Inter', 'SF Mono', system-ui, sans-serif !important;
+    background: linear-gradient(145deg, #0a0a1a 0%, #0d0d2b 50%, #0a0a1a 100%) !important;
+}
+
+.message-body {
+    border: 1px solid rgba(0, 242, 254, 0.12) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 0 20px rgba(0, 242, 254, 0.04), 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+    backdrop-filter: blur(12px) !important;
+    background: rgba(10, 10, 30, 0.6) !important;
+}
+
+.unified-input-container {
+    border: 1px solid rgba(0, 242, 254, 0.15) !important;
+    box-shadow: 0 0 30px rgba(0, 242, 254, 0.05) !important;
+    background: rgba(10, 10, 30, 0.7) !important;
+    backdrop-filter: blur(16px) !important;
+}
+
+.send-btn-premium {
+    background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%) !important;
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.3) !important;
+}
+
+code {
+    color: #00f2fe !important;
+}
+`,
+    retro: `/* ─── Retro — Warm Amber & CRT ─── */
+
+:root {
+    --app-bg: #1a1207 !important;
+    --chat-bg: #15100a !important;
+    --text-color: #d4a574 !important;
+    --border-color: rgba(212, 165, 116, 0.2) !important;
+    --input-bg: rgba(26, 18, 7, 0.9) !important;
+    --input-fg: #c89b6b !important;
+    --input-focus-border: #e8a84c !important;
+    --user-msg-bg: rgba(232, 168, 76, 0.08) !important;
+    --code-bg: rgba(232, 168, 76, 0.06) !important;
+}
+
+body {
+    font-family: 'Courier New', 'Liberation Mono', monospace !important;
+    background: #1a1207 !important;
+    text-shadow: 0 0 2px rgba(212, 165, 116, 0.15) !important;
+}
+
+.message-body {
+    border: 1px solid rgba(212, 165, 116, 0.2) !important;
+    border-radius: 2px !important;
+    box-shadow: none !important;
+    background: rgba(26, 18, 7, 0.8) !important;
+}
+
+.unified-input-container {
+    border: 1px solid rgba(212, 165, 116, 0.25) !important;
+    border-radius: 2px !important;
+    background: rgba(26, 18, 7, 0.9) !important;
+}
+
+.send-btn-premium {
+    background: linear-gradient(135deg, #e8a84c 0%, #d4a574 100%) !important;
+    border-radius: 2px !important;
+}
+
+code {
+    color: #e8a84c !important;
+    font-family: 'Courier New', monospace !important;
+}
+`,
+    classic: `/* ─── Classic — Elegant & Refined ─── */
+
+:root {
+    --app-bg: #1c1c20 !important;
+    --chat-bg: #18181c !important;
+    --text-color: #c8c4bc !important;
+    --border-color: rgba(180, 170, 155, 0.15) !important;
+    --input-bg: rgba(28, 28, 32, 0.9) !important;
+    --input-fg: #b8b0a4 !important;
+    --input-focus-border: #8b7e6a !important;
+    --user-msg-bg: rgba(139, 126, 106, 0.08) !important;
+    --code-bg: rgba(139, 126, 106, 0.06) !important;
+}
+
+body {
+    font-family: 'Georgia', 'Palatino Linotype', 'Book Antiqua', serif !important;
+    letter-spacing: 0.01em !important;
+    background: #1c1c20 !important;
+}
+
+.message-body {
+    border: 1px solid rgba(180, 170, 155, 0.12) !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+    background: rgba(28, 28, 32, 0.7) !important;
+}
+
+.unified-input-container {
+    border: 1px solid rgba(180, 170, 155, 0.15) !important;
+    border-radius: 8px !important;
+    background: rgba(28, 28, 32, 0.8) !important;
+}
+
+.send-btn-premium {
+    background: linear-gradient(135deg, #8b7e6a 0%, #a09080 100%) !important;
+}
+
+code {
+    font-family: 'Menlo', 'Consolas', monospace !important;
+}
+`
+};
+
+// --- TEMPLATE HANDLER ---
+if (themeTemplateSelect) {
+    themeTemplateSelect.addEventListener('change', (e) => {
+        const template = e.target.value;
+        if (template !== 'custom' && THEME_TEMPLATES[template]) {
+            customCssInput.value = THEME_TEMPLATES[template];
+            currentSettings.ui.customCss = THEME_TEMPLATES[template];
+        }
+    });
+}
 // --- INITIALIZATION ---
 window.addEventListener('DOMContentLoaded', () => {
     // Request settings from extension

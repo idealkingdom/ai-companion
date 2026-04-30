@@ -27,7 +27,7 @@ export interface AgentStepEvent {
 export class ChatCoreService {
 
     private workspaceIndex: WorkspaceIndexService;
-    private activeAbortControllers: Map<string, AbortController> = new Map();
+    private static activeAbortControllers: Map<string, AbortController> = new Map();
 
     constructor(
         private readonly historyService: ChatHistoryService,
@@ -48,10 +48,10 @@ export class ChatCoreService {
      * Cancel ongoing AI generation
      */
     public cancelChatRequest(chatId: string): boolean {
-        const controller = this.activeAbortControllers.get(chatId);
+        const controller = ChatCoreService.activeAbortControllers.get(chatId);
         if (controller) {
             controller.abort();
-            this.activeAbortControllers.delete(chatId);
+            ChatCoreService.activeAbortControllers.delete(chatId);
             ApprovalService.getInstance().clearAllApprovals();
             outputChannel.appendLine(`[ChatCore] Cancelled request for chatId=${chatId} and flushed pending approvals.`);
             return true;
@@ -87,7 +87,7 @@ export class ChatCoreService {
         let aiResponseText = "";
 
         const abortController = new AbortController();
-        this.activeAbortControllers.set(data.chat_id, abortController);
+        ChatCoreService.activeAbortControllers.set(data.chat_id, abortController);
 
         try {
             // --- STEP A: HANDLE IMAGES ---
@@ -197,7 +197,7 @@ export class ChatCoreService {
             }
             await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText);
         } finally {
-            this.activeAbortControllers.delete(data.chat_id);
+            ChatCoreService.activeAbortControllers.delete(data.chat_id);
         }
 
         return aiResponseText;

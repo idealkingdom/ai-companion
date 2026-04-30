@@ -158,9 +158,22 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         // Listen for Settings updates globally
         SettingsManager.onDidUpdateSettings((updated) => {
+            // Sync UI/CSS changes
             webviewView.webview.postMessage({
                 command: 'uiSettingsUpdate',
                 ui: updated.ui
+            });
+
+            // Sync Agent Hub changes (add/remove/rename agents)
+            webviewView.webview.postMessage({
+                command: 'agentsUpdate',
+                agents: updated.prompts || []
+            });
+
+            // Sync Model changes
+            webviewView.webview.postMessage({
+                command: 'modelsUpdate',
+                models: updated.models
             });
         });
 

@@ -197,6 +197,19 @@
                         
                         <div class="field-row mt-4">
                             <div class="form-group flex-1">
+                                <label>Theme Template</label>
+                                <select id="themeTemplateSelect" class="styled-input" style="margin-bottom: 12px;">
+                                    <option value="custom">Custom (Manual)</option>
+                                    <option value="default">Default — Clean &amp; Minimal</option>
+                                    <option value="futuristic">Futuristic — Neon &amp; Glassmorphism</option>
+                                    <option value="retro">Retro — Warm &amp; Monospace</option>
+                                    <option value="classic">Classic — Elegant &amp; Serif</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="field-row">
+                            <div class="form-group flex-1">
                                 <textarea id="customCssInput" class="styled-input styled-textarea code-font" rows="22" placeholder="/* --- Custom CSS Examples --- &#10;&#10;:root {&#10;  --font-ui: 'Segoe UI';&#10;  --font-editor: 'Fira Code';&#10;}&#10;&#10;body {&#10;  font-size: 15px !important;&#10;} */" spellcheck="false" style="width: 100%; box-sizing: border-box; resize: vertical; min-height: 450px; font-family: var(--font-editor, monospace);"></textarea>
                             </div>
                         </div>

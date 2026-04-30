@@ -65,8 +65,13 @@ const modeOptions = document.getElementById('modeOptions');
 
 let activeAgentId = 'default';
 
-if (modeDropdown && AGENTS.length > 0) {
-    AGENTS.forEach(agent => {
+function renderAgentDropdown(agents) {
+    if (!modeDropdown || !modeOptions) { return; }
+    // Remove all dynamically added agent options (keep the first "Default Chat" option)
+    const existingAgentOpts = modeOptions.querySelectorAll('.mode-option:not([data-value="default"])');
+    existingAgentOpts.forEach(opt => opt.remove());
+
+    (agents || []).forEach(agent => {
         if (!agent.isActive) { return; }
         const opt = document.createElement('div');
         opt.className = 'mode-option';
@@ -75,6 +80,9 @@ if (modeDropdown && AGENTS.length > 0) {
         modeOptions.appendChild(opt);
     });
 }
+
+// Initial render
+renderAgentDropdown(AGENTS);
 
 // Dropdown Interactions
 if (modeDropdown) {
@@ -1242,6 +1250,15 @@ sendButton.addEventListener("click", event => {
         isGenerating = false;
         toggleSendButton("off");
         hideLoadingIndicator();
+
+        // Immediate visual feedback: append a stopped badge
+        if (activeStreamNode) {
+            const stopBadge = document.createElement('div');
+            stopBadge.className = 'status-badge status-stopped';
+            stopBadge.style.marginTop = '8px';
+            stopBadge.innerHTML = `🛑 Generation stopped by user`;
+            activeStreamNode.parentElement.appendChild(stopBadge);
+        }
         return;
     }
     const imagePills = chatMessage.querySelectorAll('.inline-attachment-pill[data-image="true"]');
@@ -1619,6 +1636,14 @@ window.addEventListener('message', event => {
                 activeStreamAccumulator += message.content;
                 activeStreamNode.innerHTML = marked.parse(activeStreamAccumulator);
                 scrollToBottom();
+
+                // Send ACK back to extension so it can send the next chunk
+                if (message.seq) {
+                    vscode.postMessage({
+                        command: CHAT_COMMANDS.CHAT_CHUNK_ACK,
+                        seq: message.seq
+                    });
+                }
             }
             break;
 
@@ -1704,6 +1729,28 @@ window.addEventListener('message', event => {
 
         case 'uiSettingsUpdate':
             applyUISettings(message.ui);
+            break;
+
+        case 'agentsUpdate':
+            renderAgentDropdown(message.agents);
+            // If the active agent was removed, reset to default
+            if (activeAgentId !== 'default') {
+                const stillExists = (message.agents || []).some(a => a.id === activeAgentId);
+                if (!stillExists) {
+                    activeAgentId = 'default';
+                    if (modeSelected) {
+                        modeSelected.innerHTML = `<span class="mode-icon">💬</span> Default Chat
+                            <svg class="dropdown-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>`;
+                    }
+                }
+            }
+            break;
+
+        case 'modelsUpdate':
+            if (message.models && currentModelLabel) {
+                const providerSettings = message.models.providerSettings?.[message.models.provider] || {};
+                currentModelLabel.textContent = providerSettings.textModel || message.models.textModel || 'Unknown';
+            }
             break;
 
         default:
