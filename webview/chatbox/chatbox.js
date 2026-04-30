@@ -118,12 +118,40 @@ if (modeDropdown) {
 
     // Close on outside click
     document.addEventListener('click', () => {
-        if (!modeOptions.classList.contains('hidden')) {
+        if (modeOptions && !modeOptions.classList.contains('hidden')) {
             modeOptions.classList.add('hidden');
             modeDropdown.classList.remove('open');
         }
     });
 }
+
+// --- PREMIUM HEADER WIRING ---
+const backBtn = document.getElementById('backToHistoryBtn');
+if (backBtn) {
+    backBtn.addEventListener('click', () => {
+        vscode.postMessage({ command: CHAT_COMMANDS.HISTORY_LOAD });
+    });
+}
+
+function updateContextCountPill() {
+    const pill = document.getElementById('count-context');
+    if (!pill) return;
+    
+    const attachedCount = (attachedFiles ? attachedFiles.length : 0) + (attachedImages ? attachedImages.length : 0);
+    const inlinePills = document.querySelectorAll('.inline-attachment-pill').length;
+    pill.textContent = attachedCount + inlinePills;
+}
+
+// Observe context changes to update pill
+const observer = new MutationObserver(() => updateContextCountPill());
+const previewContainer = document.getElementById('attachments-preview-container');
+const messageBox = document.getElementById('messageInput');
+
+if (previewContainer) observer.observe(previewContainer, { childList: true });
+if (messageBox) observer.observe(messageBox, { childList: true, subtree: true });
+
+// Initial count
+updateContextCountPill();
 
 // --- TOOLBAR DROPDOWNS INITIALIZATION ---
 const { MODELS, PERMISSIONS, UI } = window.VS_CONSTANTS;
@@ -1725,6 +1753,19 @@ window.addEventListener('message', event => {
 
         case 'chatStagingUpdate':
             updateStagingBar(message.content.stagedFilesCount);
+            // Update header pill
+            const reviewPill = document.getElementById('count-reviews');
+            if (reviewPill) {
+                reviewPill.textContent = message.content.stagedFilesCount;
+            }
+            break;
+
+        case 'chatUsageUpdate':
+            const tokenPill = document.getElementById('count-tokens');
+            if (tokenPill && message.usage) {
+                const total = message.usage.totalTokens || 0;
+                tokenPill.textContent = total > 1000 ? (total / 1000).toFixed(1) + 'k' : total;
+            }
             break;
 
         case 'uiSettingsUpdate':

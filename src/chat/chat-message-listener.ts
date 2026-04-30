@@ -155,7 +155,7 @@ export async function chatMessageListener(message: any) {
 
                 webview.postMessage({ command: CHAT_COMMANDS.CHAT_STREAM_START });
 
-                const aiResponse = await coreService.processChatRequest(
+                const { text: aiResponse, usage } = await coreService.processChatRequest(
                     aiData,
                     // onChunk — stream text to frontend
                     async (chunk) => {
@@ -182,6 +182,13 @@ export async function chatMessageListener(message: any) {
                         });
                     }
                 );
+
+                if (usage) {
+                    webview.postMessage({
+                        command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
+                        usage: usage
+                    });
+                }
 
                 webview.postMessage({
                     command: CHAT_COMMANDS.CHAT_STREAM_END,
@@ -213,12 +220,19 @@ export async function chatMessageListener(message: any) {
 
                 webview.postMessage({ command: CHAT_COMMANDS.CHAT_STREAM_START });
 
-                const aiResponse = await coreService.processChatRequest(retryData, async (chunk) => {
+                const { text: aiResponse, usage } = await coreService.processChatRequest(retryData, async (chunk) => {
                     await webview.postMessage({
                         command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
                         content: chunk
                     });
                 });
+
+                if (usage) {
+                    webview.postMessage({
+                        command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
+                        usage: usage
+                    });
+                }
 
                 webview.postMessage({
                     command: CHAT_COMMANDS.CHAT_STREAM_END,

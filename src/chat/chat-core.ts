@@ -73,7 +73,7 @@ export class ChatCoreService {
         images?: any[],
         agentId?: string
     }, onChunk?: (text: string) => void,
-       onAgentStep?: (step: AgentStepEvent) => void): Promise<string> {
+       onAgentStep?: (step: AgentStepEvent) => void): Promise<{ text: string, usage?: any }> {
 
         const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
 
@@ -85,6 +85,7 @@ export class ChatCoreService {
         const temperature = appSettings.general.temperature;
 
         let aiResponseText = "";
+        let totalUsage: any = null;
 
         const abortController = new AbortController();
         ChatCoreService.activeAbortControllers.set(data.chat_id, abortController);
@@ -164,17 +165,21 @@ export class ChatCoreService {
             const isAgenticMode = this.isAgenticAgent(data.agentId, appSettings);
 
             if (isAgenticMode) {
-                aiResponseText = await this.processAgenticRequest(
+                const response = await this.processAgenticRequest(
                     data, finalContextMessages, finalCurrentMessage,
                     targetModel, apiKey || accessToken, temperature, apiBaseUrl,
                     appSettings, onChunk, onAgentStep, abortController.signal
                 );
+                aiResponseText = response.text;
+                totalUsage = response.usage;
             } else {
-                aiResponseText = await this.processStandardRequest(
+                const response = await this.processStandardRequest(
                     data, finalContextMessages, finalCurrentMessage,
                     targetModel, apiKey || accessToken, temperature, apiBaseUrl,
                     appSettings, onChunk, abortController.signal
                 );
+                aiResponseText = response.text;
+                totalUsage = response.usage;
             }
 
             // --- STEP E: SAVE AI RESPONSE ---
@@ -200,7 +205,7 @@ export class ChatCoreService {
             ChatCoreService.activeAbortControllers.delete(data.chat_id);
         }
 
-        return aiResponseText;
+        return { text: aiResponseText, usage: totalUsage };
     }
 
     /**
@@ -225,7 +230,7 @@ export class ChatCoreService {
         data: any, contextMessages: any[], currentMessage: any,
         model: string, apiKey: string, temperature: number, baseUrl: string,
         settings: any, onChunk?: (text: string) => void, abortSignal?: AbortSignal
-    ): Promise<string> {
+    ): Promise<{ text: string, usage?: any }> {
 
         // Default Chat uses the global system prompt.
         const systemPrompt = settings.general.systemPrompt || "You are an expert AI assistant.";
@@ -233,6 +238,7 @@ export class ChatCoreService {
 
         let pipelineContext = currentMessage;
         let aiResponseText = "";
+        let totalUsage: any = null;
         const isO1 = model.startsWith('o1');
         const requestTemperature = isO1 ? 1 : temperature;
 
@@ -258,8 +264,10 @@ export class ChatCoreService {
                     fullText += chunk;
                     onChunk(chunk);
                 }
+                const usage = await result.usage;
                 pipelineContext = fullText;
                 aiResponseText = fullText;
+                totalUsage = usage;
             } else {
                 const response = await openAIRequest(
                     apiPayload, model, apiKey, requestTemperature, baseUrl
@@ -269,7 +277,7 @@ export class ChatCoreService {
             }
         }
 
-        return aiResponseText;
+        return { text: aiResponseText, usage: totalUsage };
     }
 
     /**
@@ -281,7 +289,7 @@ export class ChatCoreService {
         settings: any, onChunk?: (text: string) => void,
         onAgentStep?: (step: AgentStepEvent) => void,
         abortSignal?: AbortSignal
-    ): Promise<string> {
+    ): Promise<{ text: string, usage?: any }> {
         ReviewManager.getInstance().startTurn();
 
         // Resolve the agent's system prompt
@@ -437,7 +445,8 @@ RULES:
                 if (onChunk) { onChunk(fullText); }
             }
 
-            return fullText;
+            const usage = await result.usage;
+            return { text: fullText, usage };
         } catch (error: any) {
             if (abortSignal?.aborted) {
                 throw error; // Let the top-level catch handle the cancellation gracefully

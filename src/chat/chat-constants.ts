@@ -61,7 +61,8 @@ export enum CHAT_COMMANDS {
   CHAT_AGENT_STEP = 'chatAgentStep',
   CHAT_APPROVAL_UPDATE = 'chatApprovalUpdate',
   CHAT_CHUNK_ACK = 'chatChunkAck',
-  CHAT_ID_UPDATE = 'chatIdUpdate'
+  CHAT_ID_UPDATE = 'chatIdUpdate',
+  CHAT_USAGE_UPDATE = 'chatUsageUpdate'
 }
 
 

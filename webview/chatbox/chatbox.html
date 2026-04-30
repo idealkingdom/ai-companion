@@ -30,6 +30,30 @@
 
   <div id="chat-view" class="view-container active-view">
     <div class="chat-container new-chat">
+      <header id="chat-header" class="premium-header">
+        <div class="header-left">
+          <button id="backToHistoryBtn" class="header-btn" title="Back to History">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+          </button>
+          <div class="header-title">Chat Session</div>
+        </div>
+        <div class="header-right">
+          <div class="status-pills">
+            <div class="status-pill" id="pill-context" title="Active Context (Files/Attachments)">
+              <span class="pill-icon">📎</span>
+              <span class="pill-value" id="count-context">0</span>
+            </div>
+            <div class="status-pill" id="pill-reviews" title="Pending Code Reviews">
+              <span class="pill-icon">📝</span>
+              <span class="pill-value" id="count-reviews">0</span>
+            </div>
+            <div class="status-pill" id="pill-tokens" title="Estimated Token Usage">
+              <span class="pill-icon">🔤</span>
+              <span class="pill-value" id="count-tokens">0</span>
+            </div>
+          </div>
+        </div>
+      </header>
       <main id="chatLog" data-chat-id="" class="chat-log">
         <div id="chatWelcomeMessage" class="chat-message-welcome">
           <span class="logo">
