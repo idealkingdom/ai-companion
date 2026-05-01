@@ -1671,7 +1671,10 @@ window.addEventListener('DOMContentLoaded', () => {
 
         if (autocompleteActive) {
             hideAutocomplete();
-     input.addEventListener("paste", (event) => {
+        }
+    });
+
+    input.addEventListener("paste", (event) => {
         const clipboardData = event.clipboardData || window.clipboardData;
 
         // 1. Handle Images
@@ -1689,14 +1692,12 @@ window.addEventListener('DOMContentLoaded', () => {
         // the undo/redo stack perfectly without our intervention.
     });
 
-
     imageUploadInput.addEventListener('change', (e) => {
         if (e.target.files) {
             handleImageFiles(e.target.files, 'upload');
             e.target.value = null;
         }
     });
-
 
     // --- End of Listeners ---
 
