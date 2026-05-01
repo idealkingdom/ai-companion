@@ -1682,31 +1682,46 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
     input.addEventListener("paste", (event) => {
-        // 1. Stop all native pasting
-        event.preventDefault();
         const clipboardData = event.clipboardData || window.clipboardData;
 
-        // 2. Handle images
+        // 1. Handle Images
         if (clipboardData.files && clipboardData.files.length > 0) {
             if (Array.from(clipboardData.files).some(file => file.type.startsWith('image/'))) {
+                event.preventDefault();
                 handleImageFiles(clipboardData.files, 'paste');
                 return;
             }
         }
 
-        // 3. Handle Text
+        // 2. Handle Text
         const text = clipboardData.getData('text/plain');
-        if (!text) { return; }
+        if (text) {
+            event.preventDefault();
+            
+            // Ensure input has focus for execCommand
+            input.focus();
 
-        // Escape the text for HTML insertion
-        const escapedText = text
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/\n/g, "<br>"); // Ensure newlines are preserved in HTML mode
+            const escapedText = text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/\n/g, "<br>");
 
-        // Use 'insertHTML' synchronously to keep it in the undo stack
-        document.execCommand('insertHTML', false, escapedText);
+            // Try to use execCommand to preserve undo stack
+            const success = document.execCommand('insertHTML', false, escapedText);
+            
+            // Fallback if execCommand fails (though it breaks undo)
+            if (!success) {
+                const selection = window.getSelection();
+                if (selection.rangeCount) {
+                    selection.deleteFromDocument();
+                    const range = selection.getRangeAt(0);
+                    const textNode = document.createTextNode(text);
+                    range.insertNode(textNode);
+                    selection.collapseToEnd();
+                }
+            }
+        }
     });
 
 
