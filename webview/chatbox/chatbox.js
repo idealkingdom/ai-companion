@@ -255,6 +255,19 @@ document.addEventListener('click', (e) => {
     if (permsOptionsMenu && !permsOptionsMenu.contains(e.target) && !toolbarPermsBtn.contains(e.target)) {
         permsOptionsMenu.classList.add('hidden');
     }
+
+    // Delegated click handling for file and image links
+    const fileLink = e.target.closest('.file-link');
+    if (fileLink) {
+        requestOpenFile(fileLink.dataset.fileId);
+        return;
+    }
+
+    const imageLink = e.target.closest('.image-link');
+    if (imageLink) {
+        requestOpenImage(imageLink.dataset.url);
+        return;
+    }
 });
 let autocompleteActive = false;
 let autocompleteType = null; // '@' or '/'
@@ -729,14 +742,14 @@ function appendUserMessage(message, images = [], files = []) {
 
     if (files && files.length > 0) {
         files.forEach(file => {
-            const id = "file-pill-hist-" + Date.now() + Math.floor(Math.random() * 1000);
+            const id = "file-link-" + Date.now() + Math.floor(Math.random() * 1000);
             window.inlineFilesMap[id] = file;
             const marker = `[📄 ${escapeHtml(file.name)}]`;
-            const pillHTML = `<span class="inline-attachment-pill file-pill" contenteditable="false" data-file-id="${id}" onclick="requestOpenFile(this.dataset.fileId)" title="Attached file: ${escapeHtml(file.name)}">${marker}</span>`;
+            const linkHTML = `<span class="file-link" data-file-id="${id}" title="Open file: ${escapeHtml(file.name)}">${marker}</span>`;
             if (finalHTML.includes(marker)) {
-                finalHTML = finalHTML.replace(marker, pillHTML);
+                finalHTML = finalHTML.replace(marker, linkHTML);
             } else {
-                finalHTML += ` ${pillHTML}`;
+                finalHTML += ` ${linkHTML}`;
             }
         });
     }
@@ -745,13 +758,12 @@ function appendUserMessage(message, images = [], files = []) {
         images.forEach(image => {
             const openPath = image.path || image.dataUrl;
             const marker = `[${escapeHtml(image.name)}]`;
-            // Link UI logic
-            const pillHTML = `<span class="inline-attachment-pill" contenteditable="false" onclick="requestOpenImage('${openPath.replace(/\\/g, '\\\\')}')" title="Click to view image">[${escapeHtml(image.name)}]</span>`;
+            const linkHTML = `<span class="image-link" data-url="${openPath.replace(/\\/g, '\\\\')}" title="View image">[${escapeHtml(image.name)}]</span>`;
 
             if (finalHTML.includes(marker)) {
-                finalHTML = finalHTML.replace(marker, pillHTML);
+                finalHTML = finalHTML.replace(marker, linkHTML);
             } else {
-                finalHTML += ` ${pillHTML}`;
+                finalHTML += ` ${linkHTML}`;
             }
         });
     }

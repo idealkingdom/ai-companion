@@ -398,6 +398,21 @@ span.logo svg{
   gap: 6px;
 }
 
+.file-link, .image-link {
+  color: var(--vscode-textLink-foreground, #3794ff);
+  text-decoration: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+.file-link:hover, .image-link:hover {
+  text-decoration: underline;
+  opacity: 0.8;
+}
+
+
 .edit-cancel-btn,
 .edit-send-btn {
   border: none;
