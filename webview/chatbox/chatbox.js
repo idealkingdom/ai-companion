@@ -1994,7 +1994,39 @@ window.addEventListener('message', event => {
             }
             break;
 
+        case CHAT_COMMANDS.CHAT_STATE_REHYDRATE:
+            rehydrateState(message.content);
+            break;
+
         default:
             console.error('Unknown command:', message.command);
     }
 });
+
+function rehydrateState(data) {
+    const { chatId, messages, stagedFilesCount } = data;
+    
+    // 1. Reset the UI for the chat ID
+    resetChat({ uid: chatId });
+    
+    // 2. Add all messages
+    if (messages && Array.isArray(messages)) {
+        messages.forEach(msg => {
+            if (msg.role === ROLE.USER) {
+                appendUserMessage(msg.message, msg.images || [], []);
+            } else {
+                appendAIMessage(msg.message);
+            }
+        });
+    }
+    
+    // 3. Update staging bar
+    updateStagingBar(stagedFilesCount);
+    
+    // 4. Highlight code
+    setTimeout(() => {
+        if (typeof hljs !== 'undefined') hljs.highlightAll();
+        addAllCopyButtons();
+        scrollToBottom();
+    }, 100);
+}

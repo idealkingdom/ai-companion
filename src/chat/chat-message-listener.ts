@@ -19,6 +19,7 @@ import { ApprovalService } from "./approval-service";
 import { DiffContentProvider } from "./diff-content-provider";
 import { ReviewManager } from "./review-manager";
 import * as Diff from 'diff';
+import { PopupManager } from "./popup-manager";
 
 // For Handshake/Syncing
 const chunkAcks = new Map<string, (val: any) => void>();
@@ -51,16 +52,34 @@ export async function chatMessageListener(message: any) {
         // --- 1. INIT ---
         case CHAT_COMMANDS.CHAT_WEBVIEW_READY:
             {
-                // Now: We generate ID and send it manually, or add resetChat() to your Service.
+                const existingId = ChatViewProvider.getCurrentSessionId();
+                if (existingId) {
+                    // REHYDRATE
+                    const conversation = historyService.getConversation(existingId);
+                    if (conversation) {
+                        await ChatViewProvider.getInstance().postMessage({
+                            command: CHAT_COMMANDS.CHAT_STATE_REHYDRATE,
+                            content: {
+                                chatId: existingId,
+                                messages: conversation.messages,
+                                stagedFilesCount: ReviewManager.getInstance().getStagedUris().length
+                            }
+                        });
+                        return;
+                    }
+                }
+
+                // NEW CHAT
                 const newChatId = coreService.generateChatID();
-                await webview.postMessage({
+                ChatViewProvider.setCurrentSessionId(newChatId);
+                await ChatViewProvider.getInstance().postMessage({
                     command: CHAT_COMMANDS.CHAT_RESET,
                     content: { uid: newChatId }
                 });
 
                 // Sync the initial staging state
                 const count = ReviewManager.getInstance().getStagedUris().length;
-                await webview.postMessage({
+                await ChatViewProvider.getInstance().postMessage({
                     command: 'chatStagingUpdate',
                     content: { stagedFilesCount: count }
                 });
@@ -85,7 +104,7 @@ export async function chatMessageListener(message: any) {
                         path: p
                     }));
 
-                await webview.postMessage({
+                await ChatViewProvider.getInstance().postMessage({
                     command: 'searchFilesResult',
                     query: query,
                     results: results
@@ -106,7 +125,7 @@ export async function chatMessageListener(message: any) {
             {
                 // Now: We generate ID and send it manually, or add resetChat() to your Service.
                 const newChatId = coreService.generateChatID();
-                await webview.postMessage({
+                await ChatViewProvider.getInstance().postMessage({
                     command: CHAT_COMMANDS.CHAT_RESET,
                     content: { uid: newChatId }
                 });
@@ -125,7 +144,7 @@ export async function chatMessageListener(message: any) {
                 // This turns the text + files into one big Markdown string
                 const formattedMessage = formatMessageWithFiles(rawText, files);
 
-                await webview.postMessage({
+                await ChatViewProvider.getInstance().postMessage({
                     command: CHAT_COMMANDS.CHAT_REQUEST,
                     content: formattedMessage,
                     images: images,
@@ -145,7 +164,7 @@ export async function chatMessageListener(message: any) {
                 if (!chatId || chatId === "") {
                     chatId = coreService.generateChatID();
                     // Update webview with the new ID so future cancellations/messages use it
-                    await webview.postMessage({
+                    await ChatViewProvider.getInstance().postMessage({
                         command: CHAT_COMMANDS.CHAT_ID_UPDATE,
                         content: { uid: chatId }
                     });
@@ -153,7 +172,7 @@ export async function chatMessageListener(message: any) {
                     aiData.chat_id = chatId;
                 }
 
-                webview.postMessage({ command: CHAT_COMMANDS.CHAT_STREAM_START });
+                ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.CHAT_STREAM_START });
 
                 const { text: aiResponse, usage } = await coreService.processChatRequest(
                     aiData,
@@ -164,7 +183,7 @@ export async function chatMessageListener(message: any) {
                             chunkAcks.set(seq.toString(), resolve);
                         });
 
-                        await webview.postMessage({
+                        await ChatViewProvider.getInstance().postMessage({
                             command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
                             content: chunk,
                             seq: seq
@@ -176,7 +195,7 @@ export async function chatMessageListener(message: any) {
                     },
                     // onAgentStep — stream tool telemetry to frontend
                     async (step) => {
-                        await webview.postMessage({
+                        await ChatViewProvider.getInstance().postMessage({
                             command: CHAT_COMMANDS.CHAT_AGENT_STEP,
                             content: step
                         });
@@ -184,13 +203,13 @@ export async function chatMessageListener(message: any) {
                 );
 
                 if (usage) {
-                    webview.postMessage({
+                    ChatViewProvider.getInstance().postMessage({
                         command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
                         usage: usage
                     });
                 }
 
-                webview.postMessage({
+                ChatViewProvider.getInstance().postMessage({
                     command: CHAT_COMMANDS.CHAT_STREAM_END,
                     content: aiResponse,
                     role: ROLE.BOT
@@ -218,23 +237,23 @@ export async function chatMessageListener(message: any) {
                     images: []
                 };
 
-                webview.postMessage({ command: CHAT_COMMANDS.CHAT_STREAM_START });
+                ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.CHAT_STREAM_START });
 
                 const { text: aiResponse, usage } = await coreService.processChatRequest(retryData, async (chunk) => {
-                    await webview.postMessage({
+                    await ChatViewProvider.getInstance().postMessage({
                         command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
                         content: chunk
                     });
                 });
 
                 if (usage) {
-                    webview.postMessage({
+                    ChatViewProvider.getInstance().postMessage({
                         command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
                         usage: usage
                     });
                 }
 
-                webview.postMessage({
+                ChatViewProvider.getInstance().postMessage({
                     command: CHAT_COMMANDS.CHAT_STREAM_END,
                     content: aiResponse,
                     role: ROLE.BOT
@@ -246,7 +265,7 @@ export async function chatMessageListener(message: any) {
         case CHAT_COMMANDS.HISTORY_LOAD:
             {
                 const historyData = historyService.getFormattedHistoryGroups();
-                await webview.postMessage({
+                await ChatViewProvider.getInstance().postMessage({
                     command: CHAT_COMMANDS.HISTORY_LOAD,
                     content: historyData
                 });
@@ -291,8 +310,9 @@ export async function chatMessageListener(message: any) {
                 const conversation = historyService.getConversation(targetId);
 
                 if (conversation) {
+                    ChatViewProvider.setCurrentSessionId(targetId);
                     // A. Reset UI with the old ID
-                    await webview.postMessage({
+                    await ChatViewProvider.getInstance().postMessage({
                         command: CHAT_COMMANDS.CHAT_RESET,
                         content: { uid: conversation.chat_id }
                     });
@@ -315,7 +335,7 @@ export async function chatMessageListener(message: any) {
 
 
 
-                        await webview.postMessage({
+                        await ChatViewProvider.getInstance().postMessage({
                             command: CHAT_COMMANDS.CHAT_REQUEST,
                             content: msg.message,
                             images: displayImages,
@@ -330,7 +350,7 @@ export async function chatMessageListener(message: any) {
         case CHAT_COMMANDS.HISTORY_CLEAR:
             {
                 await historyService.clear();
-                await webview.postMessage({
+                await ChatViewProvider.getInstance().postMessage({
                     command: CHAT_COMMANDS.HISTORY_LOAD,
                     content: []
                 });
@@ -427,7 +447,7 @@ export async function chatMessageListener(message: any) {
                     const fileContent = document.getText();
                     const languageId = document.languageId;
 
-                    await webview.postMessage({
+                    await ChatViewProvider.getInstance().postMessage({
                         command: 'fileContextAdded',
                         content: {
                             name: fileName,
@@ -450,7 +470,7 @@ export async function chatMessageListener(message: any) {
                 if (type === 'currentFile') {
                     if (!editor) {
                         // No file is open
-                        await webview.postMessage({
+                        await ChatViewProvider.getInstance().postMessage({
                             command: 'error',
                             content: 'No active text editor found.'
                         });
@@ -463,7 +483,7 @@ export async function chatMessageListener(message: any) {
                     const languageId = document.languageId;
 
                     // Send back to Frontend to "attach" it
-                    await webview.postMessage({
+                    await ChatViewProvider.getInstance().postMessage({
                         command: 'fileContextAdded', // We reuse your existing listener logic
                         content: {
                             name: fileName,
@@ -494,7 +514,7 @@ export async function chatMessageListener(message: any) {
                     // We create a "virtual" filename for the selection
                     const fileName = path.basename(editor.document.fileName);
 
-                    await webview.postMessage({
+                    await ChatViewProvider.getInstance().postMessage({
                         command: 'fileContextAdded',
                         content: {
                             name: `Selection (${fileName})`, // e.g. "Selection (script.ts)"
@@ -551,7 +571,7 @@ export async function chatMessageListener(message: any) {
                                     const dataUrl = `data:image/${mime};base64,${base64}`;
 
                                     // Send to Frontend
-                                    await webview.postMessage({
+                                    await ChatViewProvider.getInstance().postMessage({
                                         command: CHAT_COMMANDS.IMAGE_CONTEXT_ADDED,
                                         content: {
                                             name: fileName,
@@ -568,7 +588,7 @@ export async function chatMessageListener(message: any) {
                                 }
 
                                 // Send result to frontend
-                                await webview.postMessage({
+                                await ChatViewProvider.getInstance().postMessage({
                                     command: 'fileContextAdded',
                                     content: {
                                         name: fileName,
@@ -608,7 +628,7 @@ export async function chatMessageListener(message: any) {
                     }
 
                     // Send back to frontend
-                    await webview.postMessage({
+                    await ChatViewProvider.getInstance().postMessage({
                         command: CHAT_COMMANDS.PROBLEM_CONTEXT_ADDED,
                         content: {
                             name: "Workspace Problems",
@@ -624,7 +644,7 @@ export async function chatMessageListener(message: any) {
                     const workspaceFiles = await vscode.workspace.findFiles('**/*', '{**/node_modules/**,**/dist/**,**/build/**,**/.git/**}');
                     
                     if (workspaceFiles.length === 0) {
-                        await webview.postMessage({
+                        await ChatViewProvider.getInstance().postMessage({
                             command: 'fileContextAdded',
                             content: {
                                 name: "Workspace",
@@ -664,7 +684,7 @@ export async function chatMessageListener(message: any) {
                         currentPathParts = parts;
                     }
 
-                    await webview.postMessage({
+                    await ChatViewProvider.getInstance().postMessage({
                         command: 'fileContextAdded',
                         content: {
                             name: "Workspace",
@@ -712,7 +732,7 @@ export async function chatMessageListener(message: any) {
                 }
 
                 outputChannel.appendLine(`[ReviewHunks] Sending ${hunksData.length} files with hunks to webview.`);
-                await webview.postMessage({
+                await ChatViewProvider.getInstance().postMessage({
                     command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
                     content: hunksData
                 });
@@ -727,7 +747,7 @@ export async function chatMessageListener(message: any) {
                 if (action === 'discard') {
                     await ReviewManager.getInstance().discardAll();
                     // Notify webview to close the review panel
-                    await webview.postMessage({
+                    await ChatViewProvider.getInstance().postMessage({
                         command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
                         content: [] // Empty = panel closes
                     });
@@ -739,7 +759,7 @@ export async function chatMessageListener(message: any) {
                         vscode.window.showErrorMessage('Failed to commit selected changes.');
                     }
                     // Panel closes on commit
-                    await webview.postMessage({
+                    await ChatViewProvider.getInstance().postMessage({
                         command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
                         content: []
                     });
@@ -759,6 +779,12 @@ export async function chatMessageListener(message: any) {
                 const { uri } = message.data;
                 const fileUri = vscode.Uri.parse(uri);
                 await vscode.window.showTextDocument(fileUri);
+                break;
+            }
+
+        case CHAT_COMMANDS.CHAT_REQUEST_POPOUT:
+            {
+                await PopupManager.togglePopup(context);
                 break;
             }
 

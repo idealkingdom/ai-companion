@@ -18,6 +18,7 @@ import { DiffContentProvider } from './chat/diff-content-provider';
 import { ReviewManager } from './chat/review-manager';
 
 import { ReviewCodeLensProvider, ReviewDecorationProvider } from './chat/review-codelens';
+import { PopupManager } from './chat/popup-manager';
 
 // editor
 const editor = vscode.window.activeTextEditor;
@@ -139,10 +140,16 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // Initial decoration update
     if (vscode.window.activeTextEditor) {
         ReviewDecorationProvider.updateDecorations(vscode.window.activeTextEditor);
     }
+
+    // Register Popup Toggle
+    context.subscriptions.push(
+        vscode.commands.registerCommand('ai-companion.togglePopup', () => {
+            PopupManager.togglePopup(context);
+        })
+    );
 
 
 }

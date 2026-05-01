@@ -34,11 +34,42 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private static instance: ChatViewProvider;
     public static readonly viewType = EXTENSION_NAME;
     private static _view?: vscode.WebviewView;
+    private static _activeWebviews = new Set<vscode.Webview>();
     private static _context: vscode.ExtensionContext;
+    private static _currentSessionId?: string;
 
     private constructor(private context: vscode.ExtensionContext) {
         outputChannel.appendLine('ChatViewProvider initialized');
         ChatViewProvider._context = context;
+
+        // Subscribe to global updates once
+        ApprovalService.getInstance().onDidResolveApproval(({ toolCallId, approved }) => {
+            this.postMessage({
+                command: 'chatApprovalUpdate',
+                data: { toolCallId, approved }
+            });
+        });
+
+        ReviewManager.getInstance().onDidUpdateStaging((count: number) => {
+            this.postMessage({
+                command: 'chatStagingUpdate',
+                content: { stagedFilesCount: count }
+            });
+        });
+
+        SettingsManager.onDidUpdateSettings((updated) => {
+            this.postMessage({ command: 'uiSettingsUpdate', ui: updated.ui });
+            this.postMessage({ command: 'agentsUpdate', agents: updated.prompts || [] });
+            this.postMessage({ command: 'modelsUpdate', models: updated.models });
+        });
+    }
+
+    public static setCurrentSessionId(id: string) {
+        this._currentSessionId = id;
+    }
+
+    public static getCurrentSessionId() {
+        return this._currentSessionId;
     }
 
     public static getInstance(context?: vscode.ExtensionContext): ChatViewProvider {
@@ -57,12 +88,28 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         return ChatViewProvider._view;
     }
 
-    public resolveWebviewView(
-        webviewView: vscode.WebviewView
-    ) {
+    /**
+     * Broadcasts a message to all active webviews (sidebar + popups).
+     */
+    public postMessage(message: any) {
+        ChatViewProvider._activeWebviews.forEach(webview => {
+            webview.postMessage(message);
+        });
+    }
 
+    public resolveWebviewView(webviewView: vscode.WebviewView) {
+        ChatViewProvider._view = webviewView;
+        this.setupWebview(webviewView.webview);
+        
+        // Remove from active list when disposed
+        webviewView.onDidDispose(() => {
+            ChatViewProvider._activeWebviews.delete(webviewView.webview);
+            ChatViewProvider._view = undefined;
+        });
+    }
 
-        webviewView.webview.options = {
+    public setupWebview(webview: vscode.Webview) {
+        webview.options = {
             enableScripts: true,
             localResourceRoots: [
                 this.context.extensionUri,
@@ -71,48 +118,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 vscode.Uri.joinPath(this.context.extensionUri, 'webview', 'libraries')
             ]
         };
-        // READ BASE HTML - in this case chatbox.html
-        webviewView.webview.html = getHTMLBase(webviewView.webview, this.context, CHATBOX_FOLDER, INDEX_HTML);
 
-        // Load files and parse each for needed script and style paths
-        // This will replace the placeholders in the HTML with the actual paths to the files
-        // For example, it will replace {{scriptPath}} with the actual path to chatbox.js
-        // and {{stylePath}} with the actual path to chatbox.css
-        // This is done for each file in the FILES_TO_LOAD array
-        // and each library in the LIBRARIES_TO_LOAD array
-        // This will allow the webview to load the necessary files and libraries
-        // and display the chatbox correctly
+        let html = getHTMLBase(webview, this.context, CHATBOX_FOLDER, INDEX_HTML);
+
         FILES_TO_LOAD.forEach(file => {
-            webviewView.webview.html =
-                fetchFilesWebView(
-                    webviewView.webview,
-                    this.context,
-                    CHATBOX_FOLDER, // chatbox folder where the files are stored
-                    webviewView.webview.html, // get the HTML base path
-                    file.placeholder, // file placeholder ex: '{{scriptPath}}'
-                    file.name // file name ex: 'chatbox.js'
-                );
+            html = fetchFilesWebView(webview, this.context, CHATBOX_FOLDER, html, file.placeholder, file.name);
         });
 
-        // Load libraries and parse each for needed script paths
-        // This will replace the placeholders in the HTML with the actual paths to the libraries
-        // For example, it will replace {{htmxSriptPath}} with the actual path to htmx.min.js
-        // This is done for each library in the LIBRARIES_TO_LOAD array
-        // This will allow the webview to load the necessary libraries
         LIBRARIES_TO_LOAD.forEach(lib => {
-            webviewView.webview.html =
-                fetchFilesWebView(
-                    webviewView.webview,
-                    this.context,
-                    path.join(LIBRARY_FOLDER, lib.folderName).toString(), // library folder where the libraries are stored
-                    webviewView.webview.html, // get the HTML base path
-                    lib.placeholder, // library placeholder ex: '{{htmxSriptPath}}'
-                    lib.name // library name ex: 'htmx.min.js'   
-                );
-
+            html = fetchFilesWebView(webview, this.context, path.join(LIBRARY_FOLDER, lib.folderName).toString(), html, lib.placeholder, lib.name);
         });
 
-        // LOAD THE CONSTANTS WE CAN USE IN THE WEBVIEW
         const settingsManager = new SettingsManager(this.context);
         const settings = settingsManager.getSettings();
 
@@ -127,56 +143,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             UI: settings.ui
         });
 
-        // Inject the constants into the HTML by replacing the {{constants}} placeholder
-        webviewView.webview.html = webviewView.webview.html.replace(`"{{CONSTANTS}}"`, SHARED_CONSTANTS);
+        webview.html = html.replace(`"{{CONSTANTS}}"`, SHARED_CONSTANTS);
 
+        // Add to active list
+        ChatViewProvider._activeWebviews.add(webview);
 
-
-        ChatViewProvider._view = webviewView;
-
-        // 7. Subscribe to Approval Updates
-        ApprovalService.getInstance().onDidResolveApproval(({ toolCallId, approved }) => {
-            webviewView.webview.postMessage({
-                command: 'chatApprovalUpdate',
-                data: { toolCallId, approved }
-            });
-        });
-
-        // =================================================================
-        // 8. REGISTER THE LISTENER HERE 🚀
-        // =================================================================
-        // This tells VS Code: "When the HTML sends a message, run this function."
-        webviewView.webview.onDidReceiveMessage(chatMessageListener);
-
-        // 6. Listen for Staging Updates
-        ReviewManager.getInstance().onDidUpdateStaging((count: number) => {
-            webviewView.webview.postMessage({
-                command: 'chatStagingUpdate',
-                content: { stagedFilesCount: count }
-            });
-        });
-
-        // Listen for Settings updates globally
-        SettingsManager.onDidUpdateSettings((updated) => {
-            // Sync UI/CSS changes
-            webviewView.webview.postMessage({
-                command: 'uiSettingsUpdate',
-                ui: updated.ui
-            });
-
-            // Sync Agent Hub changes (add/remove/rename agents)
-            webviewView.webview.postMessage({
-                command: 'agentsUpdate',
-                agents: updated.prompts || []
-            });
-
-            // Sync Model changes
-            webviewView.webview.postMessage({
-                command: 'modelsUpdate',
-                models: updated.models
-            });
-        });
-
-        ChatViewProvider._view = webviewView;
+        // Register message listener
+        webview.onDidReceiveMessage(chatMessageListener);
     }
 }
