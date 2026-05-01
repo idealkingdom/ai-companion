@@ -255,19 +255,6 @@ document.addEventListener('click', (e) => {
     if (permsOptionsMenu && !permsOptionsMenu.contains(e.target) && !toolbarPermsBtn.contains(e.target)) {
         permsOptionsMenu.classList.add('hidden');
     }
-
-    // Delegated click handling for file and image links
-    const fileLink = e.target.closest('.file-link');
-    if (fileLink) {
-        requestOpenFile(fileLink.dataset.fileId);
-        return;
-    }
-
-    const imageLink = e.target.closest('.image-link');
-    if (imageLink) {
-        requestOpenImage(imageLink.dataset.url);
-        return;
-    }
 });
 let autocompleteActive = false;
 let autocompleteType = null; // '@' or '/'
@@ -666,44 +653,102 @@ function handleImageFiles(fileList, source) {
     }
 }
 
-function removeImage(index) {
-    attachedImages.splice(index, 1);
-    renderAttachments();
-}
-
 function insertInlineImage(dataUrl, name) {
     chatMessage.focus();
 
-    // 1. Add to global array for the dedicated attachment bar
-    attachedImages.push({ dataUrl, name });
-    renderAttachments();
+    // ensure cursor is inside chatMessage
+    const selection = window.getSelection();
+    let isInside = false;
+    if (selection.rangeCount > 0) {
+        let node = selection.getRangeAt(0).commonAncestorContainer;
+        while (node) {
+            if (node === chatMessage) { isInside = true; break; }
+            node = node.parentNode;
+        }
+    }
+    if (!isInside && typeof document.createRange !== 'undefined') {
+        const range = document.createRange();
+        range.selectNodeContents(chatMessage);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
 
-    // 2. Insert a plain-text marker into the input for visual reference
-    const marker = `[${name}]`;
-    document.execCommand('insertText', false, marker + ' ');
+    const id = "pill-" + Date.now() + Math.floor(Math.random() * 1000);
+    const html = `<span id="${id}" class="inline-attachment-pill" contenteditable="false" data-image="true" data-name="${escapeHtml(name)}" data-url="${dataUrl}" onclick="requestOpenImage(this.dataset.url)" title="Click to view image">[${escapeHtml(name)}]</span>&nbsp;`;
+
+    document.execCommand('insertHTML', false, html);
+
+    const insertedNode = document.getElementById(id);
+    if (insertedNode && window.getSelection) {
+        const range = document.createRange();
+        if (insertedNode.nextSibling) {
+            range.setStart(insertedNode.nextSibling, insertedNode.nextSibling.textContent.length);
+        } else {
+            range.setStartAfter(insertedNode);
+        }
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        insertedNode.removeAttribute("id");
+    }
+
+    chatMessage.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 // Map to store file contents attached inline to avoid large data attributes
 window.inlineFilesMap = window.inlineFilesMap || {};
 
 function insertInlineFile(name, text, language, path) {
+    chatMessage.focus();
+
+    // ensure cursor is inside chatMessage
+    const selection = window.getSelection();
+    let isInside = false;
+    if (selection.rangeCount > 0) {
+        let node = selection.getRangeAt(0).commonAncestorContainer;
+        while (node) {
+            if (node === chatMessage) { isInside = true; break; }
+            node = node.parentNode;
+        }
+    }
+    if (!isInside && typeof document.createRange !== 'undefined') {
+        const range = document.createRange();
+        range.selectNodeContents(chatMessage);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+
     const id = "file-pill-" + Date.now() + Math.floor(Math.random() * 1000);
-    const fileData = { name, content: text, language, path, lines: text.split('\n').length };
-    
-    // 1. Add to global map and array
-    window.inlineFilesMap[id] = fileData;
-    attachedFiles.push(fileData);
-    renderAttachments();
+    // Store content in map
+    window.inlineFilesMap[id] = { name, content: text, language, path, lines: text.split('\n').length };
 
-    // 2. Insert a plain-text marker into the input for visual reference
-    const marker = `[📄 ${name}]`;
-    document.execCommand('insertText', false, marker + ' ');
+    const html = `<span id="${id}" class="inline-attachment-pill file-pill" contenteditable="false" data-file-id="${id}" data-file="true" data-name="${escapeHtml(name)}" title="Attached file: ${escapeHtml(name)}" onclick="requestOpenFile(this.dataset.fileId)">[📄 ${escapeHtml(name)}]</span>&nbsp;`;
+
+    document.execCommand('insertHTML', false, html);
+
+    const insertedNode = document.getElementById(id);
+    if (insertedNode && window.getSelection) {
+        const range = document.createRange();
+        if (insertedNode.nextSibling) {
+            range.setStart(insertedNode.nextSibling, insertedNode.nextSibling.textContent.length);
+        } else {
+            range.setStartAfter(insertedNode);
+        }
+        range.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        insertedNode.removeAttribute("id"); // Remove temporary ID
+    }
+
+    chatMessage.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-function removeFile(index) {
-    attachedFiles.splice(index, 1);
-    renderAttachments();
-}
 function showLoadingIndicator() {
     hideLoadingIndicator();
 
@@ -742,14 +787,14 @@ function appendUserMessage(message, images = [], files = []) {
 
     if (files && files.length > 0) {
         files.forEach(file => {
-            const id = "file-link-" + Date.now() + Math.floor(Math.random() * 1000);
+            const id = "file-pill-hist-" + Date.now() + Math.floor(Math.random() * 1000);
             window.inlineFilesMap[id] = file;
             const marker = `[📄 ${escapeHtml(file.name)}]`;
-            const linkHTML = `<span class="file-link" data-file-id="${id}" title="Open file: ${escapeHtml(file.name)}">${marker}</span>`;
+            const pillHTML = `<span class="inline-attachment-pill file-pill" contenteditable="false" data-file-id="${id}" onclick="requestOpenFile(this.dataset.fileId)" title="Attached file: ${escapeHtml(file.name)}">${marker}</span>`;
             if (finalHTML.includes(marker)) {
-                finalHTML = finalHTML.replace(marker, linkHTML);
+                finalHTML = finalHTML.replace(marker, pillHTML);
             } else {
-                finalHTML += ` ${linkHTML}`;
+                finalHTML += ` ${pillHTML}`;
             }
         });
     }
@@ -758,12 +803,13 @@ function appendUserMessage(message, images = [], files = []) {
         images.forEach(image => {
             const openPath = image.path || image.dataUrl;
             const marker = `[${escapeHtml(image.name)}]`;
-            const linkHTML = `<span class="image-link" data-url="${openPath.replace(/\\/g, '\\\\')}" title="View image">[${escapeHtml(image.name)}]</span>`;
+            // Link UI logic
+            const pillHTML = `<span class="inline-attachment-pill" contenteditable="false" onclick="requestOpenImage('${openPath.replace(/\\/g, '\\\\')}')" title="Click to view image">[${escapeHtml(image.name)}]</span>`;
 
             if (finalHTML.includes(marker)) {
-                finalHTML = finalHTML.replace(marker, linkHTML);
+                finalHTML = finalHTML.replace(marker, pillHTML);
             } else {
-                finalHTML += ` ${linkHTML}`;
+                finalHTML += ` ${pillHTML}`;
             }
         });
     }
@@ -977,6 +1023,8 @@ function renderAgentStep(step) {
 function updateStagingBar(count) {
     const stagingBar = document.getElementById('staging-bar');
     const stagingCount = document.getElementById('staging-count');
+    const pillReviews = document.getElementById('pill-reviews');
+    
     if (!stagingBar || !stagingCount) {
         return;
     }
@@ -984,21 +1032,11 @@ function updateStagingBar(count) {
     if (count > 0) {
         stagingBar.classList.remove('hidden');
         stagingCount.textContent = `${count} File${count > 1 ? 's' : ''} With Changes`;
-
-        // Enable buttons
-        document.querySelectorAll('.premium-action-btn').forEach(btn => {
-            btn.disabled = false;
-            btn.style.opacity = '1';
-        });
+        if (pillReviews) pillReviews.classList.add('glow');
     } else {
         stagingBar.classList.remove('hidden');
         stagingCount.textContent = `0 Files With Changes`;
-
-        // Disable buttons
-        document.querySelectorAll('.premium-action-btn').forEach(btn => {
-            btn.disabled = true;
-            btn.style.opacity = '0.5';
-        });
+        if (pillReviews) pillReviews.classList.remove('glow');
     }
 }
 
@@ -1109,8 +1147,8 @@ function renderHunkReviewPanel() {
 
     overlay.innerHTML = `
         <div class="hunk-review-header">
-            <h2>📋 Review Changes (${hunkReviewState.files.length} file${hunkReviewState.files.length > 1 ? 's' : ''})</h2>
-            <button class="close-btn" onclick="closeHunkReviewPanel()" title="Close">✕</button>
+            <button class="back-btn" onclick="closeHunkReviewPanel()" title="Back to Chat">←</button>
+            <h2>Review Changes (${hunkReviewState.files.length} file${hunkReviewState.files.length > 1 ? 's' : ''})</h2>
         </div>
         <div class="hunk-review-body" id="hunk-review-body">
             ${hunkReviewState.files.map((file, fileIdx) => renderFileSection(file, fileIdx)).join('')}
@@ -1263,11 +1301,6 @@ document.addEventListener('keydown', (e) => {
 
     // Ctrl+Z / Cmd+Z = Undo
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        // Only intercept if we're not typing in an input
-        const target = e.target;
-        if (target.id === 'messageInput' || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-            return;
-        }
         e.preventDefault();
         undoHunkToggle();
     }
@@ -1628,23 +1661,46 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    input.addEventListener("focusout", () => {
+        if (!input.textContent.trim().length) {
+            input.textContent = "";
+        }
+    });
+
+
     input.addEventListener("paste", (event) => {
+        // 1. Stop all native pasting
+        event.preventDefault();
         const clipboardData = event.clipboardData || window.clipboardData;
 
-        // 1. Handle Images
+        // 2. Handle images
         if (clipboardData.files && clipboardData.files.length > 0) {
             if (Array.from(clipboardData.files).some(file => file.type.startsWith('image/'))) {
-                event.preventDefault();
                 handleImageFiles(clipboardData.files, 'paste');
                 return;
             }
         }
 
-        // 2. For Text:
-        // We now use contenteditable="plaintext-only" in the HTML.
-        // This makes the browser handle plain-text pasting and 
-        // the undo/redo stack perfectly without our intervention.
+        // 3. Handle Text
+        const text = clipboardData.getData('text/plain');
+        if (!text) { return; };
+
+        // 4. Escape the text for HTML
+        const escapedText = text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        // Note: We don't replace \n with <br> because our CSS
+        // 'white-space: pre-wrap' already handles newlines correctly.
+
+        // 5. Use 'insertHTML'. This command inserts our plain, escaped text
+        //    and correctly adds the action to the undo/redo stack.
+        setTimeout(() => {
+            document.execCommand('insertHTML', false, escapedText);
+        }, 50);
+
     });
+
 
     imageUploadInput.addEventListener('change', (e) => {
         if (e.target.files) {
@@ -1652,6 +1708,7 @@ window.addEventListener('DOMContentLoaded', () => {
             e.target.value = null;
         }
     });
+
 
     // --- End of Listeners ---
 

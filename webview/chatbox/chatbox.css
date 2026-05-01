@@ -398,21 +398,6 @@ span.logo svg{
   gap: 6px;
 }
 
-.file-link, .image-link {
-  color: var(--vscode-textLink-foreground, #3794ff);
-  text-decoration: none;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 500;
-  transition: opacity 0.2s;
-}
-
-.file-link:hover, .image-link:hover {
-  text-decoration: underline;
-  opacity: 0.8;
-}
-
-
 .edit-cancel-btn,
 .edit-send-btn {
   border: none;
@@ -1505,18 +1490,55 @@ details[open] summary .file-arrow {
   color: var(--input-fg);
 }
 
-.premium-action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  pointer-events: none;
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(128, 128, 128, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-color, rgba(255, 255, 255, 0.7));
 }
 
-.premium-action-btn.primary:hover {
-  background: rgba(79, 195, 247, 0.25);
-  border-color: rgba(79, 195, 247, 0.4);
-  color: #fff;
+.status-pill:hover {
+  background: rgba(128, 128, 128, 0.15);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text-color, #fff);
 }
 
+.pill-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+}
+
+.pill-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+@keyframes reviewGlow {
+  0% { box-shadow: 0 0 0px rgba(79, 195, 247, 0); border-color: rgba(79, 195, 247, 0.2); }
+  50% { box-shadow: 0 0 12px rgba(79, 195, 247, 0.3); border-color: rgba(79, 195, 247, 0.6); }
+  100% { box-shadow: 0 0 0px rgba(79, 195, 247, 0); border-color: rgba(79, 195, 247, 0.2); }
+}
+
+.status-pill.glow {
+  animation: reviewGlow 2.5s infinite ease-in-out;
+  background: rgba(79, 195, 247, 0.08);
+  color: #4fc3f7;
+  border-color: rgba(79, 195, 247, 0.3);
+}
+
+.status-pill.glow .pill-icon {
+  opacity: 1;
+}
 
 .step-status.pending {
     color: #eab308;
@@ -1549,12 +1571,12 @@ details[open] summary .file-arrow {
 
 .hunk-review-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
   background: rgba(0, 0, 0, 0.2);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   flex-shrink: 0;
+  gap: 12px;
 }
 
 .hunk-review-header h2 {
@@ -1563,21 +1585,25 @@ details[open] summary .file-arrow {
   font-weight: 600;
   opacity: 0.9;
   font-family: var(--font-ui);
+  flex: 1;
 }
 
-.hunk-review-header .close-btn {
+.hunk-review-header .back-btn {
   background: transparent;
   border: none;
   color: var(--text-color);
-  opacity: 0.6;
+  opacity: 0.7;
   cursor: pointer;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   padding: 4px 8px;
   border-radius: 4px;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.hunk-review-header .close-btn:hover {
+.hunk-review-header .back-btn:hover {
   opacity: 1;
   background: rgba(255, 255, 255, 0.05);
 }
