@@ -35,9 +35,5 @@ export class PopupManager {
 
         // Set icon
         this._panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'media', 'icon.png');
-
-        // Force it to a separate native window
-        this._panel.reveal(vscode.ViewColumn.Active);
-        await vscode.commands.executeCommand('workbench.action.moveEditorToNewWindow');
     }
 }
