@@ -1868,10 +1868,7 @@ window.addEventListener('message', event => {
 
                 // Send ACK back to extension so it can send the next chunk
                 if (message.seq) {
-                    vscode.postMessage({
-                        command: CHAT_COMMANDS.CHAT_CHUNK_ACK,
-                        seq: message.seq
-                    });
+                    sendMessage(CHAT_COMMANDS.CHAT_CHUNK_ACK, { seq: message.seq });
                 }
             }
             break;

@@ -749,7 +749,7 @@ export async function chatMessageListener(message: any) {
 
         case CHAT_COMMANDS.CHAT_CHUNK_ACK:
             {
-                const seq = message.seq;
+                const seq = message.data.seq;
                 const resolver = chunkAcks.get(seq.toString());
                 if (resolver) {
                     resolver(true);
