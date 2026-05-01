@@ -1686,10 +1686,18 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // 2. For Text:
-        // We now use contenteditable="plaintext-only" in the HTML.
-        // This makes the browser handle plain-text pasting and 
-        // the undo/redo stack perfectly without our intervention.
+        // 2. Handle Text (Force Plain Text but keep undo)
+        const text = clipboardData.getData('text/plain');
+        if (text) {
+            event.preventDefault();
+            const escapedText = text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/\n/g, "<br>");
+            
+            document.execCommand('insertHTML', false, escapedText);
+        }
     });
 
     imageUploadInput.addEventListener('change', (e) => {
