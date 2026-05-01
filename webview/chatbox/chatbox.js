@@ -1698,9 +1698,15 @@ window.addEventListener('DOMContentLoaded', () => {
         const text = clipboardData.getData('text/plain');
         if (!text) { return; }
 
-        // 3. Use 'insertText'. This command inserts our plain text
-        //    and correctly adds the action to the undo/redo stack.
-        document.execCommand('insertText', false, text);
+        // Escape the text for HTML insertion
+        const escapedText = text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\n/g, "<br>"); // Ensure newlines are preserved in HTML mode
+
+        // Use 'insertHTML' synchronously to keep it in the undo stack
+        document.execCommand('insertHTML', false, escapedText);
     });
 
 
