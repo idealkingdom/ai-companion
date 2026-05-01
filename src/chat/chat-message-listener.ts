@@ -747,6 +747,21 @@ export async function chatMessageListener(message: any) {
                 break;
             }
 
+        case CHAT_COMMANDS.CHAT_TOGGLE_HUNK:
+            {
+                const { uri, index, accepted } = message.data;
+                ReviewManager.getInstance().toggleHunk(uri, index, accepted);
+                break;
+            }
+
+        case CHAT_COMMANDS.CHAT_OPEN_FILE:
+            {
+                const { uri } = message.data;
+                const fileUri = vscode.Uri.parse(uri);
+                await vscode.window.showTextDocument(fileUri);
+                break;
+            }
+
         case CHAT_COMMANDS.CHAT_CHUNK_ACK:
             {
                 const seq = message.data.seq;

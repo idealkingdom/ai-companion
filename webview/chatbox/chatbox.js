@@ -1191,13 +1191,16 @@ function renderFileSection(file, fileIdx) {
 
     return `
         <div class="hunk-file-section" data-file-idx="${fileIdx}">
-            <div class="hunk-file-header" onclick="toggleFileSection(${fileIdx})">
-                <div class="hunk-file-name">
+            <div class="hunk-file-header">
+                <div class="hunk-file-name" onclick="toggleFileSection(${fileIdx})">
                     ${badge}
                     ${escapeHtml(file.fileName)}
                     <span style="opacity:0.4; font-weight:400">(${file.hunks.length} hunk${file.hunks.length > 1 ? 's' : ''})</span>
                 </div>
-                <span class="hunk-file-toggle">▼</span>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <button class="hunk-toggle-btn" style="border:none; padding:2px 6px; font-size:0.7rem; opacity:0.7" onclick="event.stopPropagation(); sendMessage('chatOpenFile', { uri: '${file.uri}' })" title="Open File for Direct Review">📂 Open File</button>
+                    <span class="hunk-file-toggle" onclick="toggleFileSection(${fileIdx})">▼</span>
+                </div>
             </div>
             <div class="hunk-file-body">
                 ${hunksHtml}
@@ -1258,6 +1261,9 @@ function toggleHunk(fileIdx, hunkIdx, accepted) {
     });
 
     hunk.accepted = accepted;
+
+    // Sync with backend
+    sendMessage('chatToggleHunk', { uri: file.uri, index: hunk.index, accepted });
 
     // Re-render efficiently (just update the card + footer)
     renderHunkReviewPanel();

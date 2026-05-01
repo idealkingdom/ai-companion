@@ -19,6 +19,9 @@ export class ReviewManager {
     // Current "Shadow" content with all AI edits applied so far
     private shadowContents = new Map<string, string>();
 
+    // Tracking accepted hunk indices for each file
+    private hunkStates = new Map<string, Set<number>>();
+
     private currentReviewIndex = 0;
 
     private constructor() {}
@@ -33,6 +36,7 @@ export class ReviewManager {
     public startTurn() {
         this.originalContents.clear();
         this.shadowContents.clear();
+        this.hunkStates.clear();
         this.currentReviewIndex = 0;
         vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', false);
         this._onDidUpdateStaging.fire(0);
@@ -336,6 +340,12 @@ export class ReviewManager {
 
             if (!patch.hunks || patch.hunks.length === 0) { continue; }
 
+            // Initialize or get state
+            if (!this.hunkStates.has(uriStr)) {
+                this.hunkStates.set(uriStr, new Set(patch.hunks.map((_: any, idx: number) => idx)));
+            }
+            const acceptedSet = this.hunkStates.get(uriStr)!;
+
             const fileEntry = {
                 uri: uriStr,
                 fileName,
@@ -347,7 +357,7 @@ export class ReviewManager {
                     newStart: hunk.newStart,
                     newLines: hunk.newLines,
                     lines: hunk.lines,
-                    accepted: true // Default: all accepted
+                    accepted: acceptedSet.has(idx)
                 }))
             };
 
@@ -449,5 +459,26 @@ export class ReviewManager {
         this._onDidUpdateStaging.fire(this.shadowContents.size);
         await this.closeDiffEditors();
         return success;
+    }
+
+    public toggleHunk(uriStr: string, hunkIndex: number, accepted: boolean) {
+        if (!this.hunkStates.has(uriStr)) {
+            // Need to compute hunks to initialize state if not already done
+            this.getHunksForAllFiles();
+        }
+        
+        const acceptedSet = this.hunkStates.get(uriStr);
+        if (acceptedSet) {
+            if (accepted) {
+                acceptedSet.add(hunkIndex);
+            } else {
+                acceptedSet.delete(hunkIndex);
+            }
+        }
+    }
+
+    public getAcceptedIndices(uriStr: string): number[] {
+        const acceptedSet = this.hunkStates.get(uriStr);
+        return acceptedSet ? Array.from(acceptedSet) : [];
     }
 }

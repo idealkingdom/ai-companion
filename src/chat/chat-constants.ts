@@ -65,7 +65,9 @@ export enum CHAT_COMMANDS {
   CHAT_USAGE_UPDATE = 'chatUsageUpdate',
   CHAT_REVIEW_HUNKS = 'chatReviewHunks',
   COMMIT_SELECTED_HUNKS = 'commitSelectedHunks',
-  REVIEW_HUNKS_DATA = 'reviewHunksData'
+  REVIEW_HUNKS_DATA = 'reviewHunksData',
+  CHAT_TOGGLE_HUNK = 'chatToggleHunk',
+  CHAT_OPEN_FILE = 'chatOpenFile'
 }
 
 

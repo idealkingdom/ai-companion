@@ -17,6 +17,8 @@ import { SettingsView } from './settings/settings-view';
 import { DiffContentProvider } from './chat/diff-content-provider';
 import { ReviewManager } from './chat/review-manager';
 
+import { ReviewCodeLensProvider, ReviewDecorationProvider } from './chat/review-codelens';
+
 // editor
 const editor = vscode.window.activeTextEditor;
 
@@ -100,6 +102,47 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('ai-companion.acceptAll', () => reviewManager.commitAll()),
         vscode.commands.registerCommand('ai-companion.rejectAll', () => reviewManager.discardAll())
     );
+
+    // 6. Direct In-File Review Features
+    context.subscriptions.push(
+        vscode.languages.registerCodeLensProvider({ scheme: 'file' }, new ReviewCodeLensProvider())
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('ai-companion.toggleHunk', async (uriStr: string, index: number, accepted: boolean) => {
+            reviewManager.toggleHunk(uriStr, index, accepted);
+            
+            // Sync with Webview
+            const view = ChatViewProvider.getView();
+            if (view && view.webview) {
+                const hunksData = reviewManager.getHunksForAllFiles();
+                view.webview.postMessage({
+                    command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
+                    content: hunksData
+                });
+            }
+        })
+    );
+
+    // Update decorations when editor changes
+    context.subscriptions.push(
+        vscode.window.onDidChangeActiveTextEditor(editor => {
+            if (editor) {
+                ReviewDecorationProvider.updateDecorations(editor);
+            }
+        }),
+        vscode.workspace.onDidChangeTextDocument(event => {
+            const editor = vscode.window.activeTextEditor;
+            if (editor && event.document === editor.document) {
+                ReviewDecorationProvider.updateDecorations(editor);
+            }
+        })
+    );
+
+    // Initial decoration update
+    if (vscode.window.activeTextEditor) {
+        ReviewDecorationProvider.updateDecorations(vscode.window.activeTextEditor);
+    }
 
 
 }
