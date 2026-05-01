@@ -296,4 +296,158 @@ export class ReviewManager {
             );
         }
     }
+
+    /**
+     * Computes structured hunks for ALL staged files.
+     * Returns an array of file entries, each with its hunks.
+     */
+    public getHunksForAllFiles(): Array<{
+        uri: string;
+        fileName: string;
+        isNewFile: boolean;
+        hunks: Array<{
+            index: number;
+            oldStart: number;
+            oldLines: number;
+            newStart: number;
+            newLines: number;
+            lines: string[];
+            accepted: boolean;
+        }>;
+    }> {
+        const Diff = require('diff');
+        const results: Array<any> = [];
+
+        for (const [uriStr, shadowContent] of this.shadowContents.entries()) {
+            const originalContent = this.originalContents.get(uriStr) || '';
+            
+            // Skip if no changes
+            if (originalContent === shadowContent) { continue; }
+
+            const uri = vscode.Uri.parse(uriStr);
+            const fileName = uri.path.split('/').pop() || 'file';
+            const isNewFile = originalContent === '';
+
+            const patch = Diff.structuredPatch(
+                fileName, fileName,
+                originalContent, shadowContent,
+                '', '', { context: 3 }
+            );
+
+            if (!patch.hunks || patch.hunks.length === 0) { continue; }
+
+            const fileEntry = {
+                uri: uriStr,
+                fileName,
+                isNewFile,
+                hunks: patch.hunks.map((hunk: any, idx: number) => ({
+                    index: idx,
+                    oldStart: hunk.oldStart,
+                    oldLines: hunk.oldLines,
+                    newStart: hunk.newStart,
+                    newLines: hunk.newLines,
+                    lines: hunk.lines,
+                    accepted: true // Default: all accepted
+                }))
+            };
+
+            results.push(fileEntry);
+        }
+
+        return results;
+    }
+
+    /**
+     * Commits only the accepted hunks for each file.
+     * Reconstructs file content by applying accepted hunks to the original.
+     */
+    public async commitSelectedHunks(
+        selections: Array<{ uri: string; acceptedIndices: number[] }>
+    ): Promise<boolean> {
+        const Diff = require('diff');
+        const edit = new vscode.WorkspaceEdit();
+        const committedUris: vscode.Uri[] = [];
+
+        for (const selection of selections) {
+            const uriStr = selection.uri;
+            const originalContent = this.originalContents.get(uriStr) || '';
+            const shadowContent = this.shadowContents.get(uriStr) || '';
+
+            if (originalContent === shadowContent) { continue; }
+
+            const uri = vscode.Uri.parse(uriStr);
+            const fileName = uri.path.split('/').pop() || 'file';
+
+            // If all hunks are accepted, just use the full shadow content
+            const patch = Diff.structuredPatch(
+                fileName, fileName,
+                originalContent, shadowContent,
+                '', '', { context: 3 }
+            );
+
+            const totalHunks = patch.hunks?.length || 0;
+            const acceptedSet = new Set(selection.acceptedIndices);
+
+            // If no hunks are accepted, skip this file entirely (keep original)
+            if (acceptedSet.size === 0) { continue; }
+
+            let finalContent: string;
+
+            // If all hunks are accepted, use full shadow (avoids any patch edge cases)
+            if (acceptedSet.size === totalHunks) {
+                finalContent = shadowContent;
+            } else {
+                // Build a partial patch with only accepted hunks
+                const partialPatch = {
+                    ...patch,
+                    hunks: patch.hunks.filter((_: any, idx: number) => acceptedSet.has(idx))
+                };
+                
+                // Apply the partial patch to the original content
+                const patchText = Diff.formatPatch(partialPatch);
+                const applied = Diff.applyPatch(originalContent, patchText);
+                
+                if (applied === false) {
+                    // If patch application fails, fall back to full shadow
+                    // (better to commit all than lose changes)
+                    vscode.window.showWarningMessage(
+                        `Partial patch failed for ${fileName}. Committing full changes instead.`
+                    );
+                    finalContent = shadowContent;
+                } else {
+                    finalContent = applied;
+                }
+            }
+
+            committedUris.push(uri);
+            try {
+                const doc = await vscode.workspace.openTextDocument(uri);
+                const fullRange = new vscode.Range(
+                    doc.positionAt(0),
+                    doc.positionAt(doc.getText().length)
+                );
+                edit.replace(uri, fullRange, finalContent);
+            } catch (e) {
+                // New file case
+                edit.createFile(uri, { overwrite: true });
+                edit.insert(uri, new vscode.Position(0, 0), finalContent);
+            }
+        }
+
+        const success = await vscode.workspace.applyEdit(edit);
+        if (success) {
+            for (const uri of committedUris) {
+                try {
+                    const doc = await vscode.workspace.openTextDocument(uri);
+                    await doc.save();
+                } catch (e) {
+                    console.error(`Failed to auto-save committed file ${uri.toString()}:`, e);
+                }
+            }
+            this.startTurn(); // Reset after successful commit
+        }
+        this._onDidUpdateStaging.fire(this.shadowContents.size);
+        await this.closeDiffEditors();
+        return success;
+    }
 }

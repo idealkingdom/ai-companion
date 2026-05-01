@@ -700,9 +700,56 @@ export async function chatMessageListener(message: any) {
                 break;
             }
 
+        case CHAT_COMMANDS.CHAT_REVIEW_HUNKS:
+            {
+                outputChannel.appendLine('[ReviewHunks] Computing hunks for all staged files...');
+                const reviewManager = ReviewManager.getInstance();
+                const hunksData = reviewManager.getHunksForAllFiles();
+                
+                if (hunksData.length === 0) {
+                    vscode.window.showInformationMessage('No changes currently staged for review.');
+                    break;
+                }
+
+                outputChannel.appendLine(`[ReviewHunks] Sending ${hunksData.length} files with hunks to webview.`);
+                await webview.postMessage({
+                    command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
+                    content: hunksData
+                });
+                break;
+            }
+
+        case CHAT_COMMANDS.COMMIT_SELECTED_HUNKS:
+            {
+                const { selections, action } = message.data;
+                outputChannel.appendLine(`[CommitHunks] Action: ${action}, Files: ${selections?.length || 0}`);
+                
+                if (action === 'discard') {
+                    await ReviewManager.getInstance().discardAll();
+                    // Notify webview to close the review panel
+                    await webview.postMessage({
+                        command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
+                        content: [] // Empty = panel closes
+                    });
+                } else if (action === 'commit') {
+                    const success = await ReviewManager.getInstance().commitSelectedHunks(selections);
+                    if (success) {
+                        vscode.window.showInformationMessage('Selected changes committed successfully.');
+                    } else {
+                        vscode.window.showErrorMessage('Failed to commit selected changes.');
+                    }
+                    // Panel closes on commit
+                    await webview.postMessage({
+                        command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
+                        content: []
+                    });
+                }
+                break;
+            }
+
         case CHAT_COMMANDS.CHAT_CHUNK_ACK:
             {
-                const seq = message.data.seq;
+                const seq = message.seq;
                 const resolver = chunkAcks.get(seq.toString());
                 if (resolver) {
                     resolver(true);

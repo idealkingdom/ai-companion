@@ -1105,6 +1105,214 @@ window.reviewDiff = (toolCallId, toolName) => {
     }
 };
 
+// ─── HUNK REVIEW PANEL ───────────────────────────────────────────────
+let hunkReviewState = null; // { files: [...], undoStack: [] }
+
+function openHunkReviewPanel(filesData) {
+    if (!filesData || filesData.length === 0) {
+        closeHunkReviewPanel();
+        return;
+    }
+
+    // Initialize state
+    hunkReviewState = {
+        files: filesData.map(f => ({
+            ...f,
+            hunks: f.hunks.map(h => ({ ...h, accepted: true }))
+        })),
+        undoStack: [] // Stack of { fileIdx, hunkIdx, prevState }
+    };
+
+    renderHunkReviewPanel();
+}
+
+function closeHunkReviewPanel() {
+    hunkReviewState = null;
+    const overlay = document.getElementById('hunk-review-overlay');
+    if (overlay) { overlay.remove(); }
+}
+
+function renderHunkReviewPanel() {
+    if (!hunkReviewState) { return; }
+
+    // Remove existing if present
+    let overlay = document.getElementById('hunk-review-overlay');
+    if (overlay) { overlay.remove(); }
+
+    overlay = document.createElement('div');
+    overlay.id = 'hunk-review-overlay';
+    overlay.className = 'hunk-review-overlay';
+
+    // Compute summary
+    let totalHunks = 0;
+    let acceptedHunks = 0;
+    hunkReviewState.files.forEach(f => {
+        f.hunks.forEach(h => {
+            totalHunks++;
+            if (h.accepted) { acceptedHunks++; }
+        });
+    });
+
+    overlay.innerHTML = `
+        <div class="hunk-review-header">
+            <h2>📋 Review Changes (${hunkReviewState.files.length} file${hunkReviewState.files.length > 1 ? 's' : ''})</h2>
+            <button class="close-btn" onclick="closeHunkReviewPanel()" title="Close">✕</button>
+        </div>
+        <div class="hunk-review-body" id="hunk-review-body">
+            ${hunkReviewState.files.map((file, fileIdx) => renderFileSection(file, fileIdx)).join('')}
+        </div>
+        <div class="hunk-review-actions">
+            <div class="hunk-action-info">
+                ${acceptedHunks}/${totalHunks} hunks accepted
+            </div>
+            <div class="hunk-action-buttons">
+                <button class="hunk-action-btn undo" onclick="undoHunkToggle()" title="Undo last toggle (Ctrl+Z)" ${hunkReviewState.undoStack.length === 0 ? 'disabled style="opacity:0.3;pointer-events:none"' : ''}>
+                    ↶ Undo
+                </button>
+                <button class="hunk-action-btn discard" onclick="discardAllHunks()">
+                    ✕ Discard All
+                </button>
+                <button class="hunk-action-btn commit" onclick="commitSelectedHunks()">
+                    ✓ Commit Selected (${acceptedHunks})
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+}
+
+function renderFileSection(file, fileIdx) {
+    const badge = file.isNewFile
+        ? '<span class="hunk-file-badge new-file">NEW</span>'
+        : '<span class="hunk-file-badge modified">MODIFIED</span>';
+
+    const hunksHtml = file.hunks.map((hunk, hunkIdx) => renderHunkCard(hunk, fileIdx, hunkIdx)).join('');
+
+    return `
+        <div class="hunk-file-section" data-file-idx="${fileIdx}">
+            <div class="hunk-file-header" onclick="toggleFileSection(${fileIdx})">
+                <div class="hunk-file-name">
+                    ${badge}
+                    ${escapeHtml(file.fileName)}
+                    <span style="opacity:0.4; font-weight:400">(${file.hunks.length} hunk${file.hunks.length > 1 ? 's' : ''})</span>
+                </div>
+                <span class="hunk-file-toggle">▼</span>
+            </div>
+            <div class="hunk-file-body">
+                ${hunksHtml}
+            </div>
+        </div>
+    `;
+}
+
+function renderHunkCard(hunk, fileIdx, hunkIdx) {
+    const isAccepted = hunk.accepted;
+    const cardClass = isAccepted ? '' : 'rejected';
+    const location = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
+
+    const linesHtml = hunk.lines.map(line => {
+        const prefix = line.charAt(0);
+        let lineClass = 'context';
+        if (prefix === '+') { lineClass = 'added'; }
+        else if (prefix === '-') { lineClass = 'removed'; }
+        return `<div class="hunk-diff-line ${lineClass}">${escapeHtml(line)}</div>`;
+    }).join('');
+
+    return `
+        <div class="hunk-card ${cardClass}" data-file-idx="${fileIdx}" data-hunk-idx="${hunkIdx}">
+            <div class="hunk-card-header">
+                <span>${location}</span>
+                <div class="hunk-card-actions">
+                    <button class="hunk-toggle-btn accept-btn ${isAccepted ? 'active' : ''}" onclick="toggleHunk(${fileIdx}, ${hunkIdx}, true)">✓ Accept</button>
+                    <button class="hunk-toggle-btn reject-btn ${!isAccepted ? 'active' : ''}" onclick="toggleHunk(${fileIdx}, ${hunkIdx}, false)">✕ Reject</button>
+                </div>
+            </div>
+            <div class="hunk-diff-lines">
+                ${linesHtml}
+            </div>
+        </div>
+    `;
+}
+
+function toggleFileSection(fileIdx) {
+    const section = document.querySelector(`.hunk-file-section[data-file-idx="${fileIdx}"]`);
+    if (section) {
+        section.classList.toggle('collapsed');
+    }
+}
+
+function toggleHunk(fileIdx, hunkIdx, accepted) {
+    if (!hunkReviewState) { return; }
+
+    const file = hunkReviewState.files[fileIdx];
+    if (!file) { return; }
+    const hunk = file.hunks[hunkIdx];
+    if (!hunk) { return; }
+
+    // Save to undo stack
+    hunkReviewState.undoStack.push({
+        fileIdx,
+        hunkIdx,
+        prevState: hunk.accepted
+    });
+
+    hunk.accepted = accepted;
+
+    // Re-render efficiently (just update the card + footer)
+    renderHunkReviewPanel();
+}
+
+function undoHunkToggle() {
+    if (!hunkReviewState || hunkReviewState.undoStack.length === 0) { return; }
+
+    const last = hunkReviewState.undoStack.pop();
+    const file = hunkReviewState.files[last.fileIdx];
+    if (file) {
+        const hunk = file.hunks[last.hunkIdx];
+        if (hunk) {
+            hunk.accepted = last.prevState;
+        }
+    }
+
+    renderHunkReviewPanel();
+}
+
+function commitSelectedHunks() {
+    if (!hunkReviewState) { return; }
+
+    const selections = hunkReviewState.files.map(file => ({
+        uri: file.uri,
+        acceptedIndices: file.hunks
+            .filter(h => h.accepted)
+            .map(h => h.index)
+    }));
+
+    sendMessage('commitSelectedHunks', { selections, action: 'commit' });
+    closeHunkReviewPanel();
+}
+
+function discardAllHunks() {
+    sendMessage('commitSelectedHunks', { selections: [], action: 'discard' });
+    closeHunkReviewPanel();
+}
+
+// Keyboard shortcuts for hunk review panel
+document.addEventListener('keydown', (e) => {
+    if (!hunkReviewState) { return; }
+
+    // Ctrl+Z / Cmd+Z = Undo
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        undoHunkToggle();
+    }
+
+    // Escape = Close panel
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        closeHunkReviewPanel();
+    }
+});
 
 function appendAIMessage(response) {
     const parsedResponse = marked.parse(response);
@@ -1759,6 +1967,10 @@ window.addEventListener('message', event => {
                 const total = message.usage.totalTokens || 0;
                 tokenPill.textContent = total > 1000 ? (total / 1000).toFixed(1) + 'k' : total;
             }
+            break;
+
+        case 'reviewHunksData':
+            openHunkReviewPanel(message.content);
             break;
 
         case 'uiSettingsUpdate':
