@@ -95,6 +95,12 @@
         "category": "Spes AI Companion",
         "title": "Reject All",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "ai-companion.togglePopup",
+        "category": "Spes AI Companion",
+        "title": "Detach Chat",
+        "icon": "$(link-external)"
       }
     ],
     "viewsContainers": {
@@ -119,9 +125,14 @@
     "menus": {
       "view/title": [
         {
+          "command": "ai-companion.togglePopup",
+          "when": "view == ai-companion",
+          "group": "navigation@0"
+        },
+        {
           "command": "ai-companion.resetChat",
           "when": "view == ai-companion",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
           "command": "ai-companion.loadHistory",

@@ -68,7 +68,6 @@ export enum CHAT_COMMANDS {
   REVIEW_HUNKS_DATA = 'reviewHunksData',
   CHAT_TOGGLE_HUNK = 'chatToggleHunk',
   CHAT_OPEN_FILE = 'chatOpenFile',
-  CHAT_REQUEST_POPOUT = 'chatRequestPopout',
   CHAT_STATE_REHYDRATE = 'chatStateRehydrate'
 }
 

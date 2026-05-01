@@ -782,12 +782,6 @@ export async function chatMessageListener(message: any) {
                 break;
             }
 
-        case CHAT_COMMANDS.CHAT_REQUEST_POPOUT:
-            {
-                await PopupManager.togglePopup(context);
-                break;
-            }
-
         case CHAT_COMMANDS.CHAT_CHUNK_ACK:
             {
                 const seq = message.data.seq;
