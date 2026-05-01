@@ -97,12 +97,12 @@ if (modeDropdown) {
     modeOptions.addEventListener('click', (e) => {
         const option = e.target.closest('.mode-option');
         if (!option) { return; }
-        
+
         activeAgentId = option.dataset.value;
         const icon = option.querySelector('.mode-icon').innerHTML;
         // Grab only the text content ignoring the icon span
         const text = option.innerText.replace(icon, '').trim();
-        
+
         // Update styling
         modeOptions.querySelectorAll('.mode-option').forEach(o => o.classList.remove('selected'));
         option.classList.add('selected');
@@ -129,7 +129,7 @@ if (modeDropdown) {
 function updateContextCountPill() {
     const pill = document.getElementById('count-context');
     if (!pill) return;
-    
+
     const attachedCount = (attachedFiles ? attachedFiles.length : 0) + (attachedImages ? attachedImages.length : 0);
     const inlinePills = document.querySelectorAll('.inline-attachment-pill').length;
     pill.textContent = attachedCount + inlinePills;
@@ -153,14 +153,14 @@ let uiStyleNode = null;
 
 function applyUISettings(uiData) {
     if (!uiData) return;
-    
+
     if (!uiStyleNode) {
         uiStyleNode = document.createElement('style');
         document.head.appendChild(uiStyleNode);
     }
-    
+
     let styleRules = uiData.customCss || '';
-    
+
     uiStyleNode.innerHTML = styleRules;
 }
 
@@ -183,10 +183,10 @@ if (MODELS && currentModelLabel && modelOptionsMenu) {
     // Populate dropdown based on provider
     const providerSettings = MODELS.providerSettings[MODELS.provider] || {};
     currentModelLabel.textContent = providerSettings.textModel || MODELS.textModel;
-    
+
     // Quick mock list of models based on provider (could be dynamic later)
-    const availableModels = MODELS.provider === 'Gemini' ? 
-        ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'] : 
+    const availableModels = MODELS.provider === 'Gemini' ?
+        ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'] :
         ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'];
 
     availableModels.forEach(m => {
@@ -266,7 +266,7 @@ let triggerQuery = '';
 
 function updateAutocompleteItems(text) {
     const query = text.toLowerCase();
-    
+
     if (autocompleteType === '@') {
         if (query.length > 0) {
             // Request files from backend dynamically
@@ -898,21 +898,21 @@ function renderAgentStep(step) {
     let stepsContainer;
     if (!detailsEl) {
         hideLoadingIndicator();
-        
+
         detailsEl = document.createElement('details');
         detailsEl.className = 'agent-steps-group';
         detailsEl.open = true;
         detailsEl.dataset.startTime = Date.now();
-        
+
         const summary = document.createElement('summary');
         summary.className = 'agent-steps-summary';
         summary.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg> <span class="summary-text">Working...</span>`;
         detailsEl.appendChild(summary);
-        
+
         stepsContainer = document.createElement('div');
         stepsContainer.className = 'agent-steps-container';
         detailsEl.appendChild(stepsContainer);
-        
+
         chatbox.appendChild(detailsEl);
 
         detailsEl.dataset.timer = setInterval(() => {
@@ -927,9 +927,9 @@ function renderAgentStep(step) {
         stepsContainer = detailsEl.querySelector('.agent-steps-container');
     }
 
-    const stepEl = (step.toolCallId && stepsContainer.querySelector(`[data-tool-call-id="${step.toolCallId}"]`)) || 
-                   document.createElement('div');
-    
+    const stepEl = (step.toolCallId && stepsContainer.querySelector(`[data-tool-call-id="${step.toolCallId}"]`)) ||
+        document.createElement('div');
+
     if (!stepEl.parentNode) {
         stepEl.className = 'agent-step-card';
     }
@@ -974,7 +974,7 @@ function renderAgentStep(step) {
                     <button class="deny-btn staging-btn danger" style="padding: 2px 8px; font-size: 11px;" onclick="approveTool('${step.toolCallId}', false)">Deny</button>
                 `;
                 stepEl.appendChild(actionsEl);
-                
+
                 const statusEl = stepEl.querySelector('.step-status');
                 if (statusEl) {
                     statusEl.textContent = 'Waiting for Approval';
@@ -990,7 +990,7 @@ function renderAgentStep(step) {
         if (step.toolCallId) {
             targetCard = stepsContainer.querySelector(`[data-tool-call-id="${step.toolCallId}"]`);
         }
-        
+
         const statusEl = (targetCard || stepsContainer).querySelector('.step-status.running');
         if (statusEl) {
             const isStaged = step.result && (typeof step.result.message === 'string' && step.result.message.includes('staged'));
@@ -1030,7 +1030,7 @@ function updateStagingBar(count) {
     if (count > 0) {
         stagingBar.classList.remove('hidden');
         stagingCount.textContent = `${count} File${count > 1 ? 's' : ''} With Changes`;
-        
+
         // Enable buttons
         document.querySelectorAll('.premium-action-btn').forEach(btn => {
             btn.disabled = false;
@@ -1039,7 +1039,7 @@ function updateStagingBar(count) {
     } else {
         stagingBar.classList.remove('hidden');
         stagingCount.textContent = `0 Files With Changes`;
-        
+
         // Disable buttons
         document.querySelectorAll('.premium-action-btn').forEach(btn => {
             btn.disabled = true;
@@ -1552,7 +1552,7 @@ sendButton.addEventListener("click", event => {
 
             // CRITICAL: Send the attached files to the backend
             files: allFiles,
-            
+
             agentId: activeAgentId,
 
             chat_id: chatLog.dataset.chatId,
@@ -1822,7 +1822,7 @@ let activeStreamNode = null;
 window.addEventListener('message', event => {
     const message = event.data;
     switch (message.command) {
-                case 'searchFilesResult':
+        case 'searchFilesResult':
             {
                 if (autocompleteType !== '@') { break; }
                 filteredItems = message.results || [];
@@ -1881,7 +1881,7 @@ window.addEventListener('message', event => {
 
         case CHAT_COMMANDS.CHAT_STREAM_END:
             hideLoadingIndicator(); // Always hide loading, even if no chunks arrived
-            
+
             // Finalize open agent groups
             document.querySelectorAll('details.agent-steps-group').forEach(group => {
                 const stepsContainer = group.querySelector('.agent-steps-container');
@@ -1894,7 +1894,7 @@ window.addEventListener('message', event => {
                     if (group.dataset.timer) {
                         clearInterval(parseInt(group.dataset.timer));
                         delete group.dataset.timer;
-                        
+
                         const ms = Date.now() - parseInt(group.dataset.startTime);
                         const secs = Math.floor(ms / 1000);
                         const summaryText = group.querySelector('.summary-text');
