@@ -1309,6 +1309,11 @@ document.addEventListener('keydown', (e) => {
 
     // Ctrl+Z / Cmd+Z = Undo
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        // Only intercept if we're not typing in an input
+        const target = e.target;
+        if (target.id === 'messageInput' || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+            return;
+        }
         e.preventDefault();
         undoHunkToggle();
     }
@@ -1691,22 +1696,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
         // 3. Handle Text
         const text = clipboardData.getData('text/plain');
-        if (!text) { return; };
+        if (!text) { return; }
 
-        // 4. Escape the text for HTML
-        const escapedText = text
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;");
-        // Note: We don't replace \n with <br> because our CSS
-        // 'white-space: pre-wrap' already handles newlines correctly.
-
-        // 5. Use 'insertHTML'. This command inserts our plain, escaped text
+        // 3. Use 'insertText'. This command inserts our plain text
         //    and correctly adds the action to the undo/redo stack.
-        setTimeout(() => {
-            document.execCommand('insertHTML', false, escapedText);
-        }, 0);
-
+        document.execCommand('insertText', false, text);
     });
 
 
