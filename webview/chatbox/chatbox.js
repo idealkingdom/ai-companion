@@ -1671,17 +1671,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
         if (autocompleteActive) {
             hideAutocomplete();
-        }
-    });
-
-    input.addEventListener("focusout", () => {
-        if (!input.textContent.trim().length) {
-            input.textContent = "";
-        }
-    });
-
-
-    input.addEventListener("paste", (event) => {
+     input.addEventListener("paste", (event) => {
         const clipboardData = event.clipboardData || window.clipboardData;
 
         // 1. Handle Images
@@ -1693,35 +1683,10 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // 2. Handle Text
-        const text = clipboardData.getData('text/plain');
-        if (text) {
-            event.preventDefault();
-            
-            // Ensure input has focus for execCommand
-            input.focus();
-
-            const escapedText = text
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/\n/g, "<br>");
-
-            // Try to use execCommand to preserve undo stack
-            const success = document.execCommand('insertHTML', false, escapedText);
-            
-            // Fallback if execCommand fails (though it breaks undo)
-            if (!success) {
-                const selection = window.getSelection();
-                if (selection.rangeCount) {
-                    selection.deleteFromDocument();
-                    const range = selection.getRangeAt(0);
-                    const textNode = document.createTextNode(text);
-                    range.insertNode(textNode);
-                    selection.collapseToEnd();
-                }
-            }
-        }
+        // 2. For Text:
+        // We now use contenteditable="plaintext-only" in the HTML.
+        // This makes the browser handle plain-text pasting and 
+        // the undo/redo stack perfectly without our intervention.
     });
 
 
