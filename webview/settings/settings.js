@@ -34,6 +34,41 @@ const saveBtn = document.getElementById('saveBtn');
 const addPromptBtn = document.getElementById('addPromptBtn');
 const promptsList = document.getElementById('promptsList');
 
+// Modal Elements
+const customModal = document.getElementById('customModal');
+const modalTitle = document.getElementById('modalTitle');
+const modalText = document.getElementById('modalText');
+const modalCancelBtn = document.getElementById('modalCancelBtn');
+const modalConfirmBtn = document.getElementById('modalConfirmBtn');
+let modalResolver = null;
+
+// --- MODAL CONTROLLER ---
+function showModal(title, text) {
+    return new Promise((resolve) => {
+        if (!customModal) {
+            resolve(false);
+            return;
+        }
+
+        modalTitle.textContent = title;
+        modalText.textContent = text;
+        customModal.classList.remove('hidden');
+
+        const cleanup = (result) => {
+            customModal.classList.add('hidden');
+            modalConfirmBtn.removeEventListener('click', onConfirm);
+            modalCancelBtn.removeEventListener('click', onCancel);
+            resolve(result);
+        };
+
+        const onConfirm = () => cleanup(true);
+        const onCancel = () => cleanup(false);
+
+        modalConfirmBtn.addEventListener('click', onConfirm);
+        modalCancelBtn.addEventListener('click', onCancel);
+    });
+}
+
 // Inputs
 const providerSelect = document.getElementById('providerSelect');
 const apiKeyInput = document.getElementById('apiKeyInput');
@@ -48,6 +83,10 @@ const resetCssBtn = document.getElementById('resetCssBtn');
 const themeTemplateSelect = document.getElementById('themeTemplateSelect');
 const showKeyToggleBtn = document.getElementById('showKeyToggleBtn');
 let isKeyVisible = false;
+
+// Agent Hub summary (optional, safe if missing)
+const agentCountValue = document.getElementById('agentCountValue');
+const activeAgentCountValue = document.getElementById('activeAgentCountValue');
 
 // --- THEME TEMPLATES ---
 const THEME_TEMPLATES = {
@@ -390,7 +429,9 @@ window.addEventListener('message', event => {
 let uiStyleNode = null;
 
 function applyUISettings(uiData) {
-    if (!uiData) return;
+    if (!uiData) {
+        return;
+    }
     
     if (!uiStyleNode) {
         uiStyleNode = document.createElement('style');
@@ -403,7 +444,7 @@ function applyUISettings(uiData) {
 }
 
 function populateForm() {
-    const { general, models, permissions, ui } = currentSettings;
+    const { general, models, ui } = currentSettings;
 
     // Models
     providerSelect.value = models.provider;
@@ -419,7 +460,9 @@ function populateForm() {
 
     // UI
     if (ui) {
-        if (customCssInput) { customCssInput.value = ui.customCss || ''; }
+        if (customCssInput) {
+            customCssInput.value = ui.customCss || '';
+        }
         applyUISettings(ui);
     }
 }
@@ -438,43 +481,75 @@ function renderPrompts() {
     promptsList.innerHTML = '';
 
     if (currentSettings.prompts.length === 0) {
-        promptsList.innerHTML = `<div class="empty-state" style="padding:40px; text-align:center; color:var(--text-muted); border: 2px dashed var(--panel-border); border-radius: 8px;">No Agent profiles defined. Click '+ New Agent' to build one.</div>`;
+        promptsList.innerHTML = `<div class="empty-state"><h3>No agent profiles yet</h3><p>Create your first agent to define a custom identity and system prompt.</p></div>`;
+        if (agentCountValue) {
+            agentCountValue.textContent = '0';
+        }
+        if (activeAgentCountValue) {
+            activeAgentCountValue.textContent = '0';
+        }
         return;
     }
 
     // Sort by Order
     currentSettings.prompts.sort((a, b) => a.order - b.order);
 
+    // Summary counts
+    if (agentCountValue) {
+        agentCountValue.textContent = String(currentSettings.prompts.length);
+    }
+    if (activeAgentCountValue) {
+        activeAgentCountValue.textContent = String(currentSettings.prompts.filter(p => !!p.isActive).length);
+    }
+
     currentSettings.prompts.forEach((prompt, index) => {
         const item = document.createElement('div');
         item.className = 'agent-card';
+        item.setAttribute('role', 'group');
+        item.setAttribute('aria-label', `Agent: ${prompt.name || 'Unnamed'}`);
+
+        const textareaId = `agent-prompt-${prompt.id}`;
+        const activeId = `agent-active-${prompt.id}`;
+        const nameId = `agent-name-${prompt.id}`;
+        const maxChars = 2000;
 
         // Define HTML structure for the Agent Card
         item.innerHTML = `
-            <div class="agent-card-header" style="display:flex; justify-content:space-between; align-items:center;">
-                <div class="agent-avatar" style="display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:8px; background:rgba(92,110,255,0.1); color:var(--accent-color);">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+            <div class="agent-card-header">
+                <div class="agent-avatar">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
                 </div>
-                <div class="prompt-controls" style="display:flex; gap: 8px;">
-                    <button class="icon-btn move-up" title="Move Left" style="background:transparent; border:none; cursor:pointer; color:var(--text-muted);" ${index === 0 ? 'disabled' : ''}>
+                <div class="prompt-controls">
+                    <button class="icon-btn move-up" title="Move Left" aria-label="Move agent left" ${index === 0 ? 'disabled' : ''}>
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
                     </button>
-                    <button class="icon-btn move-down" title="Move Right" style="background:transparent; border:none; cursor:pointer; color:var(--text-muted);" ${index === currentSettings.prompts.length - 1 ? 'disabled' : ''}>
+                    <button class="icon-btn move-down" title="Move Right" aria-label="Move agent right" ${index === currentSettings.prompts.length - 1 ? 'disabled' : ''}>
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
                     </button>
-                    <button class="icon-btn delete" title="Delete" style="background:transparent; border:none; cursor:pointer; color:#ff5c5c;">
+                    <button class="icon-btn delete" title="Delete" aria-label="Delete agent">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2-2h2"/></svg>
                     </button>
                 </div>
             </div>
-            <div class="prompt-body" style="margin-top: 16px;">
-                <div class="form-group mb-3" style="margin-bottom:12px;">
-                    <label>Agent Name</label>
-                    <input type="text" class="styled-input prompt-name-input" value="${escapeHtml(prompt.name)}" placeholder="e.g. Assistant">
+            <div class="prompt-body">
+                <div class="form-group">
+                    <label for="${nameId}">Agent Name</label>
+                    <input id="${nameId}" type="text" class="prompt-name-input" value="${escapeHtml(prompt.name)}" placeholder="e.g. Assistant" autocomplete="off">
                 </div>
                 <div class="form-group">
-                    <label>Identity / System Prompt</label>
-                    <textarea rows="4" class="styled-input prompt-text" placeholder="e.g. You are an expert AI...">${escapeHtml(prompt.content)}</textarea>
+                    <label for="${textareaId}">Identity / System Prompt</label>
+                    <textarea id="${textareaId}" rows="4" class="enhanced-textarea prompt-text" placeholder="e.g. You are an expert AI..." spellcheck="false">${escapeHtml(prompt.content)}</textarea>
+                    <div class="textarea-status">
+                        <span class="char-count" aria-live="polite">${prompt.content.length}</span>
+                        <span class="char-limit">/ ${maxChars} characters</span>
+                    </div>
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 12px; justify-content: space-between;">
+                    <label for="${activeId}" class="active-status-label" style="margin: 0;">${prompt.isActive ? 'Active' : 'Inactive'}</label>
+                    <label class="toggle-switch" aria-label="Toggle agent active">
+                        <input id="${activeId}" type="checkbox" ${prompt.isActive ? 'checked' : ''}>
+                        <span class="toggle-slider" aria-hidden="true"></span>
+                    </label>
                 </div>
             </div>
         `;
@@ -482,13 +557,47 @@ function renderPrompts() {
         // Add Listeners
 
         // Name Change
-        item.querySelector('.prompt-name-input').addEventListener('input', (e) => {
+        const nameInput = item.querySelector('.prompt-name-input');
+        nameInput.addEventListener('input', (e) => {
             prompt.name = e.target.value;
+            item.setAttribute('aria-label', `Agent: ${prompt.name || 'Unnamed'}`);
         });
 
         // Content Change
-        item.querySelector('.prompt-text').addEventListener('input', (e) => {
-            prompt.content = e.target.value;
+        const promptText = item.querySelector('.prompt-text');
+        const charCount = item.querySelector('.char-count');
+        const autoGrow = (ta) => {
+            // Auto-grow without shrinking too aggressively; keeps UI stable
+            ta.style.height = 'auto';
+            ta.style.height = Math.min(420, ta.scrollHeight + 2) + 'px';
+        };
+
+        // Initialize editor height
+        autoGrow(promptText);
+
+        promptText.addEventListener('input', (e) => {
+            const next = e.target.value || '';
+            prompt.content = next.length > maxChars ? next.slice(0, maxChars) : next;
+            if (e.target.value !== prompt.content) {
+                e.target.value = prompt.content;
+            }
+            if (charCount) {
+                charCount.textContent = String(prompt.content.length);
+            }
+            autoGrow(e.target);
+        });
+
+        // Active toggle
+        const activeToggle = item.querySelector(`#${activeId}`);
+        const activeLabel = item.querySelector('.active-status-label');
+        activeToggle.addEventListener('change', (e) => {
+            prompt.isActive = !!e.target.checked;
+            if (activeLabel) {
+                activeLabel.textContent = prompt.isActive ? 'Active' : 'Inactive';
+            }
+            if (activeAgentCountValue) {
+                activeAgentCountValue.textContent = String(currentSettings.prompts.filter(p => !!p.isActive).length);
+            }
         });
 
         // Move Up
@@ -516,12 +625,24 @@ function renderPrompts() {
         });
 
         // Delete
-        item.querySelector('.delete').addEventListener('click', (e) => {
-            e.stopPropagation();
-            currentSettings.prompts = currentSettings.prompts.filter(p => p.id !== prompt.id);
-            currentSettings.prompts.forEach((p, i) => p.order = i + 1);
-            renderPrompts();
-        });
+        const deleteBtn = item.querySelector('.delete');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const confirmed = await showModal(
+                    'Delete Agent',
+                    `Are you sure you want to delete agent "${prompt.name || 'Unnamed'}"? This action cannot be undone and will be lost after saving.`
+                );
+
+                if (confirmed) {
+                    currentSettings.prompts = currentSettings.prompts.filter(p => p.id !== prompt.id);
+                    currentSettings.prompts.forEach((p, i) => {
+                        p.order = i + 1;
+                    });
+                    renderPrompts();
+                }
+            });
+        }
 
         promptsList.appendChild(item);
     });
