@@ -88,6 +88,7 @@ export interface Conversation {
   title: string;    // Title (e.g. "How to use React")
   timestamp: string; // Last modified time
   messages: StoredMessage[];
+  agentId?: string;  // ID of the agent used for this chat
 }
 
 export const COMMANDS = [

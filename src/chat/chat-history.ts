@@ -62,7 +62,7 @@ export class ChatHistoryService {
     /**
      * Main Logic: Save a message
      */
-    public async addMessage(chatId: string, role: ROLE, messageText: string, images: string[] = [], imageDescriptions: string[] = []): Promise<StoredMessage> {
+    public async addMessage(chatId: string, role: ROLE, messageText: string, images: string[] = [], imageDescriptions: string[] = [], agentId?: string): Promise<StoredMessage> {
         let history = this.getHistory();
         const timestamp = new Date().toISOString();
         let chatIndex = history.findIndex(c => c.chat_id === chatId);
@@ -85,7 +85,8 @@ export class ChatHistoryService {
                 // Title logic: User message = title, AI message = "New Chat"
                 title: role === ROLE.USER ? messageText.substring(0, 40) + (messageText.length > 40 ? "..." : "") : "New Chat",
                 timestamp: timestamp,
-                messages: [newMessage]
+                messages: [newMessage],
+                agentId: agentId
             };
             // Add to top
             history.unshift(newChat);
@@ -94,6 +95,11 @@ export class ChatHistoryService {
             const chat = history[chatIndex];
             chat.messages.push(newMessage);
             chat.timestamp = timestamp;
+            
+            // If an agentId is provided and the chat doesn't have one (or it changed), update it
+            if (agentId && chat.agentId !== agentId) {
+                chat.agentId = agentId;
+            }
 
             // Update title if it's still generic and the user typed something
             if (chat.title === "New Chat" && role === ROLE.USER) {

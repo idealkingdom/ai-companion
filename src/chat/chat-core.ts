@@ -113,7 +113,8 @@ export class ChatCoreService {
             // --- STEP B: SAVE USER MESSAGE TO HISTORY ---
             await this.historyService.addMessage(
                 data.chat_id, ROLE.USER, data.message,
-                storedImageFilenames, storedImageDescriptions
+                storedImageFilenames, storedImageDescriptions,
+                data.agentId
             );
 
             // --- STEP C: PREPARE API PAYLOAD ---

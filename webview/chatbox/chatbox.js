@@ -1,9 +1,17 @@
 // --- GLOBALS (accessible by history.js) ---
 const vscode = acquireVsCodeApi();
 // Injected constants from the extension, ignore the error this would be replaced by our extension.
+if (typeof window.VS_CONSTANTS === 'string') {
+    try {
+        window.VS_CONSTANTS = JSON.parse(window.VS_CONSTANTS);
+    } catch (e) {
+        console.error('Failed to parse VS_CONSTANTS:', e);
+        window.VS_CONSTANTS = {};
+    }
+}
 console.log('VS_CONSTANTS:', window.VS_CONSTANTS);
 // Extract the constants injected by the backend
-const { CHAT_COMMANDS, ROLE } = window.VS_CONSTANTS;
+const { CHAT_COMMANDS, ROLE } = window.VS_CONSTANTS || {};
 
 /**
  * Sends a message to the VS Code extension.
@@ -55,7 +63,7 @@ let attachedImages = [];
 let attachedFiles = [];
 
 // --- AUTOCOMPLETE STATE ---
-const { COMMANDS = [], WORKFLOWS = [], AGENTS = [] } = window.VS_CONSTANTS;
+const { COMMANDS = [], WORKFLOWS = [], AGENTS = [] } = window.VS_CONSTANTS || {};
 const autocompleteMenu = document.getElementById('autocomplete-menu');
 
 // --- MODE SWITCHER INITIALIZATION ---
@@ -98,18 +106,7 @@ if (modeDropdown) {
         const option = e.target.closest('.mode-option');
         if (!option) { return; }
 
-        activeAgentId = option.dataset.value;
-        const icon = option.querySelector('.mode-icon').innerHTML;
-        // Grab only the text content ignoring the icon span
-        const text = option.innerText.replace(icon, '').trim();
-
-        // Update styling
-        modeOptions.querySelectorAll('.mode-option').forEach(o => o.classList.remove('selected'));
-        option.classList.add('selected');
-
-        // Update selected display
-        modeSelected.innerHTML = `<span class="mode-icon">${icon}</span> ${text}
-            <svg class="dropdown-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>`;
+        updateActiveAgentUI(option.dataset.value);
 
         // Hide
         modeOptions.classList.add('hidden');
@@ -147,7 +144,7 @@ if (messageBox) observer.observe(messageBox, { childList: true, subtree: true })
 updateContextCountPill();
 
 // --- TOOLBAR DROPDOWNS INITIALIZATION ---
-const { MODELS, PERMISSIONS, UI } = window.VS_CONSTANTS;
+const { MODELS, PERMISSIONS, UI } = window.VS_CONSTANTS || {};
 
 let uiStyleNode = null;
 
@@ -1349,6 +1346,42 @@ function chatRequest(content) {
     appendUserMessage(content.message, content.images);
 }
 
+function updateActiveAgentUI(agentId, agentsList) {
+    activeAgentId = agentId || 'default';
+    
+    if (activeAgentId === 'default') {
+        if (modeSelected) {
+            modeSelected.innerHTML = `<span class="mode-icon">💬</span> Default Chat
+                <svg class="dropdown-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>`;
+        }
+    } else {
+        const agents = agentsList || (window.VS_CONSTANTS ? window.VS_CONSTANTS.AGENTS : []);
+        const agent = (agents || []).find(a => a.id === activeAgentId);
+        if (agent && modeSelected) {
+            modeSelected.innerHTML = `<span class="mode-icon">🤖</span> ${escapeHtml(agent.name)}
+                <svg class="dropdown-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>`;
+        } else {
+            // Fallback to default if agent not found
+            activeAgentId = 'default';
+            if (modeSelected) {
+                modeSelected.innerHTML = `<span class="mode-icon">💬</span> Default Chat
+                    <svg class="dropdown-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>`;
+            }
+        }
+    }
+
+    // Update selected class in dropdown
+    if (modeOptions) {
+        modeOptions.querySelectorAll('.mode-option').forEach(o => {
+            if (o.dataset.value === activeAgentId) {
+                o.classList.add('selected');
+            } else {
+                o.classList.remove('selected');
+            }
+        });
+    }
+}
+
 function resetChat(content) {
     chatMessages.innerHTML = '';
     chatLog.dataset.chatId = content.uid;
@@ -1359,6 +1392,9 @@ function resetChat(content) {
     document.querySelector('.chat-container').classList.add('new-chat');
     showChatView(); // Make sure we're on the chat view
     chatMessage.focus();
+
+    // Reset or set agent
+    updateActiveAgentUI(content.agentId);
 }
 
 
@@ -1973,18 +2009,12 @@ window.addEventListener('message', event => {
             break;
 
         case 'agentsUpdate':
-            renderAgentDropdown(message.agents);
-            // If the active agent was removed, reset to default
-            if (activeAgentId !== 'default') {
-                const stillExists = (message.agents || []).some(a => a.id === activeAgentId);
-                if (!stillExists) {
-                    activeAgentId = 'default';
-                    if (modeSelected) {
-                        modeSelected.innerHTML = `<span class="mode-icon">💬</span> Default Chat
-                            <svg class="dropdown-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>`;
-                    }
-                }
+            if (window.VS_CONSTANTS) {
+                window.VS_CONSTANTS.AGENTS = message.agents;
             }
+            renderAgentDropdown(message.agents);
+            // If the active agent was removed or disabled, updateActiveAgentUI will handle the fallback
+            updateActiveAgentUI(activeAgentId, message.agents);
             break;
 
         case 'modelsUpdate':
@@ -2004,10 +2034,10 @@ window.addEventListener('message', event => {
 });
 
 function rehydrateState(data) {
-    const { chatId, messages, stagedFilesCount } = data;
+    const { chatId, messages, stagedFilesCount, agentId } = data;
     
     // 1. Reset the UI for the chat ID
-    resetChat({ uid: chatId });
+    resetChat({ uid: chatId, agentId: agentId });
     
     // 2. Add all messages
     if (messages && Array.isArray(messages)) {

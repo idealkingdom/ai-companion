@@ -62,7 +62,8 @@ export async function chatMessageListener(message: any) {
                             content: {
                                 chatId: existingId,
                                 messages: conversation.messages,
-                                stagedFilesCount: ReviewManager.getInstance().getStagedUris().length
+                                stagedFilesCount: ReviewManager.getInstance().getStagedUris().length,
+                                agentId: conversation.agentId
                             }
                         });
                         return;
@@ -111,6 +112,8 @@ export async function chatMessageListener(message: any) {
                 });
                 break;
             }
+        case 'saveSettings':
+
         case 'updateNestedSetting': {
             const { category, key, value } = message.data;
             const currentSettings = settingsManager.getSettings();
@@ -314,7 +317,10 @@ export async function chatMessageListener(message: any) {
                     // A. Reset UI with the old ID
                     await ChatViewProvider.getInstance().postMessage({
                         command: CHAT_COMMANDS.CHAT_RESET,
-                        content: { uid: conversation.chat_id }
+                        content: { 
+                            uid: conversation.chat_id,
+                            agentId: conversation.agentId
+                        }
                     });
 
                     // B. Restore Messages

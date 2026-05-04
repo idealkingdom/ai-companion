@@ -73,14 +73,14 @@ const DEFAULT_SETTINGS: AppSettings = {
             id: 'agent-assistant-1',
             name: 'Assistant',
             content: 'You are a helpful and expert AI coding assistant. Provide clean, secure, and well-documented code.',
-            isActive: false,
+            isActive: true,
             order: 1
         },
         {
             id: 'agent-architect-2',
             name: 'Architect',
             content: 'You are a Senior Technical Lead and Systems Architect. When analyzing problems, outline the solution step-by-step, listing prerequisites, edge cases, and architectural diagrams before writing any code.',
-            isActive: false,
+            isActive: true,
             order: 2
         }
     ]
@@ -104,6 +104,8 @@ export class SettingsManager {
             // Guarantee predefined agents load securely for existing profiles
             finalPrompts = [...DEFAULT_SETTINGS.prompts];
         }
+        // Migration: Removed previous logic that force-enabled default agents, 
+        // as it was overriding user's explicit choices to disable them.
 
         // Ensure structure (naive merge)
         const merged: AppSettings = {
