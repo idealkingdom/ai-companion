@@ -7,9 +7,12 @@
     --text-muted: #8b8b93;
     --accent-color: #5c6eff;
     --accent-glow: rgba(92, 110, 255, 0.3);
+    --accent-gradient: linear-gradient(135deg, #5c6eff 0%, #8a7dff 100%);
     --input-bg: rgba(18, 18, 20, 0.7);
     --input-border: rgba(255, 255, 255, 0.1);
     --success-color: #27c17e;
+    --danger-color: #ff5c5c;
+    --focus-ring: 0 0 0 3px rgba(92, 110, 255, 0.35);
     
     /* Variables mapping to VSCode API when available */
     --vscode-bg: var(--vscode-editor-background, var(--bg-base));
@@ -202,6 +205,30 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
+}
+
+/* Improve responsive padding/layout */
+@media (max-width: 900px) {
+    .content-area {
+        padding: 28px 24px;
+    }
+    .tab-view {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 640px) {
+    .sidebar {
+        width: 220px;
+    }
+    .content-area {
+        padding: 20px 16px;
+    }
+    .actions-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+    }
 }
 
 /* === PANELS & GLASSMORPHISM === */
@@ -454,60 +481,355 @@ body {
     box-shadow: 0 0 15px var(--accent-glow);
 }
 
-/* === AGENT GRID === */
-.agent-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
-    margin-top: 20px;
+/* Active Status Label */
+.active-status-label {
+    transition: color 0.3s ease;
 }
 
+.agent-card:has(input:not(:checked)) .active-status-label {
+    color: var(--text-muted);
+}
+
+.agent-card:has(input:checked) .active-status-label {
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.modal-overlay:not(.hidden) {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Modal Container */
+.modal-container {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 20px;
+    width: 90%;
+    max-width: 400px;
+    padding: 28px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    transform: scale(0.9);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.modal-overlay:not(.hidden) .modal-container {
+    transform: scale(1);
+}
+
+.modal-header h3 {
+    margin: 0 0 16px 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.modal-body p {
+    margin: 0 0 28px 0;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+
+.modal-footer {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.modal-btn {
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.modal-btn.primary {
+    background: var(--accent-color);
+    color: white;
+    border: none;
+}
+
+.modal-btn.primary:hover {
+    background: #4a5ee0;
+    transform: translateY(-1px);
+}
+
+.modal-btn.secondary {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--panel-border);
+}
+
+.modal-btn.secondary:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* === AGENT HUB ENHANCEMENTS === */
+
+/* Summary bar under header */
+.agent-summary {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    margin-top: -12px;
+    margin-bottom: 18px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.agent-summary-item strong {
+    color: var(--text-main);
+    font-weight: 700;
+    font-feature-settings: "tnum";
+}
+
+/* Modern Agent Grid */
+.agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 20px;
+    margin-top: 24px;
+}
+
+/* Enhanced Agent Card */
 .agent-card {
     background: var(--panel-bg);
     border: 1px solid var(--panel-border);
-    border-radius: 12px;
-    padding: 20px;
+    border-radius: 16px;
+    padding: 24px;
+    backdrop-filter: blur(20px);
     transition: all 0.3s ease;
-    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.agent-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(92, 110, 255, 0.9), transparent);
+    opacity: 0.7;
 }
 
 .agent-card:hover {
-    border-color: rgba(255, 255, 255, 0.2);
+    border-color: var(--accent-color);
+    box-shadow: 0 8px 32px rgba(92, 110, 255, 0.15);
     transform: translateY(-2px);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+.agent-card:focus-within {
+    border-color: rgba(92, 110, 255, 0.6);
+    box-shadow: var(--focus-ring);
 }
 
 .agent-card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
+    margin-bottom: 20px;
 }
 
 .agent-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.05);
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--panel-border);
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(92, 110, 255, 0.15), rgba(92, 110, 255, 0.05));
+    color: var(--accent-color);
+    border: 1px solid rgba(92, 110, 255, 0.2);
 }
 
-/* Quick prompt fix */
-.prompt-name-input {
+.prompt-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.icon-btn {
     background: transparent;
-    border: none;
-    color: white;
-    font-size: 1.05rem;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 8px;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-btn:hover:not(:disabled) {
+    background: rgba(92, 110, 255, 0.1);
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+    transform: scale(1.05);
+}
+
+.icon-btn.delete {
+    color: rgba(255, 92, 92, 0.9);
+}
+
+.icon-btn.delete:hover:not(:disabled) {
+    background: rgba(255, 92, 92, 0.12);
+    border-color: rgba(255, 92, 92, 0.55);
+    color: #ff5c5c;
+}
+
+.icon-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Form improvements for Agent Hub (do not break other tabs) */
+.agent-card .form-group label {
+    display: block;
+    margin-bottom: 8px;
     font-weight: 600;
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 0.85rem;
+}
+
+.prompt-name-input {
     width: 100%;
+    background: rgba(18, 18, 22, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    color: var(--text-main);
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
 .prompt-name-input:focus {
+    border-color: rgba(92, 110, 255, 0.7);
+    box-shadow: var(--focus-ring);
+    background: rgba(22, 22, 30, 0.85);
+}
+
+/* Enhanced prompt editor */
+.enhanced-textarea {
+    width: 100%;
+    background: rgba(12, 12, 16, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 12px 12px;
+    color: rgba(255, 255, 255, 0.92);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 0.88rem;
+    line-height: 1.55;
+    resize: vertical;
+    min-height: 120px;
     outline: none;
-    border-bottom: 1px solid var(--accent-color);
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.enhanced-textarea:focus {
+    border-color: rgba(92, 110, 255, 0.7);
+    box-shadow: var(--focus-ring);
+    background: rgba(18, 18, 26, 0.92);
+}
+
+.textarea-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-feature-settings: "tnum";
+}
+
+/* Toggle switch (Agent active) - scoped to agent card to avoid collisions */
+.agent-card .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex: 0 0 auto;
+}
+
+.agent-card .toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.agent-card .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.10);
+    transition: .25s;
+    border-radius: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.agent-card .toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 2px;
+    background-color: rgba(255, 255, 255, 0.85);
+    transition: .25s;
+    border-radius: 50%;
+}
+
+.agent-card input:checked + .toggle-slider {
+    background: var(--accent-gradient);
+    border-color: transparent;
+}
+
+.agent-card input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+    background-color: white;
+}
+
+.agent-card input:focus + .toggle-slider {
+    box-shadow: var(--focus-ring);
+}
+
+/* Responsive behavior for Agent Hub */
+@media (max-width: 900px) {
+    .agent-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* === TOAST === */

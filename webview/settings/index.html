@@ -172,6 +172,10 @@
                         New Agent
                     </button>
                 </div>
+                <div class="agent-summary" aria-live="polite">
+                    <span class="agent-summary-item"><strong id="agentCountValue">0</strong> total agents</span>
+                    <span class="agent-summary-item"><strong id="activeAgentCountValue">0</strong> active</span>
+                </div>
 
                 <div id="promptsList" class="agent-grid">
                     <!-- Javascript populates Agent Cards here -->
@@ -223,6 +227,22 @@
     <!-- Notification Overlay -->
     <div id="toastNotification" class="toast hidden">
         <span>Settings successfully saved!</span>
+    </div>
+
+    <!-- Modern Client-Side Modal -->
+    <div id="customModal" class="modal-overlay hidden">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3 id="modalTitle">Confirm Action</h3>
+            </div>
+            <div class="modal-body">
+                <p id="modalText">Are you sure you want to proceed?</p>
+            </div>
+            <div class="modal-footer">
+                <button id="modalCancelBtn" class="modal-btn secondary">Cancel</button>
+                <button id="modalConfirmBtn" class="modal-btn primary">Confirm</button>
+            </div>
+        </div>
     </div>
 
     <script type="module" src="settings.js"></script>
