@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { MODEL_PROVIDER, MODEL_PROVIDER_OPTIONS } from '../constants';
+import { MODEL_PROVIDER, getModelProviderOptions } from '../constants';
 
 export interface PromptDef {
     id: string;
@@ -30,93 +30,94 @@ export interface AppSettings {
         imageModel: string;
         baseUrl: string;
         apiKey: string;
-        provider: MODEL_PROVIDER.OPEN_AI | MODEL_PROVIDER.GEMINI;
-
-        // Persisted per-provider settings
-        providerSettings: {
-            [key: string]: {
-                apiKey: string;
-                baseUrl: string;
-                textModel: string;
-                imageModel: string;
-            }
-        };
-        inactiveModels: string[]; // List of models explicitly marked as inactive
+        provider: string;
+        inactiveModels?: string[];
+        providerSettings: Record<string, {
+            textModel?: string;
+            imageModel?: string;
+            apiKey?: string;
+            baseUrl?: string;
+        }>;
     };
     permissions: {
-        readFilesConfirmation: boolean;
-        writeFilesConfirmation: boolean;
-        runCommandsConfirmation: boolean;
+        allowShellExecution: boolean;
+        allowFileModification: boolean;
     };
     ui: {
+        theme: 'dark' | 'light' | 'system';
+        fontSize: number;
+        accentColor: string;
         customCss: string;
         lastCustomCss?: string;
     };
-    customTemplates?: { id: string; name: string; css: string }[];
+    prompts?: PromptDef[];
+    customTemplates?: any[];
     customModels?: CustomModel[];
-    prompts: PromptDef[];
 }
 
-const DEFAULT_SETTINGS: AppSettings = {
-    general: {
-        temperature: 0.7,
-        maxContextMessages: 10,
-        systemPrompt: "You are an expert code assistant. Answer coding relevant topics only."
-    },
-    models: (() => {
-        const defaultProviderKey = Object.keys(MODEL_PROVIDER_OPTIONS)[0] || MODEL_PROVIDER.OPEN_AI;
-        const defaultProviderData = MODEL_PROVIDER_OPTIONS[defaultProviderKey] || { models: { text: [], image: [] } };
-        const defaultTextModel = (defaultProviderData.models?.text || [])[0] || '';
-        const defaultImageModel = (defaultProviderData.models?.image || [])[0] || '';
+export const DEFAULT_SETTINGS: AppSettings = (() => {
+    const options = getModelProviderOptions();
+    const defaultProviderKey = Object.keys(options)[0] || MODEL_PROVIDER.OPEN_AI;
+    const defaultProviderData = options[defaultProviderKey] || { models: { text: [], image: [] } };
+    const defaultTextModel = (defaultProviderData.models?.text || [])[0] || '';
+    const defaultImageModel = (defaultProviderData.models?.image || [])[0] || '';
 
-        const dynamicProviderSettings: any = {};
-        for (const [key, data] of Object.entries(MODEL_PROVIDER_OPTIONS)) {
-            let baseUrl = '';
-            if (key === MODEL_PROVIDER.OPEN_AI) { baseUrl = 'https://api.openai.com/v1'; }
-            if (key === MODEL_PROVIDER.GEMINI) { baseUrl = 'https://generativelanguage.googleapis.com/v1beta'; }
-            dynamicProviderSettings[key] = {
-                apiKey: '',
-                baseUrl: baseUrl,
-                textModel: (data.models?.text || [])[0] || '',
-                imageModel: (data.models?.image || [])[0] || ''
-            };
-        }
+    const dynamicProviderSettings: any = {};
+    for (const [key, data] of Object.entries(options)) {
+        let baseUrl = '';
+        if (key === MODEL_PROVIDER.OPEN_AI) { baseUrl = 'https://api.openai.com/v1'; }
+        if (key === MODEL_PROVIDER.GEMINI) { baseUrl = 'https://generativelanguage.googleapis.com/v1beta'; }
+        dynamicProviderSettings[key] = {
+            apiKey: '',
+            baseUrl: baseUrl,
+            textModel: (data.models?.text || [])[0] || '',
+            imageModel: (data.models?.image || [])[0] || ''
+        };
+    }
 
-        return {
+    return {
+        general: {
+            temperature: 0.7,
+            maxContextMessages: 10,
+            systemPrompt: "You are an expert code assistant. Answer coding relevant topics only."
+        },
+        models: {
             textModel: defaultTextModel,
             imageModel: defaultImageModel,
             baseUrl: '',
             apiKey: '',
-            provider: defaultProviderKey as MODEL_PROVIDER.OPEN_AI | MODEL_PROVIDER.GEMINI,
+            provider: defaultProviderKey,
             providerSettings: dynamicProviderSettings,
             inactiveModels: []
-        };
-    })(),
-    permissions: {
-        readFilesConfirmation: false,
-        writeFilesConfirmation: true,
-        runCommandsConfirmation: true
-    },
-    ui: {
-        customCss: `/* ─── AI Companion Premium Styles ─── */\n\n/* 1. Global Typography */\nbody {\n    font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, sans-serif) !important;\n    -webkit-font-smoothing: antialiased;\n}\n\n/* 2. Input Editor Enhancements */\n#messageInput, code, .textarea {\n    font-family: var(--font-editor, monospace) !important;\n    font-size: 0.92rem !important;\n    line-height: 1.6 !important;\n}\n\n/* 3. Floating Bubble Adjustments */\n.message-body {\n    border-radius: 12px !important;\n    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;\n}\n`
-    },
-    prompts: [
-        {
-            id: 'agent-assistant-1',
-            name: 'Chat',
-            content: 'You are a helpful and expert AI coding assistant. Provide clean, secure, and well-documented code.',
-            isActive: true,
-            order: 1
         },
-        {
-            id: 'agent-architect-2',
-            name: 'Architect',
-            content: 'You are a Senior Technical Lead and Systems Architect. When analyzing problems, outline the solution step-by-step, listing prerequisites, edge cases, and architectural diagrams before writing any code.',
-            isActive: true,
-            order: 2
-        }
-    ]
-};
+        permissions: {
+            allowShellExecution: false,
+            allowFileModification: false
+        },
+        ui: {
+            theme: 'system',
+            fontSize: 14,
+            accentColor: '#007acc',
+            customCss: `/* ─── AI Companion Premium Styles ─── */\n\n/* 1. Global Typography */\nbody {\n    font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, sans-serif) !important;\n    -webkit-font-smoothing: antialiased;\n}\n\n/* 2. Input Editor Enhancements */\n#messageInput, code, .textarea {\n    font-family: var(--font-editor, monospace) !important;\n    font-size: 0.92rem !important;\n    line-height: 1.6 !important;\n}\n\n/* 3. Floating Bubble Adjustments */\n.message-body {\n    border-radius: 12px !important;\n    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;\n}\n`
+        },
+        prompts: [
+            {
+                id: 'agent-assistant-1',
+                name: 'Chat',
+                content: 'You are a helpful and expert AI coding assistant. Provide clean, secure, and well-documented code.',
+                isActive: true,
+                order: 1
+            },
+            {
+                id: 'agent-architect-2',
+                name: 'Architect',
+                content: 'You are a Senior Technical Lead and Systems Architect. When analyzing problems, outline the solution step-by-step, listing prerequisites, edge cases, and architectural diagrams before writing any code.',
+                isActive: true,
+                order: 2
+            }
+        ]
+    };
+})();
 
 export class SettingsManager {
     private static readonly KEY = 'aiCompanion.customSettings';
@@ -134,7 +135,7 @@ export class SettingsManager {
         let finalPrompts = stored.prompts || [];
         if (finalPrompts.length === 0) {
             // Guarantee predefined agents load securely for existing profiles
-            finalPrompts = [...DEFAULT_SETTINGS.prompts];
+            finalPrompts = [...(DEFAULT_SETTINGS.prompts || [])];
         }
         // Migration: Removed previous logic that force-enabled default agents, 
         // as it was overriding user's explicit choices to disable them.
