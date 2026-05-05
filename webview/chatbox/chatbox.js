@@ -1342,17 +1342,17 @@ function renderHunkReviewPanel() {
         </div>
         <div class="hunk-review-actions">
             <div class="hunk-action-info">
-                ${acceptedHunks}/${totalHunks} hunks accepted
+                ${acceptedHunks}/${totalHunks} changes selected
             </div>
             <div class="hunk-action-buttons">
                 <button class="hunk-action-btn undo" onclick="undoHunkToggle()" title="Undo last toggle (Ctrl+Z)" ${hunkReviewState.undoStack.length === 0 ? 'disabled style="opacity:0.3;pointer-events:none"' : ''}>
                     ↶ Undo
                 </button>
                 <button class="hunk-action-btn discard" onclick="discardAllHunks()">
-                    ✕ Discard All
+                    ✕ Reject All
                 </button>
                 <button class="hunk-action-btn commit" onclick="commitSelectedHunks()">
-                    ✓ Commit Selected (${acceptedHunks})
+                    ✓ Save Changes (${acceptedHunks})
                 </button>
             </div>
         </div>
@@ -1406,8 +1406,8 @@ function renderHunkCard(hunk, fileIdx, hunkIdx) {
             <div class="hunk-card-header">
                 <span>${location}</span>
                 <div class="hunk-card-actions">
-                    <button class="hunk-toggle-btn accept-btn ${isAccepted ? 'active' : ''}" onclick="toggleHunk(${fileIdx}, ${hunkIdx}, true)">✓ Accept</button>
-                    <button class="hunk-toggle-btn reject-btn ${!isAccepted ? 'active' : ''}" onclick="toggleHunk(${fileIdx}, ${hunkIdx}, false)">✕ Reject</button>
+                    <button class="hunk-toggle-btn accept-btn ${isAccepted ? 'active' : ''}" onclick="toggleHunk(${fileIdx}, ${hunkIdx}, true)">✓ Keep</button>
+                    <button class="hunk-toggle-btn reject-btn ${!isAccepted ? 'active' : ''}" onclick="toggleHunk(${fileIdx}, ${hunkIdx}, false)">✕ Skip</button>
                 </div>
             </div>
             <div class="hunk-diff-lines">
