@@ -145,7 +145,7 @@ if (messageBox) observer.observe(messageBox, { childList: true, subtree: true })
 updateContextCountPill();
 
 // --- TOOLBAR DROPDOWNS INITIALIZATION ---
-const { MODELS, PERMISSIONS, UI } = window.VS_CONSTANTS || {};
+let { MODELS, PERMISSIONS, UI } = window.VS_CONSTANTS || {};
 
 let uiStyleNode = null;
 
@@ -187,10 +187,10 @@ function initModelDropdown() {
 
     const customModels = window.VS_CONSTANTS.CUSTOM_MODELS || [];
     const inactiveModels = MODELS.inactiveModels || [];
-    
+
     let availableModels = []; // Array of { name, provider }
     let isValidModel = false;
-    
+
     // Add built-in models from all providers
     const availableProviders = window.VS_CONSTANTS.AVAILABLE_MODELS || {};
     for (const [prov, data] of Object.entries(availableProviders)) {
@@ -202,7 +202,7 @@ function initModelDropdown() {
             });
         }
     }
-    
+
     // Add active custom models
     customModels.forEach(cm => {
         if (cm.isActive !== false) {
@@ -214,7 +214,7 @@ function initModelDropdown() {
 
     availableModels.forEach(modelObj => {
         const m = modelObj.name;
-        
+
         // Ensure initialModel is valid
         if (m === initialModel) {
             isValidModel = true;
@@ -225,23 +225,23 @@ function initModelDropdown() {
         btn.innerHTML = `<span>${m}</span>`;
         btn.addEventListener('click', () => {
             currentModelLabel.textContent = m;
-            
+
             // Update providerSettings
             MODELS.provider = modelObj.provider;
             MODELS.textModel = m;
             const pSettings = MODELS.providerSettings || {};
             if (!pSettings[modelObj.provider]) pSettings[modelObj.provider] = {};
             pSettings[modelObj.provider].textModel = m;
-            
-            sendMessage('updateCategorySettings', { 
-                category: 'models', 
-                settings: { 
-                    provider: modelObj.provider, 
-                    textModel: m, 
-                    providerSettings: pSettings 
-                } 
+
+            sendMessage('updateCategorySettings', {
+                category: 'models',
+                settings: {
+                    provider: modelObj.provider,
+                    textModel: m,
+                    providerSettings: pSettings
+                }
             });
-            
+
             modelOptionsMenu.classList.add('hidden');
         });
         modelOptionsMenu.appendChild(btn);
@@ -253,14 +253,14 @@ function initModelDropdown() {
         const pSettings = MODELS.providerSettings || {};
         if (!pSettings[MODELS.provider]) pSettings[MODELS.provider] = {};
         pSettings[MODELS.provider].textModel = initialModel;
-        
-        sendMessage('updateCategorySettings', { 
-            category: 'models', 
-            settings: { 
-                provider: MODELS.provider, 
-                textModel: initialModel, 
-                providerSettings: pSettings 
-            } 
+
+        sendMessage('updateCategorySettings', {
+            category: 'models',
+            settings: {
+                provider: MODELS.provider,
+                textModel: initialModel,
+                providerSettings: pSettings
+            }
         });
     }
     currentModelLabel.textContent = initialModel || 'Unknown';
@@ -271,10 +271,10 @@ if (MODELS && currentModelLabel && modelOptionsMenu) {
 
     toolbarModelBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        
+
         // Request fresh model data from backend every time the dropdown is opened
         sendMessage('requestModels', {});
-        
+
         modelOptionsMenu.classList.toggle('hidden');
         if (permsOptionsMenu) permsOptionsMenu.classList.add('hidden');
         contextMenu.classList.add('hidden');
@@ -1090,7 +1090,7 @@ function updateStagingBar(count) {
     const stagingBar = document.getElementById('staging-bar');
     const stagingCount = document.getElementById('staging-count');
     const pillReviews = document.getElementById('pill-reviews');
-    
+
     if (!stagingBar || !stagingCount) {
         return;
     }
@@ -1417,7 +1417,7 @@ function chatRequest(content) {
 
 function updateActiveAgentUI(agentId, agentsList) {
     activeAgentId = agentId || 'default';
-    
+
     const chatIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`;
     const agentIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
     const arrowIcon = `<svg class="dropdown-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>`;
@@ -2088,7 +2088,6 @@ window.addEventListener('message', event => {
             break;
 
         case 'modelsUpdate':
-            console.log('[Chatbox] modelsUpdate received', message);
             if (message.models) {
                 if (window.VS_CONSTANTS) {
                     window.VS_CONSTANTS.MODELS = message.models;
@@ -2100,8 +2099,6 @@ window.addEventListener('message', event => {
                     }
                 }
                 MODELS = message.models;
-                console.log('[Chatbox] inactiveModels:', MODELS.inactiveModels);
-                console.log('[Chatbox] Calling initModelDropdown()...');
                 initModelDropdown();
             }
             break;
@@ -2117,10 +2114,10 @@ window.addEventListener('message', event => {
 
 function rehydrateState(data) {
     const { chatId, messages, stagedFilesCount, agentId } = data;
-    
+
     // 1. Reset the UI for the chat ID
     resetChat({ uid: chatId, agentId: agentId });
-    
+
     // 2. Add all messages
     if (messages && Array.isArray(messages)) {
         messages.forEach(msg => {
@@ -2131,10 +2128,10 @@ function rehydrateState(data) {
             }
         });
     }
-    
+
     // 3. Update staging bar
     updateStagingBar(stagedFilesCount);
-    
+
     // 4. Highlight code
     setTimeout(() => {
         if (typeof hljs !== 'undefined') hljs.highlightAll();

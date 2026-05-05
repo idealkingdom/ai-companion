@@ -169,17 +169,8 @@ export class SettingsManager {
     public async updateSettings(newSettings: Partial<AppSettings>): Promise<void> {
         const current = this.getSettings();
         const updated = { ...current, ...newSettings };
-        
-        // Diagnostic logging — trace what's being persisted
-        const { outputChannel } = require('../logger');
-        outputChannel.appendLine(`[SettingsManager] updateSettings called`);
-        outputChannel.appendLine(`[SettingsManager] inactiveModels in payload: ${JSON.stringify(updated.models?.inactiveModels || [])}`);
-        outputChannel.appendLine(`[SettingsManager] Firing onDidUpdateSettings event...`);
-        
         await this.context.globalState.update(SettingsManager.KEY, updated);
         SettingsManager._onDidUpdateSettings.fire(updated);
-        
-        outputChannel.appendLine(`[SettingsManager] Event fired successfully.`);
     }
 
     public async resetSettings(): Promise<void> {

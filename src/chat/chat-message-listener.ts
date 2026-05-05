@@ -138,7 +138,6 @@ export async function chatMessageListener(message: any) {
         case 'requestModels': {
             const { getModelProviderOptions } = require('../constants');
             const latestSettings = settingsManager.getSettings();
-            outputChannel.appendLine(`[requestModels] Sending fresh model data. inactiveModels: ${JSON.stringify(latestSettings.models?.inactiveModels || [])}`);
             await ChatViewProvider.getInstance().postMessage({
                 command: 'modelsUpdate',
                 models: latestSettings.models,

@@ -58,9 +58,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         });
 
         SettingsManager.onDidUpdateSettings((updated) => {
-            outputChannel.appendLine(`[ChatViewProvider] Settings updated — broadcasting to ${ChatViewProvider._activeWebviews.size} webview(s)`);
-            outputChannel.appendLine(`[ChatViewProvider] inactiveModels: ${JSON.stringify(updated.models?.inactiveModels || [])}`);
-            
             this.postMessage({ command: 'uiSettingsUpdate', ui: updated.ui });
             this.postMessage({ command: 'agentsUpdate', agents: updated.prompts || [] });
             this.postMessage({ 
@@ -101,19 +98,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
      */
     public postMessage(message: any) {
         const disposedWebviews: vscode.Webview[] = [];
-        outputChannel.appendLine(`[postMessage] Broadcasting '${message.command}' to ${ChatViewProvider._activeWebviews.size} webview(s)`);
-        
         ChatViewProvider._activeWebviews.forEach(webview => {
             try {
-                const result = webview.postMessage(message);
-                // postMessage returns a Thenable<boolean>
-                if (result && typeof result.then === 'function') {
-                    result.then((success: boolean) => {
-                        outputChannel.appendLine(`[postMessage] '${message.command}' delivery ${success ? 'SUCCEEDED' : 'FAILED (webview not visible?)'}`);
-                    });
-                }
+                webview.postMessage(message);
             } catch (err) {
-                outputChannel.appendLine(`[postMessage] '${message.command}' THREW: ${err}`);
                 disposedWebviews.push(webview);
             }
         });
