@@ -154,16 +154,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  margin: 0 4px 2px 4px; /* Add side margins */
-  border-radius: 6px;
+  padding: 10px 14px;
+  margin: 0 8px 6px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text-color) 2%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-color) 4%, transparent);
   cursor: pointer;
-  transition: background-color 0.1s ease;
-  border: 1px solid transparent;
+  transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 .history-item:hover {
-  background-color: var(--hover-bg);
+  background: color-mix(in srgb, var(--text-color) 5%, transparent);
+  border-color: color-mix(in srgb, var(--text-color) 10%, transparent);
+  transform: translateY(-1px);
 }
 
 /* Layout for the inner items */
@@ -176,19 +179,20 @@
 
 .history-item-title {
   font-family: var(--font-ui);
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-size: 0.85rem;
+  font-weight: 600;
   color: var(--text-color);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-bottom: 3px;
 }
 
 .history-item-time {
   font-family: var(--font-ui);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--text-color);
-  opacity: 0.5;
+  opacity: 0.55;
 }
 
 /* --- DELETE BUTTON (Trash Icon) --- */

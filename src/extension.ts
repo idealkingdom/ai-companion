@@ -19,6 +19,7 @@ import { ReviewManager } from './chat/review-manager';
 
 import { ReviewCodeLensProvider, ReviewDecorationProvider } from './chat/review-codelens';
 import { PopupManager } from './chat/popup-manager';
+import { AgentHubView } from './agent-hub/agent-hub-view';
 
 // editor
 const editor = vscode.window.activeTextEditor;
@@ -85,7 +86,6 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     // Register Settings Command
-
     context.subscriptions.push(
         vscode.commands.registerCommand(`${EXTENSION_NAME}.openSettings`, () => {
             const settingsManager = new SettingsManager(context);
@@ -151,6 +151,12 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // Register Agent Hub
+    context.subscriptions.push(
+        vscode.commands.registerCommand('ai-companion.openAgentHub', () => {
+            AgentHubView.createOrShow(context);
+        })
+    );
 
 }
 

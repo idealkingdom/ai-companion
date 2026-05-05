@@ -101,6 +101,12 @@
         "category": "Spes AI Companion",
         "title": "Detach Chat",
         "icon": "$(link-external)"
+      },
+      {
+        "command": "ai-companion.openAgentHub",
+        "category": "Spes AI Companion",
+        "title": "Agent Hub",
+        "icon": "$(database)"
       }
     ],
     "viewsContainers": {
@@ -141,6 +147,11 @@
         },
         {
           "command": "ai-companion.openSettings",
+          "when": "view == ai-companion",
+          "group": "navigation"
+        },
+        {
+          "command": "ai-companion.openAgentHub",
           "when": "view == ai-companion",
           "group": "navigation"
         }

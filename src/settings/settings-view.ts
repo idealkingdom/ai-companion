@@ -36,7 +36,8 @@ export class SettingsView {
                         const settings = this._settingsManager.getSettings();
                         this._panel.webview.postMessage({
                             command: 'loadSettings',
-                            settings
+                            settings,
+                            availableModels: MODEL_PROVIDER_OPTIONS
                         });
                         return;
 
