@@ -182,41 +182,53 @@ if (MODELS && currentModelLabel && modelOptionsMenu) {
     const providerSettings = MODELS.providerSettings[MODELS.provider] || {};
     currentModelLabel.textContent = providerSettings.textModel || MODELS.textModel;
 
-    const provider = MODELS.provider;
-    const builtinData = (window.VS_CONSTANTS.AVAILABLE_MODELS || {})[provider];
     const customModels = window.VS_CONSTANTS.CUSTOM_MODELS || [];
+    const inactiveModels = MODELS.inactiveModels || [];
     
-    let textModels = [];
-    if (builtinData && builtinData.models && builtinData.models.text) {
-        textModels = [...builtinData.models.text];
+    let availableModels = []; // Array of { name, provider }
+    
+    // Add built-in models from all providers
+    const availableProviders = window.VS_CONSTANTS.AVAILABLE_MODELS || {};
+    for (const [prov, data] of Object.entries(availableProviders)) {
+        if (data && data.models && data.models.text) {
+            data.models.text.forEach(m => {
+                if (!inactiveModels.includes(m)) {
+                    availableModels.push({ name: m, provider: prov });
+                }
+            });
+        }
     }
     
-    // Filter out inactive built-in models
-    const inactiveModels = MODELS.inactiveModels || [];
-    textModels = textModels.filter(m => !inactiveModels.includes(m));
-    
-    // Add active custom models for this provider
+    // Add active custom models
     customModels.forEach(cm => {
-        if ((cm.provider === provider || cm.provider === 'Custom') && cm.isActive !== false) {
-            if (!textModels.includes(cm.name)) textModels.push(cm.name);
+        if (cm.isActive !== false) {
+            if (!availableModels.find(m => m.name === cm.name)) {
+                availableModels.push({ name: cm.name, provider: cm.provider });
+            }
         }
     });
 
-    const availableModels = textModels;
-
-    availableModels.forEach(m => {
+    availableModels.forEach(modelObj => {
+        const m = modelObj.name;
         const btn = document.createElement('button');
         btn.className = 'context-item';
         btn.innerHTML = `<span>${m}</span>`;
         btn.addEventListener('click', () => {
             currentModelLabel.textContent = m;
+            
+            // Switch provider
+            MODELS.provider = modelObj.provider;
+            sendMessage('updateNestedSetting', { category: 'models', key: 'provider', value: modelObj.provider });
+            
+            // Set model for new provider
             sendMessage('updateNestedSetting', { category: 'models', key: 'textModel', value: m });
+            
             // Update providerSettings as well
-            const pSettings = MODELS.providerSettings;
-            if (pSettings[MODELS.provider]) {
-                pSettings[MODELS.provider].textModel = m;
-                sendMessage('updateNestedSetting', { category: 'models', key: 'providerSettings', value: pSettings });
-            }
+            const pSettings = MODELS.providerSettings || {};
+            if (!pSettings[modelObj.provider]) pSettings[modelObj.provider] = {};
+            pSettings[modelObj.provider].textModel = m;
+            sendMessage('updateNestedSetting', { category: 'models', key: 'providerSettings', value: pSettings });
+            
             modelOptionsMenu.classList.add('hidden');
         });
         modelOptionsMenu.appendChild(btn);
