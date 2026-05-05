@@ -18,8 +18,11 @@ let currentSettings = {
     ui: {
         fontFamily: '',
         fontSize: '',
-        themeColor: 'adaptive'
-    }
+        themeColor: 'adaptive',
+        customCss: '',
+        lastCustomCss: '' // Track the actual custom CSS separately from template selection
+    },
+    customTemplates: [] // Array of { id: string, name: string, css: string } for user-created templates
 };
 
 // Default lists to show before fetching
@@ -43,7 +46,7 @@ const modalConfirmBtn = document.getElementById('modalConfirmBtn');
 let modalResolver = null;
 
 // --- MODAL CONTROLLER ---
-function showModal(title, text) {
+function showModal(title, text, showInput = false, isAlert = false) {
     return new Promise((resolve) => {
         if (!customModal) {
             resolve(false);
@@ -51,21 +54,67 @@ function showModal(title, text) {
         }
 
         modalTitle.textContent = title;
-        modalText.textContent = text;
+        
+        if (showInput) {
+            modalText.innerHTML = `<p>${text}</p><input type="text" id="modalInput" class="modal-input" placeholder="Template name" style="width: 100%; margin-top: 12px; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--input-bg); color: var(--input-fg);">`;
+        } else {
+            modalText.textContent = text;
+        }
+
+        // Configure buttons based on type
+        if (isAlert) {
+            modalCancelBtn.style.display = 'none';
+            modalConfirmBtn.textContent = 'OK';
+        } else {
+            modalCancelBtn.style.display = 'inline-block';
+            modalConfirmBtn.textContent = 'Confirm';
+        }
+        
         customModal.classList.remove('hidden');
 
-        const cleanup = (result) => {
+        const onConfirm = () => {
+            // Hide modal and remove listeners immediately
             customModal.classList.add('hidden');
             modalConfirmBtn.removeEventListener('click', onConfirm);
             modalCancelBtn.removeEventListener('click', onCancel);
+            
+            let result;
+            if (showInput) {
+                const input = document.getElementById('modalInput');
+                result = input ? input.value : '';
+            } else {
+                result = true;
+            }
+
+            // Resolve and then refresh UI/Persist if needed (logic handled by caller)
+            resolve(result);
+        };
+        
+        const onCancel = () => {
+            // Hide modal and remove listeners immediately
+            customModal.classList.add('hidden');
+            modalConfirmBtn.removeEventListener('click', onConfirm);
+            modalCancelBtn.removeEventListener('click', onCancel);
+            
+            let result;
+            if (showInput) {
+                result = '';
+            } else {
+                result = false;
+            }
             resolve(result);
         };
 
-        const onConfirm = () => cleanup(true);
-        const onCancel = () => cleanup(false);
-
         modalConfirmBtn.addEventListener('click', onConfirm);
         modalCancelBtn.addEventListener('click', onCancel);
+        
+        // Focus input if shown
+        if (showInput) {
+            setTimeout(() => {
+                const input = document.getElementById('modalInput');
+                if (input) input.focus();
+            }, 100);
+        }
     });
 }
 
@@ -82,6 +131,8 @@ const customCssInput = document.getElementById('customCssInput');
 const resetCssBtn = document.getElementById('resetCssBtn');
 const themeTemplateSelect = document.getElementById('themeTemplateSelect');
 const showKeyToggleBtn = document.getElementById('showKeyToggleBtn');
+const saveTemplateBtn = document.getElementById('saveTemplateBtn');
+const deleteTemplateBtn = document.getElementById('deleteTemplateBtn');
 let isKeyVisible = false;
 
 // Agent Hub summary (optional, safe if missing)
@@ -122,6 +173,15 @@ body {
     --input-focus-border: #00f2fe !important;
     --user-msg-bg: rgba(79, 172, 254, 0.08) !important;
     --code-bg: rgba(0, 242, 254, 0.05) !important;
+
+    /* Settings & Hub Sync */
+    --accent-color: #00f2fe !important;
+    --accent-glow: rgba(0, 242, 254, 0.3) !important;
+    --accent-gradient: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%) !important;
+    --sidebar-bg: #070714 !important;
+    --panel-bg: rgba(10, 10, 30, 0.6) !important;
+    --panel-border: rgba(0, 242, 254, 0.12) !important;
+    --bg-base: #0a0a1a !important;
 }
 
 body {
@@ -165,6 +225,15 @@ code {
     --input-focus-border: #e8a84c !important;
     --user-msg-bg: rgba(232, 168, 76, 0.08) !important;
     --code-bg: rgba(232, 168, 76, 0.06) !important;
+
+    /* Settings & Hub Sync */
+    --accent-color: #e8a84c !important;
+    --accent-glow: rgba(232, 168, 76, 0.3) !important;
+    --accent-gradient: linear-gradient(135deg, #e8a84c 0%, #d4a574 100%) !important;
+    --sidebar-bg: #15100a !important;
+    --panel-bg: rgba(26, 18, 7, 0.8) !important;
+    --panel-border: rgba(212, 165, 116, 0.2) !important;
+    --bg-base: #1a1207 !important;
 }
 
 body {
@@ -208,6 +277,15 @@ code {
     --input-focus-border: #8b7e6a !important;
     --user-msg-bg: rgba(139, 126, 106, 0.08) !important;
     --code-bg: rgba(139, 126, 106, 0.06) !important;
+
+    /* Settings & Hub Sync */
+    --accent-color: #8b7e6a !important;
+    --accent-glow: rgba(139, 126, 106, 0.3) !important;
+    --accent-gradient: linear-gradient(135deg, #8b7e6a 0%, #a09080 100%) !important;
+    --sidebar-bg: #18181c !important;
+    --panel-bg: rgba(28, 28, 32, 0.7) !important;
+    --panel-border: rgba(180, 170, 155, 0.12) !important;
+    --bg-base: #1c1c20 !important;
 }
 
 body {
@@ -243,17 +321,164 @@ code {
 if (themeTemplateSelect) {
     themeTemplateSelect.addEventListener('change', (e) => {
         const template = e.target.value;
+        
+        // Update delete button visibility
+        updateDeleteButtonVisibility();
+
         if (template !== 'custom' && THEME_TEMPLATES[template]) {
+            // Store current custom if we're moving AWAY from custom
+            if (customCssInput && !Object.values(THEME_TEMPLATES).includes(customCssInput.value)) {
+                currentSettings.ui.lastCustomCss = customCssInput.value;
+            }
             customCssInput.value = THEME_TEMPLATES[template];
             currentSettings.ui.customCss = THEME_TEMPLATES[template];
+        } else if (template === 'custom') {
+            // Restore last known custom CSS
+            customCssInput.value = currentSettings.ui.lastCustomCss || '';
+            currentSettings.ui.customCss = customCssInput.value;
+        } else if (template.startsWith('custom_')) {
+            // Handle custom template selection
+            const templateId = template.substring(7);
+            const customTemplate = currentSettings.customTemplates.find(t => t.id === templateId);
+            if (customTemplate) {
+                if (customCssInput && !Object.values(THEME_TEMPLATES).includes(customCssInput.value)) {
+                    currentSettings.ui.lastCustomCss = customCssInput.value;
+                }
+                customCssInput.value = customTemplate.css;
+                currentSettings.ui.customCss = customTemplate.css;
+            }
+        }
+        applyUISettings(currentSettings.ui);
+    });
+}
+
+// --- CUSTOM TEMPLATE MANAGEMENT ---
+function generateTemplateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substring(2);
+}
+
+function saveCurrentAsTemplate() {
+    const css = customCssInput.value.trim();
+    if (!css) {
+        showModal('Empty CSS', 'Please enter some CSS code before saving it as a template.', false, true);
+        return;
+    }
+
+    showModal('Save Custom Template', 'Enter a descriptive name for your template:', true).then(name => {
+        if (name && name.trim()) {
+            const templateName = name.trim();
+            
+            // Check if template with this name already exists
+            const existingTemplate = currentSettings.customTemplates.find(t => t.name.toLowerCase() === templateName.toLowerCase());
+            
+            if (existingTemplate) {
+                // Ask if user wants to overwrite with more informative message
+                showModal('Overwrite Template?', `A template named "${templateName}" already exists.\n\nSelecting "Confirm" will replace the existing template's CSS with your current CSS. This action cannot be undone.`).then(overwrite => {
+                    if (overwrite) {
+                        existingTemplate.css = css;
+                        updateTemplateDropdown();
+                        persistSettings();
+                        // Brief success modal that closes quickly
+                        showModal('Success', `Template "${templateName}" has been updated.`, false, true);
+                    }
+                });
+            } else {
+                // Create new template
+                const templateId = generateTemplateId();
+                
+                if (!currentSettings.customTemplates) {
+                    currentSettings.customTemplates = [];
+                }
+
+                currentSettings.customTemplates.push({
+                    id: templateId,
+                    name: templateName,
+                    css: css
+                });
+                
+                updateTemplateDropdown();
+                // Select the newly created template
+                if (themeTemplateSelect) {
+                    themeTemplateSelect.value = 'custom_' + templateId;
+                    updateDeleteButtonVisibility();
+                }
+                persistSettings();
+                showModal('Success', `Template "${templateName}" saved successfully.`, false, true);
+            }
         }
     });
+}
+
+function updateTemplateDropdown() {
+    if (!themeTemplateSelect) return;
+    
+    // Preserve current selection if possible
+    const currentVal = themeTemplateSelect.value;
+    
+    // Remove existing custom template options
+    const customOptions = themeTemplateSelect.querySelectorAll('option[value^="custom_"]');
+    customOptions.forEach(option => option.remove());
+    
+    // Add custom templates
+    if (currentSettings.customTemplates) {
+        currentSettings.customTemplates.forEach(template => {
+            const option = document.createElement('option');
+            option.value = 'custom_' + template.id;
+            option.textContent = `★ ${template.name}`;
+            themeTemplateSelect.appendChild(option);
+        });
+    }
+
+    // Restore selection if it still exists, otherwise default to 'custom'
+    const optionExists = Array.from(themeTemplateSelect.options).some(opt => opt.value === currentVal);
+    if (optionExists) {
+        themeTemplateSelect.value = currentVal;
+    } else {
+        themeTemplateSelect.value = 'custom';
+    }
+    
+    // Always update button visibility after dropdown structure changes
+    updateDeleteButtonVisibility();
+}
+
+function deleteCurrentTemplate() {
+    const templateId = deleteTemplateBtn.dataset.templateId;
+    if (!templateId) return;
+    
+    const template = currentSettings.customTemplates.find(t => t.id === templateId);
+    if (!template) return;
+    
+    showModal('Delete Template?', `Are you sure you want to delete the template "${template.name}"?\n\nThis will permanently remove it from your collection.`).then(confirm => {
+        if (confirm) {
+            currentSettings.customTemplates = currentSettings.customTemplates.filter(t => t.id !== templateId);
+            
+            // Re-populate dropdown (this will also handle visibility via updateDeleteButtonVisibility)
+            updateTemplateDropdown();
+            
+            persistSettings();
+            showModal('Deleted', `Template "${template.name}" has been removed.`, false, true);
+        }
+    });
+}
+
+// Event listeners for template management
+if (saveTemplateBtn) {
+    saveTemplateBtn.addEventListener('click', saveCurrentAsTemplate);
+}
+
+if (deleteTemplateBtn) {
+    deleteTemplateBtn.addEventListener('click', deleteCurrentTemplate);
 }
 // --- INITIALIZATION ---
 window.addEventListener('DOMContentLoaded', () => {
     // Request settings from extension
     vscode.postMessage({ command: 'requestSettings' });
     populateModelDropdowns(currentSettings.models.provider);
+    
+    // Initialize template dropdown
+    if (themeTemplateSelect) {
+        updateTemplateDropdown();
+    }
 });
 
 // Listener for Provider Change (Switching contexts)
@@ -349,34 +574,35 @@ tempInput.addEventListener('input', (e) => {
 });
 
 // Toggle API Key Visibility
-showKeyToggleBtn.addEventListener('click', () => {
-    isKeyVisible = !isKeyVisible;
-    apiKeyInput.setAttribute('type', isKeyVisible ? 'text' : 'password');
-    // Change SVG or opacity slightly to indicate toggle
-    showKeyToggleBtn.style.opacity = isKeyVisible ? '1' : '0.5';
-});
+if (showKeyToggleBtn) {
+    showKeyToggleBtn.addEventListener('click', () => {
+        isKeyVisible = !isKeyVisible;
+        apiKeyInput.setAttribute('type', isKeyVisible ? 'text' : 'password');
+        showKeyToggleBtn.style.opacity = isKeyVisible ? '1' : '0.5';
+    });
+}
 
 
 
 if (resetCssBtn) {
     resetCssBtn.addEventListener('click', () => {
-        const defaultCss = `/* ─── AI Companion Premium Styles ─── */\n\n/* 1. Global Typography */\nbody {\n    font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, sans-serif) !important;\n    -webkit-font-smoothing: antialiased;\n}\n\n/* 2. Input Editor Enhancements */\n#messageInput, code, .textarea {\n    font-family: var(--font-editor, monospace) !important;\n    font-size: 0.92rem !important;\n    line-height: 1.6 !important;\n}\n\n/* 3. Floating Bubble Adjustments */\n.message-body {\n    border-radius: 12px !important;\n    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;\n}\n`;
+        const defaultCss = THEME_TEMPLATES.default;
         if (customCssInput) {
             customCssInput.value = defaultCss;
-            // Apply changes directly
-            applyUISettings({ customCss: defaultCss });
+            currentSettings.ui.customCss = defaultCss;
+            if (themeTemplateSelect) {
+                themeTemplateSelect.value = 'default';
+                updateDeleteButtonVisibility();
+            }
+            persistSettings();
+            showModal('Reset Successful', 'CSS has been reset to the default theme.', false, true);
         }
     });
 }
 
 // Save Button
 saveBtn.addEventListener('click', () => {
-    collectSettings();
-    vscode.postMessage({
-        command: 'saveSettings',
-        settings: currentSettings
-    });
-    applyUISettings(currentSettings.ui);
+    persistSettings();
     
     // Toast UI Animation
     const toast = document.getElementById('toastNotification');
@@ -386,40 +612,60 @@ saveBtn.addEventListener('click', () => {
     }
 });
 
-// Add Prompt Button
-addPromptBtn.addEventListener('click', () => {
-    const newId = Date.now().toString(); // Simple ID
+function persistSettings() {
+    collectSettings();
+    vscode.postMessage({
+        command: 'saveSettings',
+        settings: currentSettings
+    });
+    applyUISettings(currentSettings.ui);
+}
+
+// Add Prompt Button (now lives in Agent Hub — guard for backward compat)
+if (addPromptBtn) {
+  addPromptBtn.addEventListener('click', () => {
+    const newId = Date.now().toString();
     currentSettings.prompts.push({
         id: newId,
         name: 'New Agent',
-        content: 'You are a helpful assistant.',
+        content: 'You are a helpful AI.',
         isActive: true,
         order: currentSettings.prompts.length + 1
     });
     renderPrompts();
-});
+  });
+}
 
 // Handle Messages from Extension
 window.addEventListener('message', event => {
     const message = event.data;
-    switch (message.command) {
-        case 'loadSettings':
-            currentSettings = message.settings;
-            // Update available models from backend source of truth
-            if (message.availableModels) {
-                DEFAULT_MODELS = message.availableModels;
-            }
+    try {
+        switch (message.command) {
+            case 'loadSettings':
+                if (!message.settings) {
+                    throw new Error('Settings data is missing in loadSettings message');
+                }
+                currentSettings = message.settings;
+                // Update available models from backend source of truth
+                if (message.availableModels) {
+                    DEFAULT_MODELS = message.availableModels;
+                }
 
-            // Ensure providerSettings exists in loaded data
-            if (!currentSettings.models.providerSettings) {
-                currentSettings.models.providerSettings = {};
-            }
-            // First populate dropdowns based on the load
-            populateModelDropdowns(currentSettings.models.provider, currentSettings.models.textModel, currentSettings.models.imageModel);
-            populateForm();
-            renderPrompts();
-            break;
-
+                // Ensure providerSettings exists in loaded data
+                if (!currentSettings.models.providerSettings) {
+                    currentSettings.models.providerSettings = {};
+                }
+                // First populate dropdowns based on the load
+                populateModelDropdowns(currentSettings.models.provider, currentSettings.models.textModel, currentSettings.models.imageModel);
+                updateTemplateDropdown();
+                populateForm();
+                renderPrompts();
+                renderModelTable();
+                break;
+        }
+    } catch (err) {
+        console.error('Error handling message:', err);
+        showModal('System Error', `An error occurred while processing settings: ${err.message}`, false, true);
     }
 });
 
@@ -463,7 +709,56 @@ function populateForm() {
         if (customCssInput) {
             customCssInput.value = ui.customCss || '';
         }
+        
+        // Auto-detect template if it matches exactly
+        if (themeTemplateSelect && ui.customCss) {
+            let foundMatch = false;
+            
+            // Check predefined templates
+            for (const [key, val] of Object.entries(THEME_TEMPLATES)) {
+                if (val.trim() === ui.customCss.trim()) {
+                    themeTemplateSelect.value = key;
+                    foundMatch = true;
+                    break;
+                }
+            }
+            
+            // Check custom templates
+            if (!foundMatch && currentSettings.customTemplates) {
+                for (const template of currentSettings.customTemplates) {
+                    if (template.css.trim() === ui.customCss.trim()) {
+                        themeTemplateSelect.value = 'custom_' + template.id;
+                        foundMatch = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (!foundMatch) {
+                themeTemplateSelect.value = 'custom';
+            }
+        } else if (themeTemplateSelect) {
+            themeTemplateSelect.value = 'custom';
+        }
+
+        // Update delete button visibility based on the final selected value
+        updateDeleteButtonVisibility();
+
         applyUISettings(ui);
+    }
+}
+
+function updateDeleteButtonVisibility() {
+    if (!themeTemplateSelect || !deleteTemplateBtn) return;
+    
+    const value = themeTemplateSelect.value;
+    if (value.startsWith('custom_')) {
+        const templateId = value.substring(7);
+        deleteTemplateBtn.style.display = 'block';
+        deleteTemplateBtn.dataset.templateId = templateId;
+    } else {
+        deleteTemplateBtn.style.display = 'none';
+        deleteTemplateBtn.removeAttribute('data-template-id');
     }
 }
 
@@ -474,10 +769,17 @@ function collectSettings() {
     if (!currentSettings.ui) {
         currentSettings.ui = {};
     }
-    if (customCssInput) { currentSettings.ui.customCss = customCssInput.value; }
+    if (customCssInput) { 
+        currentSettings.ui.customCss = customCssInput.value;
+        // If we are currently in 'custom' mode, also update lastCustomCss
+        if (themeTemplateSelect && themeTemplateSelect.value === 'custom') {
+            currentSettings.ui.lastCustomCss = customCssInput.value;
+        }
+    }
 }
 
 function renderPrompts() {
+    if (!promptsList) return;
     promptsList.innerHTML = '';
 
     if (currentSettings.prompts.length === 0) {
@@ -517,7 +819,7 @@ function renderPrompts() {
         item.innerHTML = `
             <div class="agent-card-header">
                 <div class="agent-avatar">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                 </div>
                 <div class="prompt-controls">
                     <button class="icon-btn move-up" title="Move Left" aria-label="Move agent left" ${index === 0 ? 'disabled' : ''}>
@@ -534,7 +836,7 @@ function renderPrompts() {
             <div class="prompt-body">
                 <div class="form-group">
                     <label for="${nameId}">Agent Name</label>
-                    <input id="${nameId}" type="text" class="prompt-name-input" value="${escapeHtml(prompt.name)}" placeholder="e.g. Assistant" autocomplete="off">
+                    <input id="${nameId}" type="text" class="prompt-name-input" value="${escapeHtml(prompt.name)}" placeholder="e.g. Chat" autocomplete="off">
                 </div>
                 <div class="form-group">
                     <label for="${textareaId}">Identity / System Prompt</label>
@@ -678,6 +980,15 @@ function populateModelDropdowns(provider, selectedText, selectedImage) {
     let textList = [...source.text];
     let imageList = [...source.image];
 
+    // Add custom models matching the active provider
+    const customModels = currentSettings.customModels || [];
+    for (const cm of customModels) {
+        if (cm.provider === provider || cm.provider === 'Custom') {
+            if (!textList.includes(cm.name)) textList.push(cm.name);
+            if (!imageList.includes(cm.name)) imageList.push(cm.name);
+        }
+    }
+
     // If selected model is not in default list, add it (preserves previously fetched selection)
     if (selectedText && !textList.includes(selectedText)) {
         textList.push(selectedText);
@@ -691,3 +1002,321 @@ function populateModelDropdowns(provider, selectedText, selectedImage) {
     // Image
     imageModelInput.innerHTML = imageList.map(m => `<option value="${m}">${m}</option>`).join('');
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// MODEL MANAGEMENT TABLE
+// ═══════════════════════════════════════════════════════════════════════
+
+function getProviderIcon(provider) {
+    switch ((provider || '').toLowerCase()) {
+        case 'openai':
+            return `<svg class="model-icon openai" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M6 12h12"/></svg>`;
+        case 'gemini':
+            return `<svg class="model-icon gemini" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>`;
+        default:
+            return `<svg class="model-icon custom" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>`;
+    }
+}
+
+function renderModelTable() {
+    const builtinBody = document.getElementById('body-builtin');
+    const customBody = document.getElementById('body-custom');
+    const customEmpty = document.getElementById('custom-empty');
+    if (!builtinBody || !customBody) return;
+
+    const activeImageModel = currentSettings.models.imageModel;
+
+    // Helper: build a model row with radio + edit + optional delete
+    function buildRow(modelName, providerKey, providerName, isCustom, customId, supportsImage) {
+        let isActive = true;
+        if (isCustom) {
+            const cm = (currentSettings.customModels || []).find(m => m.id === customId);
+            if (cm && cm.isActive !== undefined) isActive = cm.isActive;
+        } else {
+            const inactive = currentSettings.models.inactiveModels || [];
+            if (inactive.includes(modelName)) isActive = false;
+        }
+
+        const isImageModel = modelName === activeImageModel;
+        const radioId = `img-radio-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const editId = `edit-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const configId = `config-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+        // Get existing config for this model
+        let apiKey = '', baseUrl = '';
+        if (isCustom) {
+            const cm = (currentSettings.customModels || []).find(m => m.id === customId);
+            if (cm) { apiKey = cm.apiKey || ''; baseUrl = cm.baseUrl || ''; }
+        } else {
+            const ps = (currentSettings.models.providerSettings || {})[providerKey];
+            if (ps) { apiKey = ps.apiKey || ''; baseUrl = ps.baseUrl || ''; }
+        }
+
+        const hasConfig = apiKey || baseUrl;
+        const configDot = hasConfig ? `<span style="width:6px;height:6px;border-radius:50%;background:var(--success-color);display:inline-block;margin-left:4px;" title="Configured"></span>` : '';
+
+        let actionsHtml = `
+            <button class="icon-btn" title="Edit config" onclick="toggleModelConfig('${editId}', '${configId}')">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>`;
+        if (isCustom) {
+            actionsHtml += `
+            <button class="icon-btn danger" title="Delete" onclick="deleteCustomModel('${customId}')">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>`;
+        }
+
+        const dataAttr = isCustom ? `data-custom-id="${customId}"` : `data-provider="${providerKey}"`;
+        const radioDisabled = !supportsImage ? 'disabled title="This model does not support image/vision"' : '';
+        const radioClass = !supportsImage ? ' disabled' : '';
+
+        const activeToggleId = `active-toggle-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+        return `
+            <div class="model-row">
+                <span class="model-row-name">${getProviderIcon(providerKey)} ${escapeHtml(modelName)}${configDot}</span>
+                <span class="model-row-provider">${escapeHtml(providerName)}</span>
+                <span class="model-row-status">
+                    <label class="toggle-switch" title="Toggle active status">
+                        <input id="${activeToggleId}" type="checkbox" ${isActive ? 'checked' : ''} onchange="toggleModelActive('${isCustom ? 'true' : 'false'}', '${customId || ''}', '${escapeHtml(modelName)}', this.checked)">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </span>
+                <span class="model-image-radio${radioClass}">
+                    <input type="radio" name="imageModelRadio" value="${escapeHtml(modelName)}" ${isImageModel ? 'checked' : ''} ${radioDisabled} ${dataAttr}
+                        onchange="setImageModel('${escapeHtml(modelName)}')">
+                </span>
+                <span class="model-row-actions">${actionsHtml}</span>
+            </div>
+            <div class="model-config-panel" id="${configId}" style="display:none;" ${dataAttr}>
+                <div class="config-field">
+                    <label>API Key</label>
+                    <div style="display:flex;gap:0;">
+                        <input type="password" placeholder="sk-..." value="${escapeHtml(apiKey)}" data-config-field="apiKey" style="border-radius:6px 0 0 6px;border-right:none;">
+                        <button class="config-eye-btn" onclick="toggleConfigKey(this)" title="Toggle visibility" type="button">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="config-field">
+                    <label>Base URL</label>
+                    <input type="text" placeholder="Leave empty for default" value="${escapeHtml(baseUrl)}" data-config-field="baseUrl">
+                </div>
+                <button class="config-save-btn" onclick="saveModelConfig('${configId}', '${isCustom ? customId : ''}', '${providerKey}')">Save</button>
+            </div>`;
+    }
+
+    // Build built-in rows
+    let builtinHtml = '';
+    for (const [providerKey, providerData] of Object.entries(DEFAULT_MODELS)) {
+        const source = providerData.models || providerData;
+        if (!source || !source.text) continue;
+        const allModels = [...new Set([...source.text, ...(source.image || [])])];
+        const imageModels = source.image || [];
+        for (const modelName of allModels) {
+            const canImage = imageModels.includes(modelName);
+            builtinHtml += buildRow(modelName, providerKey, providerData.name || providerKey, false, null, canImage);
+        }
+    }
+    builtinBody.innerHTML = builtinHtml;
+
+    // Build custom model rows
+    const customModels = currentSettings.customModels || [];
+    if (customModels.length === 0) {
+        customBody.innerHTML = '';
+        if (customEmpty) {
+            customBody.appendChild(customEmpty);
+            customEmpty.style.display = 'block';
+        }
+    } else {
+        if (customEmpty) customEmpty.style.display = 'none';
+        let customHtml = '';
+        for (const cm of customModels) {
+            customHtml += buildRow(cm.name, cm.provider, cm.provider, true, cm.id, !!cm.supportsImage);
+        }
+        customBody.innerHTML = customHtml;
+    }
+}
+
+// Section toggle
+window.toggleModelSection = function(section) {
+    const header = document.getElementById('section-' + section);
+    const body = document.getElementById('body-' + section);
+    if (!header || !body) return;
+    header.classList.toggle('collapsed');
+    body.classList.toggle('collapsed');
+};
+
+// Handle active/inactive toggling
+window.toggleModelActive = function(isCustomStr, customId, modelName, isChecked) {
+    if (isCustomStr === 'true') {
+        const cm = (currentSettings.customModels || []).find(m => m.id === customId);
+        if (cm) cm.isActive = isChecked;
+    } else {
+        if (!currentSettings.models.inactiveModels) currentSettings.models.inactiveModels = [];
+        if (!isChecked) {
+            if (!currentSettings.models.inactiveModels.includes(modelName)) {
+                currentSettings.models.inactiveModels.push(modelName);
+            }
+        } else {
+            currentSettings.models.inactiveModels = currentSettings.models.inactiveModels.filter(m => m !== modelName);
+        }
+    }
+};
+
+// Toggle inline config panel
+window.toggleModelConfig = function(editId, configId) {
+    const panel = document.getElementById(configId);
+    if (!panel) return;
+    panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+};
+
+// Toggle API key visibility in config panels
+window.toggleConfigKey = function(btn) {
+    const input = btn.parentElement.querySelector('input[data-config-field="apiKey"]');
+    if (!input) return;
+    const isVisible = input.type === 'text';
+    input.type = isVisible ? 'password' : 'text';
+    btn.style.opacity = isVisible ? '0.5' : '1';
+};
+
+// Save model config (inline)
+window.saveModelConfig = function(configId, customId, providerKey) {
+    const panel = document.getElementById(configId);
+    if (!panel) return;
+    const apiKeyField = panel.querySelector('[data-config-field="apiKey"]');
+    const baseUrlField = panel.querySelector('[data-config-field="baseUrl"]');
+    const apiKey = apiKeyField?.value?.trim() || '';
+    const baseUrl = baseUrlField?.value?.trim() || '';
+
+    if (customId) {
+        // Custom model
+        const cm = (currentSettings.customModels || []).find(m => m.id === customId);
+        if (cm) {
+            cm.apiKey = apiKey;
+            cm.baseUrl = baseUrl;
+        }
+    } else {
+        // Built-in model — save to providerSettings
+        if (!currentSettings.models.providerSettings) currentSettings.models.providerSettings = {};
+        if (!currentSettings.models.providerSettings[providerKey]) {
+            currentSettings.models.providerSettings[providerKey] = { apiKey: '', baseUrl: '', textModel: '', imageModel: '' };
+        }
+        currentSettings.models.providerSettings[providerKey].apiKey = apiKey;
+        currentSettings.models.providerSettings[providerKey].baseUrl = baseUrl;
+    }
+
+    // Also update the top-level active settings if this is the active provider
+    if (providerKey === currentSettings.models.provider || customId) {
+        currentSettings.models.apiKey = apiKey;
+        currentSettings.models.baseUrl = baseUrl;
+    }
+
+    persistSettings();
+    panel.style.display = 'none';
+    renderModelTable(); // Refresh to show config dot
+};
+
+// Set image model via radio
+window.setImageModel = function(modelName) {
+    currentSettings.models.imageModel = modelName;
+    if (imageModelInput) imageModelInput.value = modelName;
+    persistSettings();
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// ADD MODEL MODAL
+// ═══════════════════════════════════════════════════════════════════════
+
+const addModelModal = document.getElementById('addModelModal');
+const btnAddModel = document.getElementById('btn-add-model');
+const addModelCloseBtn = document.getElementById('addModelCloseBtn');
+const addModelSubmitBtn = document.getElementById('addModelSubmitBtn');
+const addModelProvider = document.getElementById('addModelProvider');
+const addModelName = document.getElementById('addModelName');
+const addModelApiKey = document.getElementById('addModelApiKey');
+const addModelBaseUrl = document.getElementById('addModelBaseUrl');
+const addModelSupportsImage = document.getElementById('addModelSupportsImage');
+
+function openAddModelModal() {
+    if (!addModelModal) return;
+    // Reset fields
+    if (addModelProvider) addModelProvider.value = '';
+    if (addModelName) addModelName.value = '';
+    if (addModelApiKey) addModelApiKey.value = '';
+    if (addModelBaseUrl) addModelBaseUrl.value = '';
+    if (addModelSupportsImage) addModelSupportsImage.checked = false;
+    addModelModal.classList.remove('hidden');
+}
+
+function closeAddModelModal() {
+    if (addModelModal) addModelModal.classList.add('hidden');
+}
+
+if (btnAddModel) btnAddModel.addEventListener('click', openAddModelModal);
+if (addModelCloseBtn) addModelCloseBtn.addEventListener('click', closeAddModelModal);
+if (addModelModal) {
+    addModelModal.addEventListener('click', (e) => {
+        if (e.target === addModelModal) closeAddModelModal();
+    });
+}
+
+if (addModelSubmitBtn) {
+    addModelSubmitBtn.addEventListener('click', () => {
+        const provider = addModelProvider?.value;
+        const name = addModelName?.value?.trim();
+        const apiKey = addModelApiKey?.value?.trim();
+        const baseUrl = addModelBaseUrl?.value?.trim();
+
+        if (!provider || !name || !apiKey) {
+            // Flash the missing fields
+            if (!provider && addModelProvider) { addModelProvider.style.borderColor = 'var(--danger-color)'; setTimeout(() => { addModelProvider.style.borderColor = ''; }, 1500); }
+            if (!name && addModelName) { addModelName.style.borderColor = 'var(--danger-color)'; setTimeout(() => { addModelName.style.borderColor = ''; }, 1500); }
+            if (!apiKey && addModelApiKey) { addModelApiKey.style.borderColor = 'var(--danger-color)'; setTimeout(() => { addModelApiKey.style.borderColor = ''; }, 1500); }
+            return;
+        }
+
+        // Create the custom model
+        const supportsImage = addModelSupportsImage?.checked || false;
+        const newModel = {
+            id: Date.now().toString(),
+            name,
+            provider,
+            apiKey,
+            baseUrl: baseUrl || '',
+            supportsImage
+        };
+
+        if (!currentSettings.customModels) currentSettings.customModels = [];
+        currentSettings.customModels.push(newModel);
+
+        // Also store in providerSettings for the model's provider if it's a known one
+        if (!currentSettings.models.providerSettings) currentSettings.models.providerSettings = {};
+        if (!currentSettings.models.providerSettings[provider]) {
+            currentSettings.models.providerSettings[provider] = {
+                apiKey: apiKey,
+                baseUrl: baseUrl || '',
+                textModel: name,
+                imageModel: name
+            };
+        }
+
+        // Auto-save
+        persistSettings();
+        renderModelTable();
+        populateModelDropdowns(currentSettings.models.provider, currentSettings.models.textModel, currentSettings.models.imageModel);
+        closeAddModelModal();
+    });
+}
+
+// Delete custom model
+window.deleteCustomModel = async function(id) {
+    const confirmed = await showModal('Delete Custom Model', 'Are you sure you want to remove this custom model?');
+    if (!confirmed) return;
+
+    if (!currentSettings.customModels) return;
+    currentSettings.customModels = currentSettings.customModels.filter(m => m.id !== id);
+    persistSettings();
+    renderModelTable();
+    populateModelDropdowns(currentSettings.models.provider, currentSettings.models.textModel, currentSettings.models.imageModel);
+};

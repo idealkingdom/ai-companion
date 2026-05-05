@@ -1,32 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Companion Settings</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700&display=swap"
+        rel="stylesheet">
     <script>
         window.VS_MODELS = "{{MODELS}}";
     </script>
 </head>
+
 <body class="dark-theme">
     <div class="app-layout">
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="sidebar-header">
                 <div class="logo-box">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#spesGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="ai-premium-logo">
-                      <defs>
-                        <linearGradient id="spesGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stop-color="#00f2fe" />
-                          <stop offset="100%" stop-color="#4facfe" />
-                        </linearGradient>
-                      </defs>
-                      <path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/>
-                      <path d="M12 22V12"/>
-                      <path d="M12 12L2 7"/>
-                      <path d="M12 12l10-5"/>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="url(#spesGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                        class="ai-premium-logo">
+                        <defs>
+                            <linearGradient id="spesGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#00f2fe" />
+                                <stop offset="100%" stop-color="#4facfe" />
+                            </linearGradient>
+                        </defs>
+                        <path d="M12 2L2 7v10l10 5 10-5V7L12 2z" />
+                        <path d="M12 22V12" />
+                        <path d="M12 12L2 7" />
+                        <path d="M12 12l10-5" />
                     </svg>
                 </div>
                 <div class="header-text">
@@ -34,30 +40,44 @@
                     <span class="badge">Configuration</span>
                 </div>
             </div>
-            
+
             <nav class="sidebar-nav">
                 <button class="nav-item active" data-tab="general">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                        </path>
+                    </svg>
                     General
                 </button>
                 <button class="nav-item" data-tab="providers">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
-                    Providers & Models
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
+                        </path>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                    </svg>
+                    Models
                 </button>
-                <button class="nav-item" data-tab="agents">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                    Agent Hub
-                </button>
-
                 <button class="nav-item" data-tab="appearance">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
+                    </svg>
                     Appearance
                 </button>
             </nav>
 
             <div class="sidebar-footer">
                 <button id="saveBtn" class="primary-btn glass-btn">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
                     Save Changes
                 </button>
             </div>
@@ -65,24 +85,25 @@
 
         <!-- Main Content -->
         <main class="content-area">
-            
+
             <!-- GENERAL TAB -->
             <section id="general" class="tab-view active">
                 <div class="view-header">
                     <h1>General Parameters</h1>
                     <p>Global parameters that apply to all interactions.</p>
                 </div>
-                
+
                 <div class="glass-panel">
                     <div class="panel-section">
                         <h3>Session Tuning</h3>
                         <p class="section-desc">Adjust the global creativity and memory scope.</p>
-                        
+
                         <div class="field-row mt-4">
                             <div class="form-group flex-1">
                                 <label>Model Temperature <span class="highlight-val" id="tempValue">0.7</span></label>
                                 <div class="slider-wrapper">
-                                    <input type="range" id="tempInput" class="styled-slider" min="0" max="2" step="0.1" value="0.7">
+                                    <input type="range" id="tempInput" class="styled-slider" min="0" max="2" step="0.1"
+                                        value="0.7">
                                 </div>
                             </div>
                             <div class="form-group flex-1">
@@ -94,96 +115,82 @@
                 </div>
             </section>
 
-            <!-- PROVIDERS TAB -->
+            <!-- MODELS TAB -->
             <section id="providers" class="tab-view">
-                <div class="view-header">
-                    <h1>Model Providers</h1>
-                    <p>Connect your active intelligence. Designed for OpenAI, Gemini, custom base URLs (Ollama), and cloud OSS providers (OpenRouter/Groq).</p>
-                </div>
-
-                <div class="glass-panel hover-glow">
-                    <div class="panel-section">
-                        <div class="field-row">
-                            <div class="form-group flex-1">
-                                <label class="gradient-text">Active Global Provider</label>
-                                <select id="providerSelect" class="styled-input select-lg">
-                                    <option value="OpenAI">OpenAI Compatible API (Default)</option>
-                                    <option value="Gemini">Google Gemini AI</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="divider"></div>
-
-                        <h3>Endpoint Details</h3>
-                        
-                        <div class="field-row mt-4">
-                            <div class="form-group flex-1">
-                                <label>Base URL <span class="hint-text">(Empty = Default for Provider)</span></label>
-                                <input type="text" id="baseUrlInput" class="styled-input default-ph" placeholder="e.g. http://localhost:11434/v1">
-                            </div>
-                        </div>
-
-                        <div class="field-row mt-3">
-                            <div class="form-group flex-1">
-                                <label>API Key / Token</label>
-                                <div class="input-merged">
-                                    <input type="password" id="apiKeyInput" class="styled-input" placeholder="sk-...">
-                                    <button class="icon-toggle-btn" id="showKeyToggleBtn" title="Toggle visibility">
-                                        <svg class="eye-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="glass-panel mt-4">
-                    <div class="panel-section">
-                        <h3>Model Selection</h3>
-                        <p class="section-desc">Select the specific LLM variant to handle chat and image tasks.</p>
-                        <div class="field-row mt-4">
-                            <div class="form-group flex-1">
-                                <label>Primary Text Model</label>
-                                <select id="textModelInput" class="styled-input">
-                                    <option value="">Loading...</option>
-                                </select>
-                            </div>
-                            <div class="form-group flex-1">
-                                <label>Image Model (Vision)</label>
-                                <select id="imageModelInput" class="styled-input">
-                                    <option value="">Loading...</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- AGENT HUB TAB -->
-            <section id="agents" class="tab-view">
                 <div class="view-header actions-header">
                     <div>
-                        <h1>Agent Profiles</h1>
-                        <p>Define custom agent identities and working pipelines.</p>
+                        <h1>Model Management</h1>
+                        <p>Add or manage available models. Built-in models use the default stable version. Configure an
+                            API to access other models.</p>
                     </div>
-                    <button id="addPromptBtn" class="secondary-btn glass-btn accent-glow">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                        New Agent
+                    <button class="secondary-btn accent-glow" id="btn-add-model">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
+                            <path d="M5 12h14" />
+                            <path d="M12 5v14" />
+                        </svg>
+                        Add Model
                     </button>
                 </div>
-                <div class="agent-summary" aria-live="polite">
-                    <span class="agent-summary-item"><strong id="agentCountValue">0</strong> total agents</span>
-                    <span class="agent-summary-item"><strong id="activeAgentCountValue">0</strong> active</span>
-                </div>
 
-                <div id="promptsList" class="agent-grid">
-                    <!-- Javascript populates Agent Cards here -->
+                <!-- Hidden selects for backward compat (used by JS internally) -->
+                <select id="providerSelect" class="styled-input" style="display:none;">
+                    <option value="OpenAI">OpenAI</option>
+                    <option value="Gemini">Gemini</option>
+                </select>
+                <select id="textModelInput" style="display:none;">
+                    <option value=""></option>
+                </select>
+                <select id="imageModelInput" style="display:none;">
+                    <option value=""></option>
+                </select>
+                <input type="hidden" id="baseUrlInput" value="">
+                <input type="hidden" id="apiKeyInput" value="">
+
+                <!-- Model Table -->
+                <div class="glass-panel" style="padding: 0; overflow: hidden;">
+                    <!-- Table Header -->
+                    <div class="model-table-header">
+                        <span class="model-col-name">Model</span>
+                        <span class="model-col-provider">Provider</span>
+                        <span class="model-col-status">Status</span>
+                        <span class="model-col-image">Image Model</span>
+                        <span class="model-col-actions">Actions</span>
+                    </div>
+
+                    <!-- Built-in Section -->
+                    <div class="model-section-header" id="section-builtin" onclick="toggleModelSection('builtin')">
+                        <svg class="section-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                        Built-in
+                    </div>
+                    <div class="model-section-body" id="body-builtin">
+                        <!-- Populated by JS -->
+                    </div>
+
+                    <!-- Custom Section -->
+                    <div class="model-section-header" id="section-custom" onclick="toggleModelSection('custom')">
+                        <svg class="section-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                        Custom
+                    </div>
+                    <div class="model-section-body" id="body-custom">
+                        <div class="model-empty-custom" id="custom-empty">
+                            No custom models yet. <a href="#"
+                                onclick="document.getElementById('btn-add-model').click(); return false;">Add a custom
+                                model</a>
+                        </div>
+                    </div>
                 </div>
             </section>
-            
 
-            
+
+
+
             <!-- APPEARANCE TAB -->
             <section id="appearance" class="tab-view">
                 <div class="view-header">
@@ -193,15 +200,22 @@
 
                 <div class="glass-panel">
                     <div class="panel-section">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <h3 style="margin: 0;">Custom CSS</h3>
-                            <button id="resetCssBtn" class="secondary-btn glass-btn" style="padding: 6px 12px; font-size: 0.8rem; width: auto; margin: 0;">Reset Default</button>
+                            <button id="resetCssBtn" class="secondary-btn glass-btn"
+                                style="padding: 6px 12px; font-size: 0.8rem; width: auto; margin: 0;">Reset
+                                Default</button>
                         </div>
-                        <p class="section-desc">Add global CSS overrides to style the chatbox natively. E.g. <code>:root { --app-bg: #1e1e1e; --font-ui: "Inter"; }</code></p>
-                        
+                        <p class="section-desc">Add global CSS overrides to style the chatbox natively. E.g.
+                            <code>:root { --app-bg: #1e1e1e; --font-ui: "Inter"; }</code>
+                        </p>
+
                         <div class="field-row mt-4">
                             <div class="form-group flex-1">
-                                <label>Theme Template</label>
+                                <label>Theme Template <span
+                                        style="font-weight: normal; font-size: 0.8rem; margin-left: 6px; opacity: 0.7; font-style: italic;">(For
+                                        best results, select a theme that compliments your IDE theme)</span></label>
                                 <select id="themeTemplateSelect" class="styled-input" style="margin-bottom: 12px;">
                                     <option value="custom">Custom (Manual)</option>
                                     <option value="default">Default — Clean &amp; Minimal</option>
@@ -209,12 +223,25 @@
                                     <option value="retro">Retro — Warm &amp; Monospace</option>
                                     <option value="classic">Classic — Elegant &amp; Serif</option>
                                 </select>
+                                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                    <button id="saveTemplateBtn" class="secondary-btn glass-btn"
+                                        style="padding: 6px 12px; font-size: 0.8rem; flex: 1;">
+                                        💾 Save as Template
+                                    </button>
+                                    <button id="deleteTemplateBtn" class="secondary-btn glass-btn"
+                                        style="padding: 6px 12px; font-size: 0.8rem; flex: 1; display: none;">
+                                        🗑️ Delete Template
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
                         <div class="field-row">
                             <div class="form-group flex-1">
-                                <textarea id="customCssInput" class="styled-input styled-textarea code-font" rows="22" placeholder="/* --- Custom CSS Examples --- &#10;&#10;:root {&#10;  --font-ui: 'Segoe UI';&#10;  --font-editor: 'Fira Code';&#10;}&#10;&#10;body {&#10;  font-size: 15px !important;&#10;} */" spellcheck="false" style="width: 100%; box-sizing: border-box; resize: vertical; min-height: 450px; font-family: var(--font-editor, monospace);"></textarea>
+                                <textarea id="customCssInput" class="styled-input styled-textarea code-font" rows="22"
+                                    placeholder="/* --- Custom CSS Examples --- &#10;&#10;:root {&#10;  --font-ui: 'Segoe UI';&#10;  --font-editor: 'Fira Code';&#10;}&#10;&#10;body {&#10;  font-size: 15px !important;&#10;} */"
+                                    spellcheck="false"
+                                    style="width: 100%; box-sizing: border-box; resize: vertical; min-height: 450px; font-family: var(--font-editor, monospace);"></textarea>
                             </div>
                         </div>
                     </div>
@@ -223,7 +250,7 @@
 
         </main>
     </div>
-    
+
     <!-- Notification Overlay -->
     <div id="toastNotification" class="toast hidden">
         <span>Settings successfully saved!</span>
@@ -245,6 +272,58 @@
         </div>
     </div>
 
+    <!-- Add Model Modal -->
+    <div id="addModelModal" class="modal-overlay hidden">
+        <div class="modal-container" style="max-width: 460px;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0;">Add Model</h3>
+                <button class="icon-btn-close" id="addModelCloseBtn" title="Close">&times;</button>
+            </div>
+            <div class="modal-body" style="margin-top: 16px;">
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label><span style="color: var(--danger-color);">*</span> Provider</label>
+                    <select id="addModelProvider" class="styled-input">
+                        <option value="" disabled selected>Model Provider</option>
+                        <option value="OpenAI">OpenAI</option>
+                        <option value="Gemini">Gemini</option>
+                        <option value="Custom">Custom / Other</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label><span style="color: var(--danger-color);">*</span> Model</label>
+                    <input type="text" id="addModelName" class="styled-input" placeholder="e.g. gpt-4o, llama-3.1-70b">
+                </div>
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label><span style="color: var(--danger-color);">*</span> API Key</label>
+                    <input type="password" id="addModelApiKey" class="styled-input" placeholder="Fill API Key here">
+                </div>
+                <div class="form-group" style="margin-bottom: 24px;">
+                    <label>Custom Request URL <span class="hint-text" style="cursor: help;"
+                            title="Leave blank to use the default endpoint for the selected provider">ⓘ</span></label>
+                    <input type="text" id="addModelBaseUrl" class="styled-input default-ph"
+                        placeholder="e.g., https://api.openai.com/v1/chat/completions">
+                </div>
+                <div class="form-group" style="margin-bottom: 8px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div>
+                            <label style="margin-bottom: 2px;">Image / Vision Support</label>
+                            <p class="hint-text" style="margin: 0; font-size: 0.75rem;">Enable if this model can process
+                                images</p>
+                        </div>
+                        <label class="toggle-switch" style="margin: 0;">
+                            <input type="checkbox" id="addModelSupportsImage">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="flex-direction: column;">
+                <button id="addModelSubmitBtn" class="primary-btn">Add Model</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="settings.js"></script>
 </body>
+
 </html>
