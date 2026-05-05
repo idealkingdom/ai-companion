@@ -633,7 +633,14 @@ function getCurrentDate() {
 }
 
 function scrollToBottom() {
-    chatLog.scrollTop = chatLog.scrollHeight;
+    // Use rAF to ensure DOM has been painted before scrolling
+    requestAnimationFrame(() => {
+        chatLog.scrollTop = chatLog.scrollHeight;
+        // Double-tap for sticky elements that may resize after paint
+        setTimeout(() => {
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }, 50);
+    });
 }
 
 

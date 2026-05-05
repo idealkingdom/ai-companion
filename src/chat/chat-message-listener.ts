@@ -834,7 +834,20 @@ export async function chatMessageListener(message: any) {
             {
                 const { uri } = message.data;
                 const fileUri = vscode.Uri.parse(uri);
-                await vscode.window.showTextDocument(fileUri);
+                
+                // #43: If this file has staged changes, open the native diff view instead
+                const reviewManager = ReviewManager.getInstance();
+                const stagedUris = reviewManager.getStagedUris();
+                const stagedIndex = stagedUris.findIndex(u => u.toString() === fileUri.toString());
+                
+                if (stagedIndex >= 0) {
+                    // Open native VS Code diff view for this file
+                    reviewManager.openDiffForIndex(stagedIndex);
+                    outputChannel.appendLine(`[OpenFile] Opened diff view for staged file: ${fileUri.fsPath}`);
+                } else {
+                    // No staged changes — just open the file normally
+                    await vscode.window.showTextDocument(fileUri);
+                }
                 break;
             }
 

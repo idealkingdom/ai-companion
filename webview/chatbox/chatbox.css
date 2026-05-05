@@ -207,6 +207,7 @@ span.logo svg{
   flex-direction: column;
   gap: 1rem;
   word-wrap: break-word;
+  overflow-x: hidden;
 }
 
 .message-content {
@@ -239,6 +240,7 @@ span.logo svg{
 .user-message {
   max-width: 100%;
   width: 100%;
+  box-sizing: border-box;
   background: rgba(255, 255, 255, 0.03);
   color: var(--user-msg-fg, var(--text-color));
   border: none;
@@ -248,6 +250,7 @@ span.logo svg{
   font-size: 0.88rem;
   line-height: 1.6;
   position: relative;
+  overflow-wrap: break-word;
 }
 
 .user-message::before {

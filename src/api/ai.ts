@@ -78,6 +78,7 @@ export async function openAIAgenticRequest(
         baseUrl?: string;
         onStepFinish?: (event: any) => void;
         abortSignal?: AbortSignal;
+        enableThinking?: boolean;
     } = {}
 ) {
     const openai = createOpenAI({
@@ -91,7 +92,7 @@ export async function openAIAgenticRequest(
     outputChannel.appendLine(`[Agentic] Message count: ${messages.length}, baseUrl: ${options.baseUrl || '(default)'}`);
 
     try {
-        const result = streamText({
+        const streamOptions: any = {
             model: openai(model),
             messages: messages,
             tools: tools,
@@ -110,7 +111,17 @@ export async function openAIAgenticRequest(
             onFinish: (event: any) => {
                 outputChannel.appendLine(`[Agentic] Finished. finishReason=${event.finishReason}, totalUsage=${JSON.stringify(event.totalUsage)}`);
             }
-        });
+        };
+
+        // #44: Enable reasoning/thinking tokens when supported
+        if (options.enableThinking) {
+            streamOptions.providerOptions = {
+                openai: { reasoningEffort: 'medium' }
+            };
+            outputChannel.appendLine(`[Agentic] Thinking/reasoning enabled for model=${model}`);
+        }
+
+        const result = streamText(streamOptions);
 
         return result;
     } catch (error) {

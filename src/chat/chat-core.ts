@@ -428,6 +428,7 @@ RULES:
                     maxSteps: 15,
                     baseUrl: baseUrl,
                     abortSignal: abortSignal,
+                    enableThinking: settings.general?.enableThinking !== false,
                     onStepFinish: (event: any) => {
                         if (abortSignal?.aborted) return;
                         stepCount++;

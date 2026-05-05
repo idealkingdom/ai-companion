@@ -23,6 +23,7 @@ export interface AppSettings {
     general: {
         systemPrompt: string;
         enableTodoList?: boolean;
+        enableThinking?: boolean;
     };
     models: {
         textModel: string;
@@ -77,7 +78,8 @@ export const DEFAULT_SETTINGS: AppSettings = (() => {
     return {
         general: {
             systemPrompt: "You are an expert code assistant. Answer coding relevant topics only.",
-            enableTodoList: false
+            enableTodoList: false,
+            enableThinking: true
         },
         models: {
             textModel: defaultTextModel,

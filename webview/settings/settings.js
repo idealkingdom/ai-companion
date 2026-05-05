@@ -4,7 +4,7 @@ const vscode = acquireVsCodeApi();
 
 // --- STATE ---
 let currentSettings = {
-    general: { enableTodoList: false, systemPrompt: '' },
+    general: { enableTodoList: false, enableThinking: true, systemPrompt: '' },
     models: {
         textModel: 'gpt-4o', imageModel: 'gpt-4o-mini', baseUrl: '', apiKey: '', provider: 'OpenAI',
         providerSettings: {}
@@ -125,6 +125,7 @@ const baseUrlInput = document.getElementById('baseUrlInput');
 const textModelInput = document.getElementById('textModelInput');
 const imageModelInput = document.getElementById('imageModelInput');
 const enableTodoListInput = document.getElementById('enableTodoList');
+const enableThinkingInput = document.getElementById('enableThinking');
 const customCssInput = document.getElementById('customCssInput');
 const resetCssBtn = document.getElementById('resetCssBtn');
 const themeTemplateSelect = document.getElementById('themeTemplateSelect');
@@ -698,6 +699,9 @@ function populateForm() {
     if (enableTodoListInput) {
         enableTodoListInput.checked = general.enableTodoList || false;
     }
+    if (enableThinkingInput) {
+        enableThinkingInput.checked = general.enableThinking !== false; // default true
+    }
 
     // UI
     if (ui) {
@@ -760,6 +764,9 @@ function updateDeleteButtonVisibility() {
 function collectSettings() {
     if (enableTodoListInput) {
         currentSettings.general.enableTodoList = enableTodoListInput.checked;
+    }
+    if (enableThinkingInput) {
+        currentSettings.general.enableThinking = enableThinkingInput.checked;
     }
     
     if (!currentSettings.ui) {
