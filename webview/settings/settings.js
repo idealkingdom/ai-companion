@@ -1212,7 +1212,6 @@ window.saveModelConfig = function(configId, customId, providerKey) {
         currentSettings.models.baseUrl = baseUrl;
     }
 
-    persistSettings();
     panel.style.display = 'none';
     renderModelTable(); // Refresh to show config dot
 };
@@ -1221,7 +1220,6 @@ window.saveModelConfig = function(configId, customId, providerKey) {
 window.setImageModel = function(modelName) {
     currentSettings.models.imageModel = modelName;
     if (imageModelInput) imageModelInput.value = modelName;
-    persistSettings();
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1301,8 +1299,7 @@ if (addModelSubmitBtn) {
             };
         }
 
-        // Auto-save
-        persistSettings();
+        // Auto-save disabled, must click save manually
         renderModelTable();
         populateModelDropdowns(currentSettings.models.provider, currentSettings.models.textModel, currentSettings.models.imageModel);
         closeAddModelModal();
@@ -1316,7 +1313,6 @@ window.deleteCustomModel = async function(id) {
 
     if (!currentSettings.customModels) return;
     currentSettings.customModels = currentSettings.customModels.filter(m => m.id !== id);
-    persistSettings();
     renderModelTable();
     populateModelDropdowns(currentSettings.models.provider, currentSettings.models.textModel, currentSettings.models.imageModel);
 };

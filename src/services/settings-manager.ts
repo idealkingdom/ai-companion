@@ -72,9 +72,8 @@ const DEFAULT_SETTINGS: AppSettings = {
         const dynamicProviderSettings: any = {};
         for (const [key, data] of Object.entries(MODEL_PROVIDER_OPTIONS)) {
             let baseUrl = '';
-            if (key === MODEL_PROVIDER.OPEN_AI) baseUrl = 'https://api.openai.com/v1';
-            if (key === MODEL_PROVIDER.GEMINI) baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
-            
+            if (key === MODEL_PROVIDER.OPEN_AI) { baseUrl = 'https://api.openai.com/v1'; }
+            if (key === MODEL_PROVIDER.GEMINI) { baseUrl = 'https://generativelanguage.googleapis.com/v1beta'; }
             dynamicProviderSettings[key] = {
                 apiKey: '',
                 baseUrl: baseUrl,
