@@ -223,30 +223,58 @@ span.logo svg{
 
 .system-message {
   align-self: flex-start;
-  max-width: 95%;
+  max-width: 100%;
+  width: 100%;
 }
 
 .system-message .message-content {
-  background-color: var(--system-msg-bg);
+  background-color: transparent;
   color: var(--system-msg-fg);
-  border: 1px solid var(--border-color);
+  border: none;
   align-items: flex-start;
+  padding: 0;
 }
 
+/* #42: Agentic user message — full-width, left-aligned, clean */
 .user-message {
-  margin-left: auto;
-  max-width: 80%;
-  background-color: var(--user-msg-bg);
-  color: var(--user-msg-fg);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  border-bottom-right-radius: 2px;
-  padding: 10px 16px;
+  max-width: 100%;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--user-msg-fg, var(--text-color));
+  border: none;
+  border-left: 3px solid var(--accent-color, #4facfe);
+  border-radius: 0 6px 6px 0;
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  position: relative;
+}
+
+.user-message::before {
+  content: 'You';
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent-color, #4facfe);
+  opacity: 0.7;
+  margin-bottom: 4px;
+}
+
+/* #42: Sticky last user message */
+.user-message.sticky-user-msg {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--bg-primary, #1e1e1e);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
 }
 
 @media (min-width: 900px) {
   .system-message, .user-message {
-    max-width: 90%;
+    max-width: 100%;
   }
 }
 
@@ -255,7 +283,7 @@ span.logo svg{
     padding: 0.5rem;
   }
   .message-content, .system-message, .user-message {
-    max-width: 95%;
+    max-width: 100%;
   }
 }
 

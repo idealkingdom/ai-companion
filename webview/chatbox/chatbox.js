@@ -936,11 +936,17 @@ function appendUserMessage(message, images = [], files = []) {
         document.querySelector('.chat-container').classList.remove('new-chat');
     }
 
-
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = userResponseHTML;
 
     const newMessageElement = tempDiv.firstElementChild;
+
+    // #42: Remove sticky from previous user message, add to new one
+    const prevSticky = chatbox.querySelector('.user-message.sticky-user-msg');
+    if (prevSticky) {
+        prevSticky.classList.remove('sticky-user-msg');
+    }
+    newMessageElement.classList.add('sticky-user-msg');
 
     chatbox.appendChild(newMessageElement);
 
