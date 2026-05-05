@@ -44,19 +44,6 @@ export class SettingsView {
                     case 'saveSettings':
                         await this._settingsManager.updateSettings(message.settings);
                         vscode.window.showInformationMessage('Settings saved successfully!');
-                        
-                        const chatView = ChatViewProvider.getView();
-                        if (chatView && chatView.webview) {
-                            chatView.webview.postMessage({
-                                command: 'uiSettingsUpdate',
-                                ui: message.settings.ui
-                            });
-                            chatView.webview.postMessage({
-                                command: 'modelsUpdate',
-                                models: message.settings.models,
-                                customModels: message.settings.customModels
-                            });
-                        }
                         vscode.commands.executeCommand('ai-companion.updateUISettings', message.settings.ui);
                         break;
 

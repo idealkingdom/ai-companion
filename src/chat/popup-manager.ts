@@ -30,6 +30,9 @@ export class PopupManager {
         provider.setupWebview(this._panel.webview);
 
         this._panel.onDidDispose(() => {
+            if (this._panel) {
+                ChatViewProvider.removeWebview(this._panel.webview);
+            }
             this._panel = undefined;
         });
 

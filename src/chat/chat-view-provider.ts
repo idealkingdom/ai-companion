@@ -60,7 +60,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         SettingsManager.onDidUpdateSettings((updated) => {
             this.postMessage({ command: 'uiSettingsUpdate', ui: updated.ui });
             this.postMessage({ command: 'agentsUpdate', agents: updated.prompts || [] });
-            this.postMessage({ command: 'modelsUpdate', models: updated.models });
+            this.postMessage({ command: 'modelsUpdate', models: updated.models, customModels: updated.customModels });
         });
     }
 
@@ -92,9 +92,22 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
      * Broadcasts a message to all active webviews (sidebar + popups).
      */
     public postMessage(message: any) {
+        const disposedWebviews: vscode.Webview[] = [];
         ChatViewProvider._activeWebviews.forEach(webview => {
-            webview.postMessage(message);
+            try {
+                webview.postMessage(message);
+            } catch (err) {
+                // If it throws, the webview is likely disposed.
+                disposedWebviews.push(webview);
+            }
         });
+        
+        // Clean up disposed webviews
+        disposedWebviews.forEach(wv => ChatViewProvider._activeWebviews.delete(wv));
+    }
+
+    public static removeWebview(webview: vscode.Webview) {
+        this._activeWebviews.delete(webview);
     }
 
     public resolveWebviewView(webviewView: vscode.WebviewView) {
