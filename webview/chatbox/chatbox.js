@@ -1065,12 +1065,61 @@ function renderAgentStep(step) {
             return;
         }
 
+        // #44: Handle __TOKENS__ sentinel (OpenAI hidden reasoning — only token count)
+        const tokenMatch = step.text && step.text.match(/^__TOKENS__(\d+)$/);
+        if (tokenMatch) {
+            const tokenCount = parseInt(tokenMatch[1], 10);
+            let thinkingBlock = chatbox.querySelector('.agent-thinking-block:not([data-finalized="true"])');
+            
+            if (thinkingBlock) {
+                // Update the existing block with token count
+                const label = thinkingBlock.querySelector('.thinking-label');
+                // Accumulate token count
+                const prev = parseInt(thinkingBlock.dataset.tokens || '0', 10);
+                const total = prev + tokenCount;
+                thinkingBlock.dataset.tokens = String(total);
+                if (label) {
+                    label.textContent = `Reasoned for ${total} tokens`;
+                }
+                // If no actual text content, add a note
+                const contentEl = thinkingBlock.querySelector('.thinking-content');
+                if (contentEl && !contentEl.textContent.trim()) {
+                    contentEl.textContent = '(Reasoning content is not exposed by this model)';
+                }
+            } else {
+                // Create a finalized block showing token usage
+                thinkingBlock = document.createElement('details');
+                thinkingBlock.className = 'agent-thinking-block';
+                thinkingBlock.dataset.finalized = 'true';
+                thinkingBlock.dataset.tokens = String(tokenCount);
+
+                const summary = document.createElement('summary');
+                summary.className = 'thinking-summary';
+                summary.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    <span class="thinking-icon">💭</span>
+                    <span class="thinking-label">Reasoned for ${tokenCount} tokens</span>
+                `;
+                thinkingBlock.appendChild(summary);
+
+                const content = document.createElement('div');
+                content.className = 'thinking-content';
+                content.textContent = '(Reasoning content is not exposed by this model)';
+                thinkingBlock.appendChild(content);
+
+                chatbox.appendChild(thinkingBlock);
+            }
+            scrollToBottom();
+            return;
+        }
+
         // #44: Actual reasoning/thinking tokens — stream into a collapsible block
         let thinkingBlock = chatbox.querySelector('.agent-thinking-block:not([data-finalized="true"])');
         if (!thinkingBlock) {
             thinkingBlock = document.createElement('details');
             thinkingBlock.className = 'agent-thinking-block';
             thinkingBlock.open = false; // collapsed by default
+            thinkingBlock.dataset.tokens = '0';
 
             const summary = document.createElement('summary');
             summary.className = 'thinking-summary';
@@ -1088,7 +1137,7 @@ function renderAgentStep(step) {
             chatbox.appendChild(thinkingBlock);
         }
 
-        // Append the reasoning delta text
+        // Append the reasoning delta text (if any — empty for reasoning-start)
         const contentEl = thinkingBlock.querySelector('.thinking-content');
         if (contentEl && step.text) {
             contentEl.textContent += step.text;
@@ -1102,7 +1151,20 @@ function renderAgentStep(step) {
     if (openThinking) {
         openThinking.dataset.finalized = 'true';
         const label = openThinking.querySelector('.thinking-label');
-        if (label) { label.textContent = 'Thought process'; }
+        const tokens = parseInt(openThinking.dataset.tokens || '0', 10);
+        const contentEl = openThinking.querySelector('.thinking-content');
+        const hasText = contentEl && contentEl.textContent.trim() && 
+                        !contentEl.textContent.includes('not exposed by this model');
+        
+        if (label) {
+            if (tokens > 0) {
+                label.textContent = `Reasoned for ${tokens} tokens`;
+            } else if (hasText) {
+                label.textContent = 'Thought process';
+            } else {
+                label.textContent = 'Thought process';
+            }
+        }
     }
 
     // Find or create the active agent steps container wrapper

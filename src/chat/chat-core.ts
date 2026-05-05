@@ -463,39 +463,94 @@ RULES:
 
             // Consume the full stream to get ALL events (text + tools + errors)
             let fullText = '';
+            let isThinking = false;
+
             for await (const part of result.fullStream) {
                 if (abortSignal && abortSignal.aborted) {
                     throw new Error('AbortError');
                 }
-                if (part.type === 'text-delta') {
-                    fullText += part.text;
-                    if (onChunk) { onChunk(part.text); }
-                } else if (part.type === 'reasoning-delta' || (part as any).type === 'reasoning') {
-                    // #44: AI SDK fullStream reasoning-delta has 'delta' property (not 'text')
-                    const reasoningText = (part as any).delta || (part as any).text || (part as any).reasoning || '';
-                    if (reasoningText && onAgentStep) {
-                        onAgentStep({
-                            type: 'thinking',
-                            text: reasoningText
-                        });
+
+                switch ((part as any).type) {
+                    // ─── Text streaming ──────────────────────────────
+                    case 'text-delta':
+                        fullText += (part as any).text;
+                        if (onChunk) { onChunk((part as any).text); }
+                        break;
+                    case 'text-start':
+                    case 'text-end':
+                        break; // bookkeeping, no action needed
+
+                    // ─── Reasoning / Thinking (#44) ──────────────────
+                    case 'reasoning-start':
+                        // Model started thinking — show indicator in UI
+                        isThinking = true;
+                        if (onAgentStep) {
+                            onAgentStep({ type: 'thinking', text: '' }); // empty text = "start block"
+                        }
+                        break;
+
+                    case 'reasoning-delta':
+                        // Some models (Gemini) stream actual reasoning text
+                        const reasoningText = (part as any).delta || (part as any).text || '';
+                        if (reasoningText && onAgentStep) {
+                            onAgentStep({ type: 'thinking', text: reasoningText });
+                        }
+                        break;
+
+                    case 'reasoning-end':
+                        isThinking = false;
+                        outputChannel.appendLine(`[Agentic] Reasoning block ended`);
+                        break;
+
+                    // ─── Tool streaming ──────────────────────────────
+                    case 'tool-call':
+                        outputChannel.appendLine(`[Agentic] Tool call: ${(part as any).toolName}`);
+                        break;
+                    case 'tool-result':
+                        outputChannel.appendLine(`[Agentic] Tool result received for: ${(part as any).toolName}`);
+                        break;
+                    case 'tool-input-start':
+                    case 'tool-input-delta':
+                    case 'tool-input-end':
+                        break; // tool arg streaming, no UI action needed
+
+                    // ─── Step lifecycle ──────────────────────────────
+                    case 'start-step':
+                    case 'start':
+                        outputChannel.appendLine(`[Agentic] Step started`);
+                        break;
+
+                    case 'finish-step': {
+                        const usage = (part as any).usage;
+                        const reasoningTokens = usage?.outputTokenDetails?.reasoningTokens 
+                            || usage?.reasoningTokens || 0;
+                        outputChannel.appendLine(`[Agentic] Step finished: reason=${(part as any).finishReason}, reasoning=${reasoningTokens} tokens`);
+                        
+                        // #44: If the model used reasoning tokens but didn't stream text,
+                        // notify the UI about the token count so the thinking block shows something
+                        if (reasoningTokens > 0 && onAgentStep) {
+                            onAgentStep({
+                                type: 'thinking',
+                                text: `__TOKENS__${reasoningTokens}`
+                            });
+                        }
+                        break;
                     }
-                } else if (part.type === 'reasoning-end') {
-                    outputChannel.appendLine(`[Agentic] Reasoning block ended`);
-                } else if (part.type === 'error') {
-                    outputChannel.appendLine(`[Agentic] Stream error part: ${part.error}`);
-                } else if (part.type === 'tool-call') {
-                    outputChannel.appendLine(`[Agentic] Tool call: ${(part as any).toolName}`);
-                } else if (part.type === 'tool-result') {
-                    outputChannel.appendLine(`[Agentic] Tool result received for: ${(part as any).toolName}`);
-                } else if (part.type === 'finish') {
-                    outputChannel.appendLine(`[Agentic] Stream finish: reason=${part.finishReason}`);
-                } else if (part.type === 'start-step') {
-                    outputChannel.appendLine(`[Agentic] Step started`);
-                } else if (part.type === 'finish-step') {
-                    outputChannel.appendLine(`[Agentic] Step finished: reason=${part.finishReason}, usage=${JSON.stringify(part.usage)}`);
-                } else {
-                    // Debug: log unknown part types so we can catch new ones
-                    outputChannel.appendLine(`[Agentic] Unknown stream part type: ${(part as any).type}`);
+
+                    case 'finish':
+                        outputChannel.appendLine(`[Agentic] Stream finish: reason=${(part as any).finishReason}`);
+                        break;
+
+                    // ─── Other ───────────────────────────────────────
+                    case 'error':
+                        outputChannel.appendLine(`[Agentic] Stream error part: ${(part as any).error}`);
+                        break;
+                    case 'source':
+                    case 'raw':
+                        break; // metadata, no action
+                    default:
+                        outputChannel.appendLine(`[Agentic] Unhandled stream part: ${(part as any).type}`);
+                        break;
                 }
             }
 
