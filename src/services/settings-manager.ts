@@ -64,13 +64,13 @@ const DEFAULT_SETTINGS: AppSettings = {
         systemPrompt: "You are an expert code assistant. Answer coding relevant topics only."
     },
     models: {
-        textModel: 'gpt-4o',
-        imageModel: 'gpt-4o',
+        textModel: 'gpt-5.2-pro',
+        imageModel: 'gpt-5.2-pro',
         baseUrl: '',
         apiKey: '',
         provider: MODEL_PROVIDER.OPEN_AI,
         providerSettings: {
-            [MODEL_PROVIDER.OPEN_AI]: { apiKey: '', baseUrl: 'https://api.openai.com/v1', textModel: 'gpt-4o', imageModel: 'gpt-4o' },
+            [MODEL_PROVIDER.OPEN_AI]: { apiKey: '', baseUrl: 'https://api.openai.com/v1', textModel: 'gpt-5.2-pro', imageModel: 'gpt-5.2-pro' },
             [MODEL_PROVIDER.GEMINI]: { apiKey: '', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', textModel: 'gemini-2.5-pro', imageModel: 'gemini-2.5-pro' }
         },
         inactiveModels: []
