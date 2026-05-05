@@ -4,7 +4,7 @@ import * as fs from 'fs';
 
 import { OutputChannel } from 'vscode';
 import { SettingsManager } from '../services/settings-manager';
-import { MODEL_PROVIDER_OPTIONS } from '../constants';
+import { MODEL_PROVIDER, getModelProviderOptions } from '../constants';
 import { outputChannel } from '../logger';
 import { ChatViewProvider } from '../chat/chat-view-provider';
 
@@ -37,7 +37,7 @@ export class SettingsView {
                         this._panel.webview.postMessage({
                             command: 'loadSettings',
                             settings,
-                            availableModels: MODEL_PROVIDER_OPTIONS
+                            availableModels: getModelProviderOptions()
                         });
                         return;
 
@@ -118,8 +118,8 @@ export class SettingsView {
         htmlContent = htmlContent.replace('settings.js', scriptUri.toString());
 
         // Inject Models
-        outputChannel.appendLine(JSON.stringify(Object.keys(MODEL_PROVIDER_OPTIONS)));
-        htmlContent = htmlContent.replace(`"{{MODELS}}"`, JSON.stringify(MODEL_PROVIDER_OPTIONS));
+        outputChannel.appendLine(JSON.stringify(Object.keys(getModelProviderOptions())));
+        htmlContent = htmlContent.replace(`"{{MODELS}}"`, JSON.stringify(getModelProviderOptions()));
 
         // Inject Nonce (Safety) - If we add CSP
         // htmlContent = htmlContent.replace(/nonce-PLACEHOLDER/g, nonce);
