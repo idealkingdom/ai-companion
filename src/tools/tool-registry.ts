@@ -1,6 +1,7 @@
 import { WorkspaceIndexService } from '../services/workspace-index';
 import { createFileTools } from './file-tools';
 import { createSysTools } from './sys-tools';
+import { createWebTools } from './web-tools';
 import { ApprovalService } from '../chat/approval-service';
 import { ReviewManager } from '../chat/review-manager';
 import * as path from 'path';
@@ -21,13 +22,15 @@ export interface ToolRegistryOptions {
 export function createToolRegistry(workspaceIndex: WorkspaceIndexService, options?: ToolRegistryOptions) {
     const fileTools = createFileTools(workspaceIndex);
     const sysTools = createSysTools();
+    const webTools = createWebTools();
 
     const allTools = {
         ...fileTools,
-        ...sysTools
+        ...sysTools,
+        ...webTools
     };
 
-    const readTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol', 'search_workspace'];
+    const readTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol', 'search_workspace', 'scrape_url'];
     const writeTools = ['chunk_replace', 'create_file'];
     const commandTools = ['run_command'];
 

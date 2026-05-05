@@ -147,6 +147,33 @@ export async function chatMessageListener(message: any) {
             break;
         }
 
+        // #46: Scrape a URL and return content to the frontend
+        case 'scrapeUrl': {
+            const { WebScraperService } = require('../services/web-scraper');
+            const scraper = new WebScraperService();
+            const url = message.url;
+            try {
+                const result = await scraper.scrape(url);
+                await ChatViewProvider.getInstance().postMessage({
+                    command: 'scrapeResult',
+                    url: url,
+                    success: result.success,
+                    title: result.title,
+                    content: result.content?.substring(0, 8000) || '',
+                    wordCount: result.wordCount,
+                    error: result.error
+                });
+            } catch (err: any) {
+                await ChatViewProvider.getInstance().postMessage({
+                    command: 'scrapeResult',
+                    url: url,
+                    success: false,
+                    error: err.message || 'Scraping failed'
+                });
+            }
+            break;
+        }
+
         case CHAT_COMMANDS.CHAT_RESET:
             {
                 // Now: We generate ID and send it manually, or add resetChat() to your Service.

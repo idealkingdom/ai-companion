@@ -847,6 +847,55 @@ function insertInlineFile(name, text, language, path) {
     chatMessage.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+/**
+ * #46: Handle URL pill click — scrape the URL and add as context.
+ * The scrape_url tool is already available to the agent, but this
+ * lets users manually trigger scraping from the chat input.
+ */
+window.handleUrlScrape = function(pill) {
+    const url = pill.dataset.url;
+    if (!url) return;
+
+    // Visual feedback
+    pill.style.opacity = '0.6';
+    pill.textContent = '⏳ Scraping...';
+
+    // Ask the backend to scrape and return content
+    vscode.postMessage({ command: 'scrapeUrl', url: url });
+
+    // Listen for the result once
+    const handler = (event) => {
+        const msg = event.data;
+        if (msg.command === 'scrapeResult' && msg.url === url) {
+            window.removeEventListener('message', handler);
+            if (msg.success) {
+                pill.textContent = `🔗 ${msg.title || new URL(url).hostname}`;
+                pill.style.opacity = '1';
+                pill.classList.add('scraped');
+                pill.title = `Scraped: ${msg.title} (${msg.wordCount} words)`;
+                
+                // Store scraped content as a file context
+                const id = pill.dataset.urlId || 'url-' + Date.now();
+                window.inlineFilesMap = window.inlineFilesMap || {};
+                window.inlineFilesMap[id] = {
+                    name: msg.title || url,
+                    content: msg.content,
+                    language: 'text',
+                    path: url,
+                    lines: msg.content.split('\n').length
+                };
+                pill.dataset.fileId = id;
+                pill.dataset.file = 'true';
+            } else {
+                pill.textContent = `❌ ${new URL(url).hostname}`;
+                pill.style.opacity = '0.5';
+                pill.title = `Failed: ${msg.error}`;
+            }
+        }
+    };
+    window.addEventListener('message', handler);
+};
+
 function showLoadingIndicator() {
     hideLoadingIndicator();
 
@@ -1863,6 +1912,16 @@ window.addEventListener('DOMContentLoaded', () => {
         // 3. Handle Text
         const text = clipboardData.getData('text/plain');
         if (!text) { return; };
+
+        // #46: Detect if the pasted text is a URL
+        const urlPattern = /^https?:\/\/[^\s]+$/i;
+        if (urlPattern.test(text.trim())) {
+            const url = text.trim();
+            const urlId = 'url-' + Date.now();
+            const pill = `<span class="inline-attachment-pill url-pill" contenteditable="false" data-url="${url}" data-url-id="${urlId}" title="Click to scrape: ${url}" onclick="handleUrlScrape(this)">🔗 ${new URL(url).hostname}${new URL(url).pathname.substring(0, 30)}</span>&nbsp;`;
+            document.execCommand('insertHTML', false, pill);
+            return;
+        }
 
         // 4. Escape the text for HTML
         const escapedText = text

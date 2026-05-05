@@ -342,9 +342,21 @@ As you complete each task, update it to: ✅ [task description]
 Show the updated checklist after each step so the user can track progress.`
             : '';
 
+        // #51: Include workspace file tree in context
+        await this.workspaceIndex.refresh();
+        const fileTree = this.workspaceIndex.getFileTreeString();
+        // Cap the tree to avoid blowing up the context window
+        const maxTreeChars = 3000;
+        const truncatedTree = fileTree.length > maxTreeChars
+            ? fileTree.substring(0, maxTreeChars) + '\n... (truncated, use list_workspace for full tree)'
+            : fileTree;
+
         const agenticSystemPrompt = `${systemPrompt}
 
 ${systemInfo}
+
+--- WORKSPACE FILE TREE ---
+${truncatedTree}
 
 --- AGENT CONTEXT ---
 You have access to tools to read, search, and modify files in the user's workspace.
@@ -400,7 +412,6 @@ RULES:
                 }
             }
         });
-        await this.workspaceIndex.refresh();
 
         outputChannel.appendLine(`[Agentic] Tool names: ${Object.keys(tools).join(', ')}`);
         outputChannel.appendLine(`[Agentic] Messages count: ${messages.length}`);

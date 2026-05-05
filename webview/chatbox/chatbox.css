@@ -969,6 +969,31 @@ details[open] summary .file-arrow {
     color: var(--vscode-textLink-activeForeground, #55aaff);
 }
 
+/* #46: URL pill — pasted URLs */
+.url-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 8px;
+    background: rgba(0, 150, 255, 0.1);
+    border: 1px solid rgba(0, 150, 255, 0.25);
+    border-radius: 10px;
+    font-size: 0.78rem;
+    text-decoration: none;
+    color: #64b5f6;
+    transition: all 0.2s;
+}
+.url-pill:hover {
+    background: rgba(0, 150, 255, 0.2);
+    border-color: rgba(0, 150, 255, 0.4);
+    color: #90caf9;
+}
+.url-pill.scraped {
+    border-color: rgba(102, 187, 106, 0.3);
+    color: #81c784;
+    background: rgba(102, 187, 106, 0.08);
+}
+
 /* --- AUTOCOMPLETE MENU --- */
 .autocomplete-menu {
   position: absolute;
