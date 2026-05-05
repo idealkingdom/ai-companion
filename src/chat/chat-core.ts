@@ -81,7 +81,9 @@ export class ChatCoreService {
         const appSettings = this.settingsManager.getSettings();
 
         const maxContext = appSettings.general.maxContextMessages;
-        const accessToken = appSettings.models.apiKey;
+        const currentProvider = appSettings.models.provider;
+        const pSettings = appSettings.models.providerSettings?.[currentProvider] || {};
+        const accessToken = pSettings.apiKey || '';
         const temperature = appSettings.general.temperature;
 
         let aiResponseText = "";
@@ -156,8 +158,8 @@ export class ChatCoreService {
             // Resolve API key and base URL from provider-specific settings
             const activeProvider = appSettings.models.provider || 'OpenAI';
             const providerConfig = appSettings.models.providerSettings?.[activeProvider];
-            const apiBaseUrl = appSettings.models.baseUrl || providerConfig?.baseUrl || '';
-            const apiKey = appSettings.models.apiKey || providerConfig?.apiKey || '';
+            const apiBaseUrl = providerConfig?.baseUrl || '';
+            const apiKey = providerConfig?.apiKey || '';
 
             outputChannel.appendLine(`[ChatCore] Provider=${activeProvider}, model=${targetModel}, hasApiKey=${!!apiKey}, baseUrl=${apiBaseUrl || '(default)'}`);
 

@@ -14,7 +14,9 @@ export class ImageDescriptionService {
     public async describeImage(base64Image: string): Promise<string> {
         try {
             const appSettings = this.settingsManager.getSettings();
-            const accessToken = appSettings.models.apiKey;
+            const currentProvider = appSettings.models.provider;
+            const pSettings = appSettings.models.providerSettings?.[currentProvider] || {};
+            const accessToken = pSettings.apiKey || '';
 
             // Use gpt-4o-mini for fast/cheap vision
             // If strictly unavailable, could fallback to GPT-4o
