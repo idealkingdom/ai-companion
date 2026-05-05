@@ -124,6 +124,16 @@ export async function chatMessageListener(message: any) {
             break;
         }
 
+        case 'updateCategorySettings': {
+            const { category, settings } = message.data;
+            const currentSettings = settingsManager.getSettings();
+            if (currentSettings[category as keyof typeof currentSettings]) {
+                const updatedCategory = { ...currentSettings[category as keyof typeof currentSettings], ...settings };
+                await settingsManager.updateSettings({ [category]: updatedCategory });
+            }
+            break;
+        }
+
         case CHAT_COMMANDS.CHAT_RESET:
             {
                 // Now: We generate ID and send it manually, or add resetChat() to your Service.

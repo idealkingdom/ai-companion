@@ -226,18 +226,21 @@ function initModelDropdown() {
         btn.addEventListener('click', () => {
             currentModelLabel.textContent = m;
             
-            // Switch provider
+            // Update providerSettings
             MODELS.provider = modelObj.provider;
-            sendMessage('updateNestedSetting', { category: 'models', key: 'provider', value: modelObj.provider });
-            
-            // Set model for new provider
-            sendMessage('updateNestedSetting', { category: 'models', key: 'textModel', value: m });
-            
-            // Update providerSettings as well
+            MODELS.textModel = m;
             const pSettings = MODELS.providerSettings || {};
             if (!pSettings[modelObj.provider]) pSettings[modelObj.provider] = {};
             pSettings[modelObj.provider].textModel = m;
-            sendMessage('updateNestedSetting', { category: 'models', key: 'providerSettings', value: pSettings });
+            
+            sendMessage('updateCategorySettings', { 
+                category: 'models', 
+                settings: { 
+                    provider: modelObj.provider, 
+                    textModel: m, 
+                    providerSettings: pSettings 
+                } 
+            });
             
             modelOptionsMenu.classList.add('hidden');
         });
@@ -247,12 +250,18 @@ function initModelDropdown() {
     if (!isValidModel && availableModels.length > 0) {
         initialModel = availableModels[0].name;
         MODELS.provider = availableModels[0].provider;
-        sendMessage('updateNestedSetting', { category: 'models', key: 'provider', value: MODELS.provider });
-        sendMessage('updateNestedSetting', { category: 'models', key: 'textModel', value: initialModel });
         const pSettings = MODELS.providerSettings || {};
         if (!pSettings[MODELS.provider]) pSettings[MODELS.provider] = {};
         pSettings[MODELS.provider].textModel = initialModel;
-        sendMessage('updateNestedSetting', { category: 'models', key: 'providerSettings', value: pSettings });
+        
+        sendMessage('updateCategorySettings', { 
+            category: 'models', 
+            settings: { 
+                provider: MODELS.provider, 
+                textModel: initialModel, 
+                providerSettings: pSettings 
+            } 
+        });
     }
     currentModelLabel.textContent = initialModel || 'Unknown';
 }
