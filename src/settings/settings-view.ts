@@ -51,6 +51,11 @@ export class SettingsView {
                                 command: 'uiSettingsUpdate',
                                 ui: message.settings.ui
                             });
+                            chatView.webview.postMessage({
+                                command: 'modelsUpdate',
+                                models: message.settings.models,
+                                customModels: message.settings.customModels
+                            });
                         }
                         vscode.commands.executeCommand('ai-companion.updateUISettings', message.settings.ui);
                         break;

@@ -177,15 +177,19 @@ const tbReadPerm = document.getElementById('tb-read-perm');
 const tbWritePerm = document.getElementById('tb-write-perm');
 const tbCmdPerm = document.getElementById('tb-cmd-perm');
 
-if (MODELS && currentModelLabel && modelOptionsMenu) {
-    // Populate dropdown based on provider
-    const providerSettings = MODELS.providerSettings[MODELS.provider] || {};
-    currentModelLabel.textContent = providerSettings.textModel || MODELS.textModel;
+function initModelDropdown() {
+    if (!MODELS || !currentModelLabel || !modelOptionsMenu) return;
+
+    modelOptionsMenu.innerHTML = ''; // clear previous options
+
+    const providerSettings = MODELS.providerSettings?.[MODELS.provider] || {};
+    let initialModel = providerSettings.textModel || MODELS.textModel;
 
     const customModels = window.VS_CONSTANTS.CUSTOM_MODELS || [];
     const inactiveModels = MODELS.inactiveModels || [];
     
     let availableModels = []; // Array of { name, provider }
+    let isValidModel = false;
     
     // Add built-in models from all providers
     const availableProviders = window.VS_CONSTANTS.AVAILABLE_MODELS || {};
@@ -210,6 +214,12 @@ if (MODELS && currentModelLabel && modelOptionsMenu) {
 
     availableModels.forEach(modelObj => {
         const m = modelObj.name;
+        
+        // Ensure initialModel is valid
+        if (m === initialModel) {
+            isValidModel = true;
+        }
+
         const btn = document.createElement('button');
         btn.className = 'context-item';
         btn.innerHTML = `<span>${m}</span>`;
@@ -233,6 +243,22 @@ if (MODELS && currentModelLabel && modelOptionsMenu) {
         });
         modelOptionsMenu.appendChild(btn);
     });
+
+    if (!isValidModel && availableModels.length > 0) {
+        initialModel = availableModels[0].name;
+        MODELS.provider = availableModels[0].provider;
+        sendMessage('updateNestedSetting', { category: 'models', key: 'provider', value: MODELS.provider });
+        sendMessage('updateNestedSetting', { category: 'models', key: 'textModel', value: initialModel });
+        const pSettings = MODELS.providerSettings || {};
+        if (!pSettings[MODELS.provider]) pSettings[MODELS.provider] = {};
+        pSettings[MODELS.provider].textModel = initialModel;
+        sendMessage('updateNestedSetting', { category: 'models', key: 'providerSettings', value: pSettings });
+    }
+    currentModelLabel.textContent = initialModel || 'Unknown';
+}
+
+if (MODELS && currentModelLabel && modelOptionsMenu) {
+    initModelDropdown();
 
     toolbarModelBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -2049,9 +2075,15 @@ window.addEventListener('message', event => {
             break;
 
         case 'modelsUpdate':
-            if (message.models && currentModelLabel) {
-                const providerSettings = message.models.providerSettings?.[message.models.provider] || {};
-                currentModelLabel.textContent = providerSettings.textModel || message.models.textModel || 'Unknown';
+            if (message.models) {
+                if (window.VS_CONSTANTS) {
+                    window.VS_CONSTANTS.MODELS = message.models;
+                    if (message.customModels) {
+                        window.VS_CONSTANTS.CUSTOM_MODELS = message.customModels;
+                    }
+                }
+                MODELS = message.models;
+                initModelDropdown();
             }
             break;
 
