@@ -5,6 +5,44 @@ import * as cp from 'child_process';
 import * as vscode from 'vscode';
 import { outputChannel } from '../logger';
 
+// ─── Persistent AI Terminal ─────────────────────────────────────────
+// We reuse a single VS Code terminal for all AI commands so users
+// can follow along in the Terminal panel without spawning new tabs.
+let aiTerminal: vscode.Terminal | undefined;
+let aiTerminalWriteEmitter: vscode.EventEmitter<string> | undefined;
+
+function getOrCreateAITerminal(): { terminal: vscode.Terminal; writeEmitter: vscode.EventEmitter<string> } {
+    // If the terminal was closed by the user, recreate it
+    if (aiTerminal && aiTerminal.exitStatus !== undefined) {
+        aiTerminal = undefined;
+        aiTerminalWriteEmitter = undefined;
+    }
+
+    if (!aiTerminal || !aiTerminalWriteEmitter) {
+        aiTerminalWriteEmitter = new vscode.EventEmitter<string>();
+        const pty: vscode.Pseudoterminal = {
+            onDidWrite: aiTerminalWriteEmitter.event,
+            open: () => {
+                aiTerminalWriteEmitter!.fire('\x1b[36m╔══════════════════════════════════════════════╗\x1b[0m\r\n');
+                aiTerminalWriteEmitter!.fire('\x1b[36m║       🤖 AI Companion — Terminal Output      ║\x1b[0m\r\n');
+                aiTerminalWriteEmitter!.fire('\x1b[36m╚══════════════════════════════════════════════╝\x1b[0m\r\n\r\n');
+            },
+            close: () => {
+                aiTerminal = undefined;
+                aiTerminalWriteEmitter = undefined;
+            },
+            handleInput: () => { /* read-only terminal */ }
+        };
+
+        aiTerminal = vscode.window.createTerminal({
+            name: '🤖 AI Companion',
+            pty
+        });
+    }
+
+    return { terminal: aiTerminal, writeEmitter: aiTerminalWriteEmitter };
+}
+
 /**
  * Creates the system/terminal tools for the agentic loop.
  * NOTE: AI SDK v6 uses 'inputSchema' (not 'parameters') for tool schemas.
@@ -23,11 +61,16 @@ export function createSysTools() {
         execute: async (params: { command: string; cwd?: string }) => {
             const execCwd = params.cwd || workspaceRoot;
 
-            // Log command execution to the Output panel so the user can see it
-            outputChannel.appendLine(`\n──── 🔧 run_command ────────────────────────`);
-            outputChannel.appendLine(`$ ${params.command}`);
-            outputChannel.appendLine(`  cwd: ${execCwd}`);
-            outputChannel.show(true); // Reveal the output panel (preserveFocus=true)
+            // Show command in the AI Terminal
+            const { terminal, writeEmitter } = getOrCreateAITerminal();
+            terminal.show(true); // Show terminal, preserve focus
+
+            writeEmitter.fire(`\x1b[90m────────────────────────────────────────────────\x1b[0m\r\n`);
+            writeEmitter.fire(`\x1b[33m$ ${params.command}\x1b[0m\r\n`);
+            writeEmitter.fire(`\x1b[90m  cwd: ${execCwd}\x1b[0m\r\n\r\n`);
+
+            // Also log to output channel for persistence
+            outputChannel.appendLine(`[run_command] $ ${params.command} (cwd: ${execCwd})`);
 
             return new Promise<{ exitCode: number; output: string }>((resolve) => {
                 cp.exec(params.command, {
@@ -39,12 +82,18 @@ export function createSysTools() {
                     let output = stdout || '';
                     if (stderr) { output += '\nSTDERR:\n' + stderr; }
 
-                    // Mirror output to the Output panel
-                    if (output) {
-                        outputChannel.appendLine(output.substring(0, 3000));
+                    // Write output to the AI Terminal (convert \n to \r\n for terminal)
+                    const termOutput = output.substring(0, 3000).replace(/\n/g, '\r\n');
+                    if (termOutput) {
+                        writeEmitter.fire(termOutput + '\r\n');
                     }
+
                     const exitCode = error ? (error.code || 1) : 0;
-                    outputChannel.appendLine(`── exit code: ${exitCode} ──────────────────\n`);
+                    const exitColor = exitCode === 0 ? '\x1b[32m' : '\x1b[31m';
+                    writeEmitter.fire(`${exitColor}── exit code: ${exitCode} ──\x1b[0m\r\n\r\n`);
+
+                    // Also log to output channel
+                    outputChannel.appendLine(`[run_command] exit code: ${exitCode}`);
 
                     if (output.length > 3000) {
                         output = output.substring(0, 3000) + '\n... [output truncated at 3000 chars]';

@@ -101,11 +101,19 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
      */
     public postMessage(message: any) {
         const disposedWebviews: vscode.Webview[] = [];
+        outputChannel.appendLine(`[postMessage] Broadcasting '${message.command}' to ${ChatViewProvider._activeWebviews.size} webview(s)`);
+        
         ChatViewProvider._activeWebviews.forEach(webview => {
             try {
-                webview.postMessage(message);
+                const result = webview.postMessage(message);
+                // postMessage returns a Thenable<boolean>
+                if (result && typeof result.then === 'function') {
+                    result.then((success: boolean) => {
+                        outputChannel.appendLine(`[postMessage] '${message.command}' delivery ${success ? 'SUCCEEDED' : 'FAILED (webview not visible?)'}`);
+                    });
+                }
             } catch (err) {
-                // If it throws, the webview is likely disposed.
+                outputChannel.appendLine(`[postMessage] '${message.command}' THREW: ${err}`);
                 disposedWebviews.push(webview);
             }
         });
