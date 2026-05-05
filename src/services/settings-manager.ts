@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { MODEL_PROVIDER } from '../constants';
+import { MODEL_PROVIDER, MODEL_PROVIDER_OPTIONS } from '../constants';
 
 export interface PromptDef {
     id: string;
@@ -63,18 +63,36 @@ const DEFAULT_SETTINGS: AppSettings = {
         maxContextMessages: 10,
         systemPrompt: "You are an expert code assistant. Answer coding relevant topics only."
     },
-    models: {
-        textModel: 'gpt-5.2-pro',
-        imageModel: 'gpt-5.2-pro',
-        baseUrl: '',
-        apiKey: '',
-        provider: MODEL_PROVIDER.OPEN_AI,
-        providerSettings: {
-            [MODEL_PROVIDER.OPEN_AI]: { apiKey: '', baseUrl: 'https://api.openai.com/v1', textModel: 'gpt-5.2-pro', imageModel: 'gpt-5.2-pro' },
-            [MODEL_PROVIDER.GEMINI]: { apiKey: '', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', textModel: 'gemini-2.5-pro', imageModel: 'gemini-2.5-pro' }
-        },
-        inactiveModels: []
-    },
+    models: (() => {
+        const defaultProviderKey = Object.keys(MODEL_PROVIDER_OPTIONS)[0] || MODEL_PROVIDER.OPEN_AI;
+        const defaultProviderData = MODEL_PROVIDER_OPTIONS[defaultProviderKey] || { models: { text: [], image: [] } };
+        const defaultTextModel = (defaultProviderData.models?.text || [])[0] || '';
+        const defaultImageModel = (defaultProviderData.models?.image || [])[0] || '';
+
+        const dynamicProviderSettings: any = {};
+        for (const [key, data] of Object.entries(MODEL_PROVIDER_OPTIONS)) {
+            let baseUrl = '';
+            if (key === MODEL_PROVIDER.OPEN_AI) baseUrl = 'https://api.openai.com/v1';
+            if (key === MODEL_PROVIDER.GEMINI) baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
+            
+            dynamicProviderSettings[key] = {
+                apiKey: '',
+                baseUrl: baseUrl,
+                textModel: (data.models?.text || [])[0] || '',
+                imageModel: (data.models?.image || [])[0] || ''
+            };
+        }
+
+        return {
+            textModel: defaultTextModel,
+            imageModel: defaultImageModel,
+            baseUrl: '',
+            apiKey: '',
+            provider: defaultProviderKey as MODEL_PROVIDER.OPEN_AI | MODEL_PROVIDER.GEMINI,
+            providerSettings: dynamicProviderSettings,
+            inactiveModels: []
+        };
+    })(),
     permissions: {
         readFilesConfirmation: false,
         writeFilesConfirmation: true,
