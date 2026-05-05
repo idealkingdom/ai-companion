@@ -3,6 +3,7 @@ const tool = _tool as any;
 import { z } from 'zod';
 import * as cp from 'child_process';
 import * as vscode from 'vscode';
+import { outputChannel } from '../logger';
 
 /**
  * Creates the system/terminal tools for the agentic loop.
@@ -22,6 +23,12 @@ export function createSysTools() {
         execute: async (params: { command: string; cwd?: string }) => {
             const execCwd = params.cwd || workspaceRoot;
 
+            // Log command execution to the Output panel so the user can see it
+            outputChannel.appendLine(`\n──── 🔧 run_command ────────────────────────`);
+            outputChannel.appendLine(`$ ${params.command}`);
+            outputChannel.appendLine(`  cwd: ${execCwd}`);
+            outputChannel.show(true); // Reveal the output panel (preserveFocus=true)
+
             return new Promise<{ exitCode: number; output: string }>((resolve) => {
                 cp.exec(params.command, {
                     cwd: execCwd,
@@ -31,6 +38,13 @@ export function createSysTools() {
                 }, (error, stdout, stderr) => {
                     let output = stdout || '';
                     if (stderr) { output += '\nSTDERR:\n' + stderr; }
+
+                    // Mirror output to the Output panel
+                    if (output) {
+                        outputChannel.appendLine(output.substring(0, 3000));
+                    }
+                    const exitCode = error ? (error.code || 1) : 0;
+                    outputChannel.appendLine(`── exit code: ${exitCode} ──────────────────\n`);
 
                     if (output.length > 3000) {
                         output = output.substring(0, 3000) + '\n... [output truncated at 3000 chars]';
@@ -43,7 +57,7 @@ export function createSysTools() {
                         });
                     } else {
                         resolve({
-                            exitCode: error ? (error.code || 1) : 0,
+                            exitCode,
                             output: output || '(no output)'
                         });
                     }

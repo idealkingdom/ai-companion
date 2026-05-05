@@ -58,9 +58,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         });
 
         SettingsManager.onDidUpdateSettings((updated) => {
+            outputChannel.appendLine(`[ChatViewProvider] Settings updated — broadcasting to ${ChatViewProvider._activeWebviews.size} webview(s)`);
+            outputChannel.appendLine(`[ChatViewProvider] inactiveModels: ${JSON.stringify(updated.models?.inactiveModels || [])}`);
+            
             this.postMessage({ command: 'uiSettingsUpdate', ui: updated.ui });
             this.postMessage({ command: 'agentsUpdate', agents: updated.prompts || [] });
-            this.postMessage({ command: 'modelsUpdate', models: updated.models, customModels: updated.customModels });
+            this.postMessage({ 
+                command: 'modelsUpdate', 
+                models: updated.models, 
+                customModels: updated.customModels,
+                availableModels: getModelProviderOptions()
+            });
         });
     }
 

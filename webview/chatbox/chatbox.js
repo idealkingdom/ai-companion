@@ -2084,14 +2084,20 @@ window.addEventListener('message', event => {
             break;
 
         case 'modelsUpdate':
+            console.log('[Chatbox] modelsUpdate received', message);
             if (message.models) {
                 if (window.VS_CONSTANTS) {
                     window.VS_CONSTANTS.MODELS = message.models;
                     if (message.customModels) {
                         window.VS_CONSTANTS.CUSTOM_MODELS = message.customModels;
                     }
+                    if (message.availableModels) {
+                        window.VS_CONSTANTS.AVAILABLE_MODELS = message.availableModels;
+                    }
                 }
                 MODELS = message.models;
+                console.log('[Chatbox] inactiveModels:', MODELS.inactiveModels);
+                console.log('[Chatbox] Calling initModelDropdown()...');
                 initModelDropdown();
             }
             break;
