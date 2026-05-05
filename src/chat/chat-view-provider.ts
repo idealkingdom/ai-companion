@@ -8,7 +8,7 @@ import { SettingsManager } from '../services/settings-manager';
 import { outputChannel } from '../logger';
 
 
-import { EXTENSION_NAME } from '../constants';
+import { EXTENSION_NAME, MODEL_PROVIDER_OPTIONS } from '../constants';
 
 //CONSTANTS var
 import {
@@ -139,6 +139,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             WORKFLOWS: WORKFLOWS,
             AGENTS: settings.prompts || [],
             MODELS: settings.models,
+            AVAILABLE_MODELS: MODEL_PROVIDER_OPTIONS,
+            CUSTOM_MODELS: settings.customModels || [],
             PERMISSIONS: settings.permissions,
             UI: settings.ui
         });
