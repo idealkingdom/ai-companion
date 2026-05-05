@@ -7,6 +7,16 @@ export interface PromptDef {
     content: string;
     isActive: boolean;
     order: number;
+    linkedSources?: string[];
+}
+
+export interface CustomModel {
+    id: string;
+    name: string;
+    provider: string;
+    apiKey: string;
+    baseUrl: string;
+    supportsImage: boolean;
 }
 
 export interface AppSettings {
@@ -31,6 +41,7 @@ export interface AppSettings {
                 imageModel: string;
             }
         };
+        inactiveModels: string[]; // List of models explicitly marked as inactive
     };
     permissions: {
         readFilesConfirmation: boolean;
@@ -39,7 +50,10 @@ export interface AppSettings {
     };
     ui: {
         customCss: string;
+        lastCustomCss?: string;
     };
+    customTemplates?: { id: string; name: string; css: string }[];
+    customModels?: CustomModel[];
     prompts: PromptDef[];
 }
 
@@ -58,7 +72,8 @@ const DEFAULT_SETTINGS: AppSettings = {
         providerSettings: {
             [MODEL_PROVIDER.OPEN_AI]: { apiKey: '', baseUrl: 'https://api.openai.com/v1', textModel: 'gpt-4o', imageModel: 'gpt-4o' },
             [MODEL_PROVIDER.GEMINI]: { apiKey: '', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', textModel: 'gemini-2.5-pro', imageModel: 'gemini-2.5-pro' }
-        }
+        },
+        inactiveModels: []
     },
     permissions: {
         readFilesConfirmation: false,
@@ -71,7 +86,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     prompts: [
         {
             id: 'agent-assistant-1',
-            name: 'Assistant',
+            name: 'Chat',
             content: 'You are a helpful and expert AI coding assistant. Provide clean, secure, and well-documented code.',
             isActive: true,
             order: 1
@@ -113,7 +128,9 @@ export class SettingsManager {
             models: { ...DEFAULT_SETTINGS.models, ...stored.models },
             permissions: { ...DEFAULT_SETTINGS.permissions, ...stored.permissions },
             ui: { ...DEFAULT_SETTINGS.ui, ...stored.ui },
-            prompts: finalPrompts
+            prompts: finalPrompts,
+            customTemplates: stored.customTemplates || [],
+            customModels: stored.customModels || []
         };
 
         // Ensure providerSettings exists inside models if it wasn't there (though spread above handles it if stored.models has it)
