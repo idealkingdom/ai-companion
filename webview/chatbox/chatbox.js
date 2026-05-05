@@ -271,6 +271,10 @@ if (MODELS && currentModelLabel && modelOptionsMenu) {
 
     toolbarModelBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        
+        // Request fresh model data from backend every time the dropdown is opened
+        sendMessage('requestModels', {});
+        
         modelOptionsMenu.classList.toggle('hidden');
         if (permsOptionsMenu) permsOptionsMenu.classList.add('hidden');
         contextMenu.classList.add('hidden');

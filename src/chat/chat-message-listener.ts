@@ -134,6 +134,20 @@ export async function chatMessageListener(message: any) {
             break;
         }
 
+        // Pull-based model refresh: chatbox requests fresh model data (e.g. when dropdown opens)
+        case 'requestModels': {
+            const { getModelProviderOptions } = require('../constants');
+            const latestSettings = settingsManager.getSettings();
+            outputChannel.appendLine(`[requestModels] Sending fresh model data. inactiveModels: ${JSON.stringify(latestSettings.models?.inactiveModels || [])}`);
+            await ChatViewProvider.getInstance().postMessage({
+                command: 'modelsUpdate',
+                models: latestSettings.models,
+                customModels: latestSettings.customModels,
+                availableModels: getModelProviderOptions()
+            });
+            break;
+        }
+
         case CHAT_COMMANDS.CHAT_RESET:
             {
                 // Now: We generate ID and send it manually, or add resetChat() to your Service.
