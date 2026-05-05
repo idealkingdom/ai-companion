@@ -21,9 +21,8 @@ export interface CustomModel {
 
 export interface AppSettings {
     general: {
-        temperature: number;
-        maxContextMessages: number;
         systemPrompt: string;
+        enableTodoList?: boolean;
     };
     models: {
         textModel: string;
@@ -77,9 +76,8 @@ export const DEFAULT_SETTINGS: AppSettings = (() => {
 
     return {
         general: {
-            temperature: 0.7,
-            maxContextMessages: 10,
-            systemPrompt: "You are an expert code assistant. Answer coding relevant topics only."
+            systemPrompt: "You are an expert code assistant. Answer coding relevant topics only.",
+            enableTodoList: false
         },
         models: {
             textModel: defaultTextModel,

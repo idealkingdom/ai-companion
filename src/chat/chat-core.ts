@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as os from 'os';
 import { openAIRequest, openAIStreamRequest, openAIAgenticRequest } from '../api/ai';
 import { outputChannel } from '../logger';
 import { ROLE } from '../chat/chat-constants';
@@ -12,6 +13,30 @@ import { createToolRegistry } from '../tools/tool-registry';
 import { handleInlineReview } from './chat-message-listener';
 import { ReviewManager } from './review-manager';
 import { ApprovalService } from './approval-service';
+
+/**
+ * #52 — Collects system information so the agent knows which commands to run.
+ * Kept compact to minimize token usage.
+ */
+function getSystemInfo(): string {
+    const platform = os.platform(); // 'linux', 'darwin', 'win32'
+    const osName = platform === 'darwin' ? 'macOS' : platform === 'win32' ? 'Windows' : 'Linux';
+    const arch = os.arch();
+    const shell = process.env.SHELL || process.env.COMSPEC || (platform === 'win32' ? 'cmd.exe' : '/bin/bash');
+    const nodeVersion = process.version;
+    const vsCodeVersion = vscode.version;
+    const homeDir = os.homedir();
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || 'unknown';
+    const workspaceName = vscode.workspace.workspaceFolders?.[0]?.name || 'unknown';
+
+    return `--- SYSTEM INFO ---
+OS: ${osName} (${arch})
+Shell: ${shell}
+Node.js: ${nodeVersion}
+VS Code: ${vsCodeVersion}
+Home: ${homeDir}
+Workspace: ${workspaceName} → ${workspaceRoot}`;
+}
 
 export interface AgentStepEvent {
     type: 'tool_call' | 'tool_result' | 'thinking' | 'text_chunk';
@@ -80,11 +105,12 @@ export class ChatCoreService {
         // 1. GET SETTINGS
         const appSettings = this.settingsManager.getSettings();
 
-        const maxContext = appSettings.general.maxContextMessages;
+        // #49: Use smart defaults instead of user-configurable temperature/context
+        const maxContext = (appSettings.general as any)?.maxContextMessages ?? 20;
         const currentProvider = appSettings.models.provider;
         const pSettings = appSettings.models.providerSettings?.[currentProvider] || {};
         const accessToken = pSettings.apiKey || '';
-        const temperature = appSettings.general.temperature;
+        const temperature = 0.7; // Smart default
 
         let aiResponseText = "";
         let totalUsage: any = null;
@@ -235,9 +261,11 @@ export class ChatCoreService {
         settings: any, onChunk?: (text: string) => void, abortSignal?: AbortSignal
     ): Promise<{ text: string, usage?: any }> {
 
-        // Default Chat uses the global system prompt.
-        const systemPrompt = settings.general.systemPrompt || "You are an expert AI assistant.";
-        const steps = [{ content: systemPrompt }];
+        // Default Chat uses the global system prompt + system info (#52)
+        const systemPrompt = settings.general?.systemPrompt || "You are an expert AI assistant.";
+        const systemInfo = getSystemInfo();
+        const fullSystemPrompt = `${systemPrompt}\n\n${systemInfo}`;
+        const steps = [{ content: fullSystemPrompt }];
 
         let pipelineContext = currentMessage;
         let aiResponseText = "";
@@ -296,14 +324,27 @@ export class ChatCoreService {
         ReviewManager.getInstance().startTurn();
 
         // Resolve the agent's system prompt
-        const agent = settings.prompts.find((p: any) => p.id === data.agentId);
-        const systemPrompt = agent?.content || settings.general.systemPrompt || "You are an expert AI assistant.";
+        const agent = (settings.prompts || []).find((p: any) => p.id === data.agentId);
+        const systemPrompt = agent?.content || settings.general?.systemPrompt || "You are an expert AI assistant.";
 
         outputChannel.appendLine(`[Agentic] Agent=${data.agentId}, model=${model}, agentName=${agent?.name}`);
 
-        // Build the workspace-aware system prompt
+        // Build the workspace-aware system prompt with system info (#52)
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || 'unknown';
+        const systemInfo = getSystemInfo();
+        
+        // #50: Task tracking prompt (when enabled)
+        const todoInstruction = settings.general?.enableTodoList
+            ? `\n\nTASK TRACKING:
+When handling complex multi-step requests, create a task checklist at the start.
+Format each item as: ⬜ [task description]
+As you complete each task, update it to: ✅ [task description]
+Show the updated checklist after each step so the user can track progress.`
+            : '';
+
         const agenticSystemPrompt = `${systemPrompt}
+
+${systemInfo}
 
 --- AGENT CONTEXT ---
 You have access to tools to read, search, and modify files in the user's workspace.
@@ -321,7 +362,7 @@ RULES:
 - NEVER read an entire large file. Use skeleton first, then line ranges.
 - When editing, provide the EXACT target text to replace (including whitespace).
 - Always verify your changes compile after editing.
-- Edits are STAGED for review. Inform the user that changes are staged and instruct them to click Approve in the UI.`;
+- Edits are STAGED for review. Inform the user that changes are staged and instruct them to click Approve in the UI.${todoInstruction}`;
 
         // Build payload
         const messages = [
@@ -417,6 +458,15 @@ RULES:
                 if (part.type === 'text-delta') {
                     fullText += part.text;
                     if (onChunk) { onChunk(part.text); }
+                } else if ((part as any).type === 'reasoning' || (part as any).type === 'reasoning-delta') {
+                    // #44: Stream thinking/reasoning tokens to the frontend
+                    const reasoningText = (part as any).text || (part as any).reasoning || '';
+                    if (reasoningText && onAgentStep) {
+                        onAgentStep({
+                            type: 'thinking',
+                            text: reasoningText
+                        });
+                    }
                 } else if (part.type === 'error') {
                     outputChannel.appendLine(`[Agentic] Stream error part: ${part.error}`);
                 } else if (part.type === 'tool-call') {
@@ -465,21 +515,35 @@ RULES:
 
     /**
      * Ephemeral Memory Compaction: Truncate large tool results from older messages.
+     * Also deduplicates system prompts (#47) to save context tokens.
      */
     private compactMessages(messages: any[]): any[] {
-        return messages.map((msg, idx) => {
-            // Only compact messages that aren't the last 2 (keep recent context fresh)
-            if (idx < messages.length - 2 && msg.role === 'tool' && msg.content) {
-                const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-                if (content.length > 500) {
-                    return {
-                        ...msg,
-                        content: '[Tool output condensed for memory efficiency — ' + content.length + ' chars]'
-                    };
+        const seenSystemContents = new Set<string>();
+        return messages
+            .filter((msg) => {
+                // #47: Deduplicate system messages — keep only the first occurrence
+                if (msg.role === 'system') {
+                    const key = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+                    if (seenSystemContents.has(key)) {
+                        return false; // Remove duplicate system prompt
+                    }
+                    seenSystemContents.add(key);
                 }
-            }
-            return msg;
-        });
+                return true;
+            })
+            .map((msg, idx, arr) => {
+                // Only compact messages that aren't the last 2 (keep recent context fresh)
+                if (idx < arr.length - 2 && msg.role === 'tool' && msg.content) {
+                    const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+                    if (content.length > 500) {
+                        return {
+                            ...msg,
+                            content: '[Tool output condensed for memory efficiency — ' + content.length + ' chars]'
+                        };
+                    }
+                }
+                return msg;
+            });
     }
 
     /**

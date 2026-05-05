@@ -933,30 +933,77 @@ function renderAgentStep(step) {
     if (!step) { return; }
 
     if (step.type === 'thinking') {
-        // Remove empty agent group if present
-        const activeGroup = chatbox.querySelector('details.agent-steps-group:not([data-finalized="true"])');
-        if (activeGroup) {
-            const stepsContainer = activeGroup.querySelector('.agent-steps-container');
-            if (stepsContainer && stepsContainer.children.length === 0) {
-                if (activeGroup.dataset.timer) {
-                    clearInterval(parseInt(activeGroup.dataset.timer));
+        // Differentiate between status messages and actual reasoning tokens
+        const isStatusMessage = step.text && (
+            step.text.startsWith('Agent completed') ||
+            step.text.startsWith('🛑') ||
+            step.text.startsWith('❌')
+        );
+
+        if (isStatusMessage) {
+            // Status messages render as simple inline cards (existing behavior)
+            const activeGroup = chatbox.querySelector('details.agent-steps-group:not([data-finalized="true"])');
+            if (activeGroup) {
+                const stepsContainer = activeGroup.querySelector('.agent-steps-container');
+                if (stepsContainer && stepsContainer.children.length === 0) {
+                    if (activeGroup.dataset.timer) {
+                        clearInterval(parseInt(activeGroup.dataset.timer));
+                    }
+                    activeGroup.remove();
                 }
-                activeGroup.remove();
             }
+
+            const thinkingEl = document.createElement('div');
+            thinkingEl.className = 'agent-step-card thinking';
+            thinkingEl.innerHTML = `
+                <div class="step-header">
+                    <span class="step-icon">✦</span>
+                    <span class="step-tool-name">${step.text}</span>
+                </div>
+            `;
+            chatbox.appendChild(thinkingEl);
+            scrollToBottom();
+            return;
         }
 
-        // Thinking steps like "Agent completed in X steps" should be outside the dropdown
-        const thinkingEl = document.createElement('div');
-        thinkingEl.className = 'agent-step-card thinking';
-        thinkingEl.innerHTML = `
-            <div class="step-header">
-                <span class="step-icon">✦</span>
-                <span class="step-tool-name">${step.text}</span>
-            </div>
-        `;
-        chatbox.appendChild(thinkingEl);
+        // #44: Actual reasoning/thinking tokens — stream into a collapsible block
+        let thinkingBlock = chatbox.querySelector('.agent-thinking-block:not([data-finalized="true"])');
+        if (!thinkingBlock) {
+            thinkingBlock = document.createElement('details');
+            thinkingBlock.className = 'agent-thinking-block';
+            thinkingBlock.open = false; // collapsed by default
+
+            const summary = document.createElement('summary');
+            summary.className = 'thinking-summary';
+            summary.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                <span class="thinking-icon">💭</span>
+                <span class="thinking-label">Thinking...</span>
+            `;
+            thinkingBlock.appendChild(summary);
+
+            const content = document.createElement('div');
+            content.className = 'thinking-content';
+            thinkingBlock.appendChild(content);
+
+            chatbox.appendChild(thinkingBlock);
+        }
+
+        // Append the reasoning delta text
+        const contentEl = thinkingBlock.querySelector('.thinking-content');
+        if (contentEl && step.text) {
+            contentEl.textContent += step.text;
+        }
         scrollToBottom();
         return;
+    }
+
+    // Finalize any open thinking block when a non-thinking step arrives
+    const openThinking = chatbox.querySelector('.agent-thinking-block:not([data-finalized="true"])');
+    if (openThinking) {
+        openThinking.dataset.finalized = 'true';
+        const label = openThinking.querySelector('.thinking-label');
+        if (label) { label.textContent = 'Thought process'; }
     }
 
     // Find or create the active agent steps container wrapper
@@ -1064,19 +1111,6 @@ function renderAgentStep(step) {
             statusEl.classList.remove('running');
             statusEl.classList.add('done');
         }
-        scrollToBottom();
-        return;
-    } else if (step.type === 'thinking') {
-        // Thinking steps like "Agent completed in X steps" should be outside the dropdown
-        const thinkingEl = document.createElement('div');
-        thinkingEl.className = 'agent-step-card thinking';
-        thinkingEl.innerHTML = `
-            <div class="step-header">
-                <span class="step-icon">✦</span>
-                <span class="step-tool-name">${step.text}</span>
-            </div>
-        `;
-        chatbox.appendChild(thinkingEl);
         scrollToBottom();
         return;
     }

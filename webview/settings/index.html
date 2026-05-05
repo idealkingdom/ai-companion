@@ -95,20 +95,19 @@
 
                 <div class="glass-panel">
                     <div class="panel-section">
-                        <h3>Session Tuning</h3>
-                        <p class="section-desc">Adjust the global creativity and memory scope.</p>
+                        <h3>Agent Capabilities</h3>
+                        <p class="section-desc">Enable or disable agent features.</p>
 
                         <div class="field-row mt-4">
                             <div class="form-group flex-1">
-                                <label>Model Temperature <span class="highlight-val" id="tempValue">0.7</span></label>
-                                <div class="slider-wrapper">
-                                    <input type="range" id="tempInput" class="styled-slider" min="0" max="2" step="0.1"
-                                        value="0.7">
-                                </div>
-                            </div>
-                            <div class="form-group flex-1">
-                                <label>Max Context (Messages)</label>
-                                <input type="number" id="contextInput" class="styled-input" value="10" min="1" max="50">
+                                <label for="enableTodoList" style="display: flex; align-items: center; justify-content: space-between;">
+                                    Task Tracking (To-Do List)
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="enableTodoList">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </label>
+                                <p class="section-desc" style="margin-top: 4px;">Allow the agent to create and manage a task checklist during multi-step work.</p>
                             </div>
                         </div>
                     </div>

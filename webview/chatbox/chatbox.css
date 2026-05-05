@@ -1115,6 +1115,77 @@ details[open] summary .file-arrow {
     margin: 8px 0;
 }
 
+/* ─── Thinking/Reasoning Block (#44) ─── */
+.agent-thinking-block {
+    background: transparent;
+    margin: 8px 0;
+}
+
+.thinking-summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(156, 39, 176, 0.08);
+    border: 1px solid rgba(156, 39, 176, 0.2);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--text-color);
+    font-weight: 500;
+    user-select: none;
+    list-style: none;
+    transition: background 0.2s;
+    width: max-content;
+}
+
+.thinking-summary::-webkit-details-marker {
+    display: none;
+}
+
+.thinking-summary:hover {
+    background: rgba(156, 39, 176, 0.15);
+}
+
+.thinking-summary .chevron {
+    transition: transform 0.2s;
+    opacity: 0.7;
+}
+
+.agent-thinking-block[open] .thinking-summary .chevron {
+    transform: rotate(90deg);
+}
+
+.thinking-icon {
+    font-size: 0.85rem;
+}
+
+.thinking-label {
+    font-size: 0.78rem;
+    color: #ce93d8;
+    font-weight: 500;
+}
+
+.thinking-content {
+    padding: 10px 14px;
+    margin-left: 12px;
+    margin-top: 4px;
+    border-left: 2px solid rgba(156, 39, 176, 0.2);
+    font-size: 0.72rem;
+    font-family: var(--font-editor);
+    color: rgba(255, 255, 255, 0.5);
+    white-space: pre-wrap;
+    line-height: 1.5;
+    max-height: 300px;
+    overflow-y: auto;
+    animation: thinkingFadeIn 0.3s ease-out;
+}
+
+@keyframes thinkingFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
 .agent-steps-summary {
     display: flex;
     align-items: center;

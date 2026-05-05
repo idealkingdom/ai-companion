@@ -4,7 +4,7 @@ const vscode = acquireVsCodeApi();
 
 // --- STATE ---
 let currentSettings = {
-    general: { temperature: 0.7, maxContextMessages: 10 },
+    general: { enableTodoList: false, systemPrompt: '' },
     models: {
         textModel: 'gpt-4o', imageModel: 'gpt-4o-mini', baseUrl: '', apiKey: '', provider: 'OpenAI',
         providerSettings: {}
@@ -124,9 +124,7 @@ const apiKeyInput = document.getElementById('apiKeyInput');
 const baseUrlInput = document.getElementById('baseUrlInput');
 const textModelInput = document.getElementById('textModelInput');
 const imageModelInput = document.getElementById('imageModelInput');
-const tempInput = document.getElementById('tempInput');
-const tempValue = document.getElementById('tempValue');
-const contextInput = document.getElementById('contextInput');
+const enableTodoListInput = document.getElementById('enableTodoList');
 const customCssInput = document.getElementById('customCssInput');
 const resetCssBtn = document.getElementById('resetCssBtn');
 const themeTemplateSelect = document.getElementById('themeTemplateSelect');
@@ -568,10 +566,7 @@ tabs.forEach(tab => {
     });
 });
 
-// Temperature Slider
-tempInput.addEventListener('input', (e) => {
-    tempValue.textContent = e.target.value;
-});
+// (Temperature slider removed — #49)
 
 // Toggle API Key Visibility
 if (showKeyToggleBtn) {
@@ -700,9 +695,9 @@ function populateForm() {
     imageModelInput.value = models.imageModel;
 
     // General
-    tempInput.value = general.temperature;
-    tempValue.textContent = general.temperature;
-    contextInput.value = general.maxContextMessages;
+    if (enableTodoListInput) {
+        enableTodoListInput.checked = general.enableTodoList || false;
+    }
 
     // UI
     if (ui) {
@@ -763,8 +758,9 @@ function updateDeleteButtonVisibility() {
 }
 
 function collectSettings() {
-    currentSettings.general.temperature = parseFloat(tempInput.value);
-    currentSettings.general.maxContextMessages = parseInt(contextInput.value);
+    if (enableTodoListInput) {
+        currentSettings.general.enableTodoList = enableTodoListInput.checked;
+    }
     
     if (!currentSettings.ui) {
         currentSettings.ui = {};
