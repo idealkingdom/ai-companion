@@ -46,6 +46,12 @@
           <h1 class="welcome-title">AI Companion</h1>
           <p class="welcome-subtitle">Ask anything about your code, or start a new task.</p>
         </div>
+        <!-- #48: Sticky notification when agent asks a question -->
+        <div id="agent-question-banner" class="agent-question-banner hidden">
+          <span class="question-icon">💬</span>
+          <span id="agent-question-text">Agent is asking a question — answer to proceed</span>
+          <button id="dismiss-question-btn" class="dismiss-question-btn" aria-label="Dismiss">✕</button>
+        </div>
         <div id="chatMessages" class="chat-messages">
         </div>
       </main>

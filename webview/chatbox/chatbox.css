@@ -1918,3 +1918,55 @@ details[open] summary .file-arrow {
   opacity: 1;
   background: rgba(128, 128, 128, 0.2);
 }
+
+/* ═══════════════════════════════════════════════════════════
+   #48 — AGENT QUESTION STICKY BANNER
+   ═══════════════════════════════════════════════════════════ */
+
+.agent-question-banner {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(255, 167, 38, 0.12);
+  border: 1px solid rgba(255, 167, 38, 0.3);
+  border-radius: 0 0 8px 8px;
+  backdrop-filter: blur(12px);
+  animation: bannerSlideDown 0.3s ease-out;
+  font-size: 0.78rem;
+  color: #ffcc80;
+  font-weight: 500;
+}
+
+.agent-question-banner.hidden {
+  display: none;
+}
+
+.question-icon {
+  font-size: 1rem;
+}
+
+.dismiss-question-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: rgba(255, 204, 128, 0.6);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.dismiss-question-btn:hover {
+  color: #fff;
+  background: rgba(255, 167, 38, 0.2);
+}
+
+@keyframes bannerSlideDown {
+  from { opacity: 0; transform: translateY(-100%); }
+  to { opacity: 1; transform: translateY(0); }
+}

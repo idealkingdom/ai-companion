@@ -548,6 +548,38 @@ function showHistoryView(historyGroups) {
 }
 // --- END VIEW SWITCHING ---
 
+// ─── #48: AGENT QUESTION STICKY BANNER ─────────────────────────────
+const questionBanner = document.getElementById('agent-question-banner');
+const questionText = document.getElementById('agent-question-text');
+const dismissQuestionBtn = document.getElementById('dismiss-question-btn');
+
+function showQuestionBanner(agentName) {
+    if (!questionBanner) return;
+    const name = agentName || 'Agent';
+    questionText.textContent = `${name} is asking a question — answer to proceed`;
+    questionBanner.classList.remove('hidden');
+}
+
+function hideQuestionBanner() {
+    if (!questionBanner) return;
+    questionBanner.classList.add('hidden');
+}
+
+/**
+ * Heuristic: check if the AI's last response ends with a question.
+ * Looks at the last 200 chars of the accumulated response.
+ */
+function detectsQuestion(text) {
+    if (!text || text.length < 5) return false;
+    const tail = text.trim().slice(-200);
+    // Check if it ends with a question mark (ignore trailing whitespace/markdown)
+    const cleaned = tail.replace(/[\s*_`#>]+$/, '');
+    return cleaned.endsWith('?');
+}
+
+if (dismissQuestionBtn) {
+    dismissQuestionBtn.addEventListener('click', hideQuestionBanner);
+}
 
 
 let isGenerating = false;
@@ -1695,6 +1727,7 @@ sendButton.addEventListener("click", event => {
         sendMessage(CHAT_COMMANDS.CHAT_REQUEST, payload);
 
         // --- UI CLEANUP ---
+        hideQuestionBanner(); // #48: Dismiss question banner on reply
         showLoadingIndicator(); // Show dots while waiting for backend echo
         toggleSendButton("disabled");
 
@@ -2045,6 +2078,15 @@ window.addEventListener('message', event => {
                     addAllCopyButtons();
                 }, 0);
             }
+            
+            // #48: Check if AI ended with a question
+            if (activeStreamAccumulator && detectsQuestion(activeStreamAccumulator)) {
+                // Find active agent name
+                const agentLabel = document.querySelector('.agent-selector-label');
+                const agentName = agentLabel ? agentLabel.textContent.trim() : 'Agent';
+                showQuestionBanner(agentName);
+            }
+            
             activeStreamNode = null;
             activeStreamAccumulator = "";
             isGenerating = false;
