@@ -93,36 +93,38 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
-    // 5. Register Review Manager Commands
+    // 5. Register Review Manager Commands — #43 Direct-Write Model
     const reviewManager = ReviewManager.getInstance();
     context.subscriptions.push(
-        vscode.commands.registerCommand('ai-companion.nextDiff', () => reviewManager.openNextDiff()),
-        vscode.commands.registerCommand('ai-companion.prevDiff', () => reviewManager.openPrevDiff()),
-        vscode.commands.registerCommand('ai-companion.acceptCurrent', () => reviewManager.commitCurrent()),
-        vscode.commands.registerCommand('ai-companion.rejectCurrent', () => reviewManager.discardCurrent()),
-        vscode.commands.registerCommand('ai-companion.acceptAll', () => reviewManager.commitAll()),
-        vscode.commands.registerCommand('ai-companion.rejectAll', () => reviewManager.discardAll())
+        vscode.commands.registerCommand('ai-companion.acceptEdit', (uriStr: string, editIndex: number) => {
+            reviewManager.acceptEdit(uriStr, editIndex);
+            vscode.window.showInformationMessage('Change accepted.');
+        }),
+        vscode.commands.registerCommand('ai-companion.revertEdit', async (uriStr: string, editIndex: number) => {
+            await reviewManager.revertEdit(uriStr, editIndex);
+            vscode.window.showInformationMessage('Change reverted.');
+        }),
+        vscode.commands.registerCommand('ai-companion.acceptAll', (uriStr?: string) => {
+            if (uriStr) {
+                reviewManager.acceptAllForFile(uriStr);
+            } else {
+                reviewManager.commitAll();
+            }
+            vscode.window.showInformationMessage('All changes accepted.');
+        }),
+        vscode.commands.registerCommand('ai-companion.rejectAll', async (uriStr?: string) => {
+            if (uriStr) {
+                await reviewManager.revertAllForFile(uriStr);
+            } else {
+                await reviewManager.discardAll();
+            }
+            vscode.window.showInformationMessage('All changes reverted.');
+        })
     );
 
-    // 6. Direct In-File Review Features
+    // 6. Direct In-File Review Features (CodeLens + Decorations)
     context.subscriptions.push(
         vscode.languages.registerCodeLensProvider({ scheme: 'file' }, new ReviewCodeLensProvider())
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('ai-companion.toggleHunk', async (uriStr: string, index: number, accepted: boolean) => {
-            reviewManager.toggleHunk(uriStr, index, accepted);
-            
-            // Sync with Webview
-            const view = ChatViewProvider.getView();
-            if (view && view.webview) {
-                const hunksData = reviewManager.getHunksForAllFiles();
-                view.webview.postMessage({
-                    command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
-                    content: hunksData
-                });
-            }
-        })
     );
 
     // Update decorations when editor changes

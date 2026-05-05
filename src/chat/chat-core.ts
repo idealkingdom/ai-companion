@@ -374,7 +374,7 @@ RULES:
 - NEVER read an entire large file. Use skeleton first, then line ranges.
 - When editing, provide the EXACT target text to replace (including whitespace).
 - Always verify your changes compile after editing.
-- Edits are STAGED for review. Inform the user that changes are staged and instruct them to click Approve in the UI.${todoInstruction}`;
+- Edits are applied DIRECTLY to the file. The user can review changes inline and revert if needed.${todoInstruction}`;
 
         // Build payload
         const messages = [
@@ -470,15 +470,17 @@ RULES:
                 if (part.type === 'text-delta') {
                     fullText += part.text;
                     if (onChunk) { onChunk(part.text); }
-                } else if ((part as any).type === 'reasoning' || (part as any).type === 'reasoning-delta') {
-                    // #44: Stream thinking/reasoning tokens to the frontend
-                    const reasoningText = (part as any).text || (part as any).reasoning || '';
+                } else if (part.type === 'reasoning-delta' || (part as any).type === 'reasoning') {
+                    // #44: AI SDK fullStream reasoning-delta has 'delta' property (not 'text')
+                    const reasoningText = (part as any).delta || (part as any).text || (part as any).reasoning || '';
                     if (reasoningText && onAgentStep) {
                         onAgentStep({
                             type: 'thinking',
                             text: reasoningText
                         });
                     }
+                } else if (part.type === 'reasoning-end') {
+                    outputChannel.appendLine(`[Agentic] Reasoning block ended`);
                 } else if (part.type === 'error') {
                     outputChannel.appendLine(`[Agentic] Stream error part: ${part.error}`);
                 } else if (part.type === 'tool-call') {
@@ -491,6 +493,9 @@ RULES:
                     outputChannel.appendLine(`[Agentic] Step started`);
                 } else if (part.type === 'finish-step') {
                     outputChannel.appendLine(`[Agentic] Step finished: reason=${part.finishReason}, usage=${JSON.stringify(part.usage)}`);
+                } else {
+                    // Debug: log unknown part types so we can catch new ones
+                    outputChannel.appendLine(`[Agentic] Unknown stream part type: ${(part as any).type}`);
                 }
             }
 

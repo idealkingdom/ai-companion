@@ -636,10 +636,15 @@ function scrollToBottom() {
     // Use rAF to ensure DOM has been painted before scrolling
     requestAnimationFrame(() => {
         chatLog.scrollTop = chatLog.scrollHeight;
-        // Double-tap for sticky elements that may resize after paint
+        // Double-tap: after sticky elements may have resized
         setTimeout(() => {
             chatLog.scrollTop = chatLog.scrollHeight;
-        }, 50);
+            // Also scroll the last element into view as a fallback
+            const lastChild = chatbox.lastElementChild;
+            if (lastChild) {
+                lastChild.scrollIntoView({ block: 'end', behavior: 'instant' });
+            }
+        }, 60);
     });
 }
 

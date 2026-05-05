@@ -114,7 +114,7 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
 
     // ─── TOOL: chunk_replace ────────────────────────────────────────────
     const chunk_replace = tool({
-        description: 'Replace a specific block of text in a file. Provide the exact target text to find and the replacement text. This is a surgical edit — only the matched text is replaced.',
+        description: 'Replace a specific block of text in a file. Provide the exact target text to find and the replacement text. This is a surgical edit — only the matched text is replaced. Changes are written directly to the file.',
         inputSchema: z.object({
             filePath: z.string().describe('Path to the file'),
             targetContent: z.string().describe('The exact text to find and replace (must match exactly). Strip any L-prefix line numbers like "L12: " which are only for your reference.'),
@@ -124,45 +124,35 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
             const absPath = resolvePath(params.filePath);
             const fileUri = vscode.Uri.file(absPath);
             
-            // 1. Ensure the file is initialized in the staging buffer
+            // Clean L-prefix line numbers
+            const cleanTarget = params.targetContent.replace(/^L\d+:\s/gm, '');
+            const cleanReplacement = params.replacementContent.replace(/^L\d+:\s/gm, '');
+
+            // #43: Direct-write — apply to file immediately
             const reviewManager = ReviewManager.getInstance();
-            await reviewManager.ensureInitialized(fileUri);
+            const result = await reviewManager.applyDirectEdit(
+                fileUri,
+                cleanTarget,
+                cleanReplacement,
+                'chunk_replace'
+            );
 
-            // 2. Get current shadow content (latest state with any previous edits)
-            const content = reviewManager.getShadowContent(fileUri);
-
-            // 3. Prepare edits
-            const cleanTargetContent = params.targetContent.replace(/^L\d+:\s/gm, '');
-            const cleanReplacementContent = params.replacementContent.replace(/^L\d+:\s/gm, '');
-
-            if (!content.includes(cleanTargetContent)) {
-                if (content.includes(cleanReplacementContent)) {
-                    return { success: true, message: 'Change already staged.', file: params.filePath };
-                }
-                return { error: 'Target content not found in staging buffer. Ensure you are providing the EXACT text without line number prefixes.' };
+            if (!result.success) {
+                return { error: result.error || 'Failed to apply edit.' };
             }
-
-            const count = content.split(cleanTargetContent).length - 1;
-            if (count > 1) {
-                return { error: `Found ${count} occurrences in staging. Provide more context to make target unique.` };
-            }
-
-            // 4. Update the shadow content (staging)
-            const updated = content.replace(cleanTargetContent, cleanReplacementContent);
-            reviewManager.updateShadow(fileUri, updated);
 
             return {
                 success: true,
-                message: 'Changes staged for review.',
+                message: 'Changes applied directly to file. User can review via inline highlights.',
                 file: params.filePath,
-                linesReplaced: cleanTargetContent.split('\n').length
+                linesReplaced: cleanTarget.split('\n').length
             };
         }
     } as any);
 
     // ─── TOOL: create_file ──────────────────────────────────────────────
     const create_file = tool({
-        description: 'Create a new file with the given content. Parent directories will be created automatically.',
+        description: 'Create a new file with the given content. Parent directories will be created automatically. The file is created immediately.',
         inputSchema: z.object({
             filePath: z.string().describe('Path for the new file'),
             content: z.string().describe('Content to write')
@@ -170,16 +160,30 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
         execute: async (params: { filePath: string; content: string }) => {
             const absPath = resolvePath(params.filePath);
             const fileUri = vscode.Uri.file(absPath);
-            
-            const reviewManager = ReviewManager.getInstance();
-            await reviewManager.ensureInitialized(fileUri);
 
             const cleanContent = params.content.replace(/^L\d+:\s/gm, '');
-            reviewManager.updateShadow(fileUri, cleanContent);
+
+            // Ensure parent directory exists
+            const dir = require('path').dirname(absPath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
+
+            // #43: Direct-write — create file immediately
+            const reviewManager = ReviewManager.getInstance();
+            const result = await reviewManager.applyDirectCreate(
+                fileUri,
+                cleanContent,
+                'create_file'
+            );
+
+            if (!result.success) {
+                return { error: result.error || 'Failed to create file.' };
+            }
 
             return { 
                 success: true, 
-                message: 'New file staged for creation.',
+                message: 'File created successfully.',
                 file: params.filePath, 
                 lines: cleanContent.split('\n').length 
             };

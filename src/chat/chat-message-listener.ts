@@ -16,9 +16,8 @@ import * as os from 'os';
 import * as crypto from 'crypto';
 import { SettingsManager } from '../services/settings-manager';
 import { ApprovalService } from "./approval-service";
-import { DiffContentProvider } from "./diff-content-provider";
+
 import { ReviewManager } from "./review-manager";
-import * as Diff from 'diff';
 import { PopupManager } from "./popup-manager";
 
 // For Handshake/Syncing
@@ -778,55 +777,47 @@ export async function chatMessageListener(message: any) {
 
         case CHAT_COMMANDS.CHAT_REVIEW_HUNKS:
             {
-                outputChannel.appendLine('[ReviewHunks] Computing hunks for all staged files...');
+                // #43: In direct-write model, just report pending edit count
                 const reviewManager = ReviewManager.getInstance();
-                const hunksData = reviewManager.getHunksForAllFiles();
+                const count = reviewManager.getTotalPendingCount();
                 
-                if (hunksData.length === 0) {
-                    vscode.window.showInformationMessage('No changes currently staged for review.');
-                    break;
+                if (count === 0) {
+                    vscode.window.showInformationMessage('No pending changes to review.');
+                } else {
+                    // Open the first file with pending edits so the user can see CodeLens
+                    const uris = reviewManager.getStagedUris();
+                    if (uris.length > 0) {
+                        await vscode.window.showTextDocument(uris[0]);
+                    }
+                    vscode.window.showInformationMessage(`${count} pending change(s) across ${uris.length} file(s). Use inline Accept/Revert buttons.`);
                 }
-
-                outputChannel.appendLine(`[ReviewHunks] Sending ${hunksData.length} files with hunks to webview.`);
-                await ChatViewProvider.getInstance().postMessage({
-                    command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
-                    content: hunksData
-                });
                 break;
             }
 
         case CHAT_COMMANDS.COMMIT_SELECTED_HUNKS:
             {
-                const { selections, action } = message.data;
-                outputChannel.appendLine(`[CommitHunks] Action: ${action}, Files: ${selections?.length || 0}`);
+                const { action } = message.data;
+                outputChannel.appendLine(`[Review] Action: ${action}`);
                 
                 if (action === 'discard') {
                     await ReviewManager.getInstance().discardAll();
-                    // Notify webview to close the review panel
-                    await ChatViewProvider.getInstance().postMessage({
-                        command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
-                        content: [] // Empty = panel closes
-                    });
+                    vscode.window.showInformationMessage('All changes reverted.');
                 } else if (action === 'commit') {
-                    const success = await ReviewManager.getInstance().commitSelectedHunks(selections);
-                    if (success) {
-                        vscode.window.showInformationMessage('Selected changes committed successfully.');
-                    } else {
-                        vscode.window.showErrorMessage('Failed to commit selected changes.');
-                    }
-                    // Panel closes on commit
-                    await ChatViewProvider.getInstance().postMessage({
-                        command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
-                        content: []
-                    });
+                    await ReviewManager.getInstance().commitAll();
+                    vscode.window.showInformationMessage('All changes accepted.');
                 }
+                
+                // Notify webview
+                await ChatViewProvider.getInstance().postMessage({
+                    command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
+                    content: []
+                });
                 break;
             }
 
         case CHAT_COMMANDS.CHAT_TOGGLE_HUNK:
             {
-                const { uri, index, accepted } = message.data;
-                ReviewManager.getInstance().toggleHunk(uri, index, accepted);
+                // Legacy — no-op in direct-write model
                 break;
             }
 
@@ -835,19 +826,8 @@ export async function chatMessageListener(message: any) {
                 const { uri } = message.data;
                 const fileUri = vscode.Uri.parse(uri);
                 
-                // #43: If this file has staged changes, open the native diff view instead
-                const reviewManager = ReviewManager.getInstance();
-                const stagedUris = reviewManager.getStagedUris();
-                const stagedIndex = stagedUris.findIndex(u => u.toString() === fileUri.toString());
-                
-                if (stagedIndex >= 0) {
-                    // Open native VS Code diff view for this file
-                    reviewManager.openDiffForIndex(stagedIndex);
-                    outputChannel.appendLine(`[OpenFile] Opened diff view for staged file: ${fileUri.fsPath}`);
-                } else {
-                    // No staged changes — just open the file normally
-                    await vscode.window.showTextDocument(fileUri);
-                }
+                // #43: Just open the file — CodeLens + Decorations handle the review inline
+                await vscode.window.showTextDocument(fileUri);
                 break;
             }
 
@@ -891,42 +871,33 @@ export async function handleInlineReview(
     args?: any
 ) {
     try {
-        const reviewManager = ReviewManager.getInstance();
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
         
         let fileUri: vscode.Uri | undefined;
 
         // A. Global Review Mode (User clicked "Review All")
         if (!args || !args.filePath && !args.TargetFile) {
+            const reviewManager = ReviewManager.getInstance();
             const stagedUris = Array.from(reviewManager.getStagedUris());
             if (stagedUris.length === 0) {
-                vscode.window.showInformationMessage('No changes currently staged.');
+                vscode.window.showInformationMessage('No pending changes.');
                 return;
             }
-            reviewManager.openDiffForIndex(0);
+            // #43: Open the first file with pending edits — CodeLens handles the rest
+            await vscode.window.showTextDocument(stagedUris[0]);
             return;
         } else {
-            // B. Specific Tool Review
+            // B. Specific Tool Review — open the edited file
             const filePathParam = args.filePath || args.TargetFile;
             const filePath = path.isAbsolute(filePathParam) ? filePathParam : path.join(workspaceRoot, filePathParam);
             fileUri = vscode.Uri.file(filePath);
         }
 
         if (!fileUri) { return; }
-        const fileName = path.basename(fileUri.fsPath);
-
-        await reviewManager.ensureInitialized(fileUri);
-        const shadowUri = reviewManager.getShadowUri(fileUri);
-        const originalUri = reviewManager.getOriginalUri(fileUri);
         
-        // Open the diff: Left = Original Workspace File (Virtual), Right = Proposed Shadow
-        await vscode.commands.executeCommand('vscode.diff', 
-            originalUri, 
-            shadowUri, 
-            `${fileName} (Proposed via ${toolName})`
-        );
-
-        outputChannel.appendLine(`[InlineReview] Opened diff for ${fileName}`);
+        // #43: Just open the file — decorations + CodeLens show the review inline
+        await vscode.window.showTextDocument(fileUri);
+        outputChannel.appendLine(`[InlineReview] Opened ${path.basename(fileUri.fsPath)} for inline review`);
     } catch (e) {
         outputChannel.appendLine(`[InlineReview] Error: ${e}`);
     }

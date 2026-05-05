@@ -118,7 +118,9 @@ export async function openAIAgenticRequest(
             streamOptions.providerOptions = {
                 openai: { reasoningEffort: 'medium' }
             };
-            outputChannel.appendLine(`[Agentic] Thinking/reasoning enabled for model=${model}`);
+            outputChannel.appendLine(`[Agentic] Thinking/reasoning enabled for model=${model}, providerOptions set`);
+        } else {
+            outputChannel.appendLine(`[Agentic] Thinking/reasoning DISABLED for model=${model}`);
         }
 
         const result = streamText(streamOptions);
