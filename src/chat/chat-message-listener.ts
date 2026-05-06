@@ -898,7 +898,16 @@ export async function chatMessageListener(message: any) {
         case CHAT_COMMANDS.CHAT_OPEN_FILE:
             {
                 const { uri } = message.data;
-                const fileUri = vscode.Uri.parse(uri);
+                let fileUri: vscode.Uri;
+
+                // Handle both full URIs (file:///...) and relative workspace paths
+                if (uri.startsWith('file:') || uri.startsWith('/') || /^[a-zA-Z]:/.test(uri)) {
+                    fileUri = uri.startsWith('file:') ? vscode.Uri.parse(uri) : vscode.Uri.file(uri);
+                } else {
+                    // Relative path — resolve against workspace root
+                    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+                    fileUri = vscode.Uri.file(path.join(workspaceRoot, uri));
+                }
                 
                 // #43: Just open the file — CodeLens + Decorations handle the review inline
                 await vscode.window.showTextDocument(fileUri);
@@ -922,14 +931,31 @@ export async function chatMessageListener(message: any) {
                 const wsIndex = new WorkspaceIndexService();
                 await wsIndex.refresh();
                 const fileCount = wsIndex.getFileList().length;
+                const fileList = wsIndex.getFileList();
                 outputChannel.appendLine(`[Index] Manual refresh: ${fileCount} files indexed.`);
                 
                 await ChatViewProvider.getInstance().postMessage({
                     command: 'indexUpdate',
-                    content: { fileCount, lastUpdated: new Date().toISOString() }
+                    content: { fileCount, lastUpdated: new Date().toISOString(), fileList }
                 });
                 
                 vscode.window.showInformationMessage(`Workspace index refreshed: ${fileCount} files indexed.`);
+                wsIndex.dispose();
+                break;
+            }
+
+        case 'viewIndex':
+            {
+                const { WorkspaceIndexService } = require('../services/workspace-index');
+                const wsIndex = new WorkspaceIndexService();
+                await wsIndex.refresh();
+                const fileCount = wsIndex.getFileList().length;
+                const fileList = wsIndex.getFileList();
+
+                await ChatViewProvider.getInstance().postMessage({
+                    command: 'indexUpdate',
+                    content: { fileCount, lastUpdated: new Date().toISOString(), fileList, showViewer: true }
+                });
                 wsIndex.dispose();
                 break;
             }

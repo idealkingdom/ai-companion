@@ -47,24 +47,126 @@ export class WorkspaceIndexService {
     }
 
     /**
-     * Build or rebuild the file tree index
+     * Build or rebuild the file tree index.
+     * Excludes: caches, virtual envs, binaries, lock files, IDE configs, etc.
+     * Only indexes source code, config, and documentation files.
      */
     public async refresh(): Promise<void> {
-        const files = await vscode.workspace.findFiles(
-            '**/*',
-            '{**/node_modules/**,**/dist/**,**/build/**,**/.git/**,**/out/**,**/.vscode/**}'
-        );
+        // Comprehensive glob exclusion — covers all major ecosystems
+        const excludeGlob = [
+            '**/node_modules/**',
+            '**/dist/**',
+            '**/build/**',
+            '**/.git/**',
+            '**/out/**',
+            '**/.vscode/**',
+            '**/__pycache__/**',
+            '**/.venv/**',
+            '**/venv/**',
+            '**/env/**',
+            '**/.env/**',
+            '**/.tox/**',
+            '**/*.egg-info/**',
+            '**/.mypy_cache/**',
+            '**/.pytest_cache/**',
+            '**/.ruff_cache/**',
+            '**/target/**',          // Rust/Java build output
+            '**/.gradle/**',
+            '**/.idea/**',
+            '**/.vs/**',
+            '**/bin/**',
+            '**/obj/**',             // .NET build
+            '**/vendor/**',          // Go/PHP vendor
+            '**/coverage/**',
+            '**/.next/**',
+            '**/.nuxt/**',
+            '**/.svelte-kit/**',
+            '**/.turbo/**',
+            '**/.cache/**',
+            '**/.parcel-cache/**',
+            '**/tmp/**',
+            '**/.DS_Store',
+            '**/Thumbs.db',
+        ].join(',');
 
-        this.index.fileTree = files.map(uri => {
-            const rel = vscode.workspace.asRelativePath(uri);
-            const ext = uri.fsPath.split('.').pop()?.toLowerCase() || '';
-            return {
-                path: uri.fsPath,
-                relativePath: rel,
-                size: 0,  // We skip stat for speed; size is optional
-                language: ext
-            };
-        }).sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+        const files = await vscode.workspace.findFiles('**/*', `{${excludeGlob}}`);
+
+        // Post-filter: only keep files with meaningful extensions
+        const relevantExtensions = new Set([
+            // Source code
+            'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs',
+            'py', 'pyi', 'pyw',
+            'rs', 'go', 'java', 'kt', 'kts', 'scala',
+            'c', 'cpp', 'cc', 'cxx', 'h', 'hpp', 'hxx',
+            'cs', 'fs', 'fsx',
+            'rb', 'php', 'swift', 'dart', 'lua', 'zig',
+            'r', 'R', 'jl', 'ex', 'exs', 'erl', 'hrl',
+            'vue', 'svelte', 'astro',
+            'html', 'htm', 'css', 'scss', 'sass', 'less', 'styl',
+            'sql', 'graphql', 'gql', 'prisma',
+            'sh', 'bash', 'zsh', 'fish', 'ps1', 'bat', 'cmd',
+            // Config & docs
+            'json', 'jsonc', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf',
+            'xml', 'plist',
+            'md', 'mdx', 'rst', 'txt', 'adoc',
+            'env', 'env.local', 'env.example',
+            'dockerfile', 'containerfile',
+            'makefile', 'cmake',
+            'tf', 'hcl',                      // Terraform
+            'proto',                           // Protobuf
+            // Project files
+            'lock',                            // keep package-lock, etc for awareness
+            'gitignore', 'dockerignore', 'eslintrc', 'prettierrc',
+        ]);
+
+        // Also allow files without extensions if they are common config files
+        const allowedNoExt = new Set([
+            'Makefile', 'Dockerfile', 'Containerfile', 'Rakefile', 'Gemfile',
+            'Procfile', 'Vagrantfile', 'Brewfile', 'Justfile',
+            '.gitignore', '.dockerignore', '.editorconfig', '.eslintrc',
+            '.prettierrc', '.babelrc', '.env', '.env.local', '.env.example',
+        ]);
+
+        // Binary/generated extensions to always skip
+        const binaryExtensions = new Set([
+            'png', 'jpg', 'jpeg', 'gif', 'bmp', 'ico', 'svg', 'webp', 'avif',
+            'mp3', 'mp4', 'wav', 'ogg', 'webm', 'avi', 'mkv', 'mov',
+            'zip', 'tar', 'gz', 'bz2', 'xz', '7z', 'rar',
+            'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+            'woff', 'woff2', 'ttf', 'otf', 'eot',
+            'pyc', 'pyo', 'class', 'o', 'so', 'dll', 'dylib', 'exe',
+            'wasm', 'map',
+            'min.js', 'min.css',
+            'db', 'sqlite', 'sqlite3',
+        ]);
+
+        this.index.fileTree = files
+            .filter(uri => {
+                const rel = vscode.workspace.asRelativePath(uri);
+                const fileName = rel.split(/[\\/]/).pop() || '';
+                const ext = fileName.split('.').pop()?.toLowerCase() || '';
+
+                // Skip binary files
+                if (binaryExtensions.has(ext)) { return false; }
+
+                // Allow known config files with no extension
+                if (!ext || ext === fileName.toLowerCase()) {
+                    return allowedNoExt.has(fileName);
+                }
+
+                return relevantExtensions.has(ext);
+            })
+            .map(uri => {
+                const rel = vscode.workspace.asRelativePath(uri);
+                const ext = uri.fsPath.split('.').pop()?.toLowerCase() || '';
+                return {
+                    path: uri.fsPath,
+                    relativePath: rel,
+                    size: 0,
+                    language: ext
+                };
+            })
+            .sort((a, b) => a.relativePath.localeCompare(b.relativePath));
 
         this.index.lastUpdated = Date.now();
     }

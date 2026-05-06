@@ -1564,8 +1564,135 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         e.preventDefault();
         closeHunkReviewPanel();
+        closeIndexViewer();
     }
 });
+
+// ─── WORKSPACE INDEX VIEWER ──────────────────────────────────────────
+
+function openIndexViewer(fileList, fileCount, lastUpdated) {
+    // Remove existing if present
+    let overlay = document.getElementById('index-viewer-overlay');
+    if (overlay) { overlay.remove(); }
+
+    overlay = document.createElement('div');
+    overlay.id = 'index-viewer-overlay';
+    overlay.className = 'index-viewer-overlay';
+
+    // Group files by top-level directory
+    const groups = groupFilesByDir(fileList);
+    const groupKeys = Object.keys(groups).sort();
+
+    const timeStr = lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : '—';
+
+    overlay.innerHTML = `
+        <div class="index-viewer-header">
+            <button class="back-btn" onclick="closeIndexViewer()" title="Back to Chat">←</button>
+            <h2>📂 Workspace Index (${fileCount} files)</h2>
+            <button class="refresh-btn" onclick="sendMessage('refreshIndex', {}); closeIndexViewer();">↻ Refresh</button>
+        </div>
+        <div class="index-viewer-search">
+            <input type="text" id="index-search-input" placeholder="Search indexed files..." oninput="filterIndexViewer(this.value)" />
+        </div>
+        <div class="index-viewer-body" id="index-viewer-body">
+            ${groupKeys.map(dir => renderIndexDirGroup(dir, groups[dir])).join('')}
+        </div>
+        <div class="index-viewer-footer">
+            Last indexed: ${timeStr} — Only source code, config, and docs are indexed. Binaries, caches, and vendor folders are excluded.
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Focus the search input
+    setTimeout(() => {
+        const searchInput = document.getElementById('index-search-input');
+        if (searchInput) { searchInput.focus(); }
+    }, 100);
+}
+
+function closeIndexViewer() {
+    const overlay = document.getElementById('index-viewer-overlay');
+    if (overlay) { overlay.remove(); }
+}
+
+function groupFilesByDir(fileList) {
+    const groups = {};
+    for (const filePath of fileList) {
+        const parts = filePath.split(/[\\/]/);
+        const dir = parts.length > 1 ? parts[0] : '(root)';
+        if (!groups[dir]) { groups[dir] = []; }
+        groups[dir].push(filePath);
+    }
+    return groups;
+}
+
+function renderIndexDirGroup(dir, files) {
+    const fileItems = files.map(f => {
+        const fileName = f.split(/[\\/]/).pop();
+        const ext = fileName.split('.').pop();
+        const extBadge = ext && ext !== fileName ? `<span class="index-file-ext">.${ext}</span>` : '';
+        return `<div class="index-file-item" data-filepath="${escapeHtml(f)}" onclick="sendMessage('chatOpenFile', { uri: '${escapeHtml(f)}' })" title="${escapeHtml(f)}">${escapeHtml(fileName)} ${extBadge}</div>`;
+    }).join('');
+
+    return `
+        <div class="index-dir-group" data-dir="${escapeHtml(dir)}">
+            <div class="index-dir-header" onclick="toggleIndexDir(this)">
+                <span class="dir-chevron">▼</span>
+                📁 ${escapeHtml(dir)}
+                <span class="index-dir-count">(${files.length})</span>
+            </div>
+            <div class="index-file-list">
+                ${fileItems}
+            </div>
+        </div>
+    `;
+}
+
+function toggleIndexDir(headerEl) {
+    headerEl.classList.toggle('collapsed');
+    const fileList = headerEl.nextElementSibling;
+    if (fileList) {
+        fileList.classList.toggle('hidden');
+    }
+}
+
+function filterIndexViewer(query) {
+    const body = document.getElementById('index-viewer-body');
+    if (!body) { return; }
+
+    const queryLower = query.toLowerCase().trim();
+    const groups = body.querySelectorAll('.index-dir-group');
+
+    for (const group of groups) {
+        const items = group.querySelectorAll('.index-file-item');
+        let visibleCount = 0;
+
+        for (const item of items) {
+            const filePath = (item.dataset.filepath || '').toLowerCase();
+            const match = !queryLower || filePath.includes(queryLower);
+            item.style.display = match ? '' : 'none';
+            if (match) { visibleCount++; }
+        }
+
+        // Hide entire directory group if no matches
+        group.style.display = visibleCount > 0 ? '' : 'none';
+
+        // Expand matching directories when searching
+        if (queryLower && visibleCount > 0) {
+            const header = group.querySelector('.index-dir-header');
+            const fileList = group.querySelector('.index-file-list');
+            if (header) { header.classList.remove('collapsed'); }
+            if (fileList) { fileList.classList.remove('hidden'); }
+        }
+
+        // Update count
+        const countEl = group.querySelector('.index-dir-count');
+        if (countEl) {
+            countEl.textContent = `(${visibleCount})`;
+        }
+    }
+}
 
 function appendAIMessage(response) {
     const parsedResponse = marked.parse(response);
@@ -2337,8 +2464,17 @@ window.addEventListener('message', event => {
                     indexPill.textContent = message.content.fileCount || '0';
                     const pillEl = document.getElementById('pill-index');
                     if (pillEl) {
-                        pillEl.title = `Workspace Index: ${message.content.fileCount} files — Last updated: ${new Date(message.content.lastUpdated).toLocaleTimeString()} — Click to Refresh`;
+                        pillEl.title = `Workspace Index: ${message.content.fileCount} files — Last updated: ${new Date(message.content.lastUpdated).toLocaleTimeString()} — Click to View`;
                     }
+                }
+                // Store the file list for the viewer
+                if (message.content && message.content.fileList) {
+                    window._indexedFiles = message.content.fileList;
+                    window._indexLastUpdated = message.content.lastUpdated;
+                }
+                // Open the viewer if requested
+                if (message.content && message.content.showViewer) {
+                    openIndexViewer(message.content.fileList || [], message.content.fileCount, message.content.lastUpdated);
                 }
                 break;
             }
