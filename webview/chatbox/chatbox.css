@@ -1177,13 +1177,18 @@ details[open] summary .file-arrow {
     margin: 8px 0;
 }
 
+.agent-thinking-block.streaming .thinking-summary {
+    background: rgba(var(--accent-rgb, 79, 172, 254), 0.08);
+    border-color: rgba(var(--accent-rgb, 79, 172, 254), 0.25);
+}
+
 .thinking-summary {
     display: flex;
     align-items: center;
     gap: 6px;
     padding: 6px 12px;
-    background: rgba(156, 39, 176, 0.08);
-    border: 1px solid rgba(156, 39, 176, 0.2);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.8rem;
@@ -1191,7 +1196,7 @@ details[open] summary .file-arrow {
     font-weight: 500;
     user-select: none;
     list-style: none;
-    transition: background 0.2s;
+    transition: background 0.2s, border-color 0.2s;
     width: max-content;
 }
 
@@ -1200,12 +1205,12 @@ details[open] summary .file-arrow {
 }
 
 .thinking-summary:hover {
-    background: rgba(156, 39, 176, 0.15);
+    background: rgba(255, 255, 255, 0.08);
 }
 
 .thinking-summary .chevron {
     transition: transform 0.2s;
-    opacity: 0.7;
+    opacity: 0.5;
 }
 
 .agent-thinking-block[open] .thinking-summary .chevron {
@@ -1213,12 +1218,23 @@ details[open] summary .file-arrow {
 }
 
 .thinking-icon {
-    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+}
+
+.thinking-icon svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0.7;
+}
+
+.agent-thinking-block.streaming .thinking-icon svg {
+    animation: thinkingPulse 1.5s ease-in-out infinite;
 }
 
 .thinking-label {
     font-size: 0.78rem;
-    color: #ce93d8;
+    color: rgba(255, 255, 255, 0.55);
     font-weight: 500;
 }
 
@@ -1226,12 +1242,12 @@ details[open] summary .file-arrow {
     padding: 10px 14px;
     margin-left: 12px;
     margin-top: 4px;
-    border-left: 2px solid rgba(156, 39, 176, 0.2);
-    font-size: 0.72rem;
+    border-left: 2px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.75rem;
     font-family: var(--font-editor);
-    color: rgba(255, 255, 255, 0.5);
+    color: rgba(255, 255, 255, 0.45);
     white-space: pre-wrap;
-    line-height: 1.5;
+    line-height: 1.55;
     max-height: 300px;
     overflow-y: auto;
     animation: thinkingFadeIn 0.3s ease-out;
@@ -1240,6 +1256,11 @@ details[open] summary .file-arrow {
 @keyframes thinkingFadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
+}
+
+@keyframes thinkingPulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
 }
 
 .agent-steps-summary {

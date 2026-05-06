@@ -434,6 +434,32 @@ RULES:
                         stepCount++;
                         outputChannel.appendLine(`[Agentic] Step ${stepCount} finished`);
 
+                        // #44: Extract reasoning text from the step result
+                        // OpenAI provides reasoning via event.reasoningText (NOT via fullStream)
+                        if (onAgentStep && settings.general?.enableThinking !== false) {
+                            const reasoningText = event.reasoningText;
+                            if (reasoningText && reasoningText.trim()) {
+                                outputChannel.appendLine(`[Agentic] Step ${stepCount} reasoning: ${reasoningText.length} chars`);
+                                onAgentStep({
+                                    type: 'thinking',
+                                    text: reasoningText
+                                });
+                            } else if (event.reasoning && Array.isArray(event.reasoning) && event.reasoning.length > 0) {
+                                // Fallback: consolidate reasoning parts
+                                const consolidated = event.reasoning
+                                    .filter((r: any) => r.text)
+                                    .map((r: any) => r.text)
+                                    .join('\n\n');
+                                if (consolidated.trim()) {
+                                    outputChannel.appendLine(`[Agentic] Step ${stepCount} reasoning parts: ${consolidated.length} chars`);
+                                    onAgentStep({
+                                        type: 'thinking',
+                                        text: consolidated
+                                    });
+                                }
+                            }
+                        }
+
                         // Stream tool activity to frontend
                         // AI SDK v6: event has 'toolCalls' array and 'toolResults' array
                         if (onAgentStep && event.toolCalls && event.toolCalls.length > 0) {

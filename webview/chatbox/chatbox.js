@@ -1065,67 +1065,36 @@ function renderAgentStep(step) {
             return;
         }
 
-        // #44: Handle __TOKENS__ sentinel (OpenAI hidden reasoning — only token count)
+        // #44: Handle __TOKENS__ sentinel (token count only, no text)
         const tokenMatch = step.text && step.text.match(/^__TOKENS__(\d+)$/);
         if (tokenMatch) {
             const tokenCount = parseInt(tokenMatch[1], 10);
             let thinkingBlock = chatbox.querySelector('.agent-thinking-block:not([data-finalized="true"])');
-            
             if (thinkingBlock) {
-                // Update the existing block with token count
-                const label = thinkingBlock.querySelector('.thinking-label');
-                // Accumulate token count
                 const prev = parseInt(thinkingBlock.dataset.tokens || '0', 10);
-                const total = prev + tokenCount;
-                thinkingBlock.dataset.tokens = String(total);
-                if (label) {
-                    label.textContent = `Reasoned for ${total} tokens`;
-                }
-                // If no actual text content, add a note
-                const contentEl = thinkingBlock.querySelector('.thinking-content');
-                if (contentEl && !contentEl.textContent.trim()) {
-                    contentEl.textContent = '(Reasoning content is not exposed by this model)';
-                }
-            } else {
-                // Create a finalized block showing token usage
-                thinkingBlock = document.createElement('details');
-                thinkingBlock.className = 'agent-thinking-block';
-                thinkingBlock.dataset.finalized = 'true';
-                thinkingBlock.dataset.tokens = String(tokenCount);
-
-                const summary = document.createElement('summary');
-                summary.className = 'thinking-summary';
-                summary.innerHTML = `
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                    <span class="thinking-icon">💭</span>
-                    <span class="thinking-label">Reasoned for ${tokenCount} tokens</span>
-                `;
-                thinkingBlock.appendChild(summary);
-
-                const content = document.createElement('div');
-                content.className = 'thinking-content';
-                content.textContent = '(Reasoning content is not exposed by this model)';
-                thinkingBlock.appendChild(content);
-
-                chatbox.appendChild(thinkingBlock);
+                thinkingBlock.dataset.tokens = String(prev + tokenCount);
             }
             scrollToBottom();
             return;
         }
 
-        // #44: Actual reasoning/thinking tokens — stream into a collapsible block
+        // SVG icon for reasoning (sparkle/brain style — matches design system)
+        const thinkingIconSVG = `<span class="thinking-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707"/><circle cx="12" cy="12" r="4"/></svg></span>`;
+
+        // #44: Actual reasoning text — stream into a collapsible block
         let thinkingBlock = chatbox.querySelector('.agent-thinking-block:not([data-finalized="true"])');
         if (!thinkingBlock) {
             thinkingBlock = document.createElement('details');
-            thinkingBlock.className = 'agent-thinking-block';
-            thinkingBlock.open = false; // collapsed by default
+            thinkingBlock.className = 'agent-thinking-block streaming';
+            thinkingBlock.open = true; // auto-open during streaming
             thinkingBlock.dataset.tokens = '0';
+            thinkingBlock.dataset.stepCount = '0';
 
             const summary = document.createElement('summary');
             summary.className = 'thinking-summary';
             summary.innerHTML = `
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                <span class="thinking-icon">💭</span>
+                ${thinkingIconSVG}
                 <span class="thinking-label">Thinking...</span>
             `;
             thinkingBlock.appendChild(summary);
@@ -1137,10 +1106,23 @@ function renderAgentStep(step) {
             chatbox.appendChild(thinkingBlock);
         }
 
-        // Append the reasoning delta text (if any — empty for reasoning-start)
-        const contentEl = thinkingBlock.querySelector('.thinking-content');
-        if (contentEl && step.text) {
-            contentEl.textContent += step.text;
+        // Append the reasoning text (if any — empty string for reasoning-start)
+        if (step.text) {
+            const contentEl = thinkingBlock.querySelector('.thinking-content');
+            if (contentEl) {
+                // Add step separator for multi-step reasoning
+                const stepNum = parseInt(thinkingBlock.dataset.stepCount || '0', 10) + 1;
+                thinkingBlock.dataset.stepCount = String(stepNum);
+                if (stepNum > 1) {
+                    contentEl.textContent += '\n───\n';
+                }
+                contentEl.textContent += step.text;
+            }
+            // Update label to show it's working
+            const label = thinkingBlock.querySelector('.thinking-label');
+            if (label) {
+                label.textContent = 'Thinking...';
+            }
         }
         scrollToBottom();
         return;
@@ -1150,17 +1132,21 @@ function renderAgentStep(step) {
     const openThinking = chatbox.querySelector('.agent-thinking-block:not([data-finalized="true"])');
     if (openThinking) {
         openThinking.dataset.finalized = 'true';
+        openThinking.classList.remove('streaming');
+        openThinking.open = false; // auto-collapse when done
+        
         const label = openThinking.querySelector('.thinking-label');
         const tokens = parseInt(openThinking.dataset.tokens || '0', 10);
         const contentEl = openThinking.querySelector('.thinking-content');
-        const hasText = contentEl && contentEl.textContent.trim() && 
-                        !contentEl.textContent.includes('not exposed by this model');
+        const hasText = contentEl && contentEl.textContent.trim();
         
         if (label) {
-            if (tokens > 0) {
-                label.textContent = `Reasoned for ${tokens} tokens`;
+            if (hasText && tokens > 0) {
+                label.textContent = `Thought for ${tokens} tokens`;
             } else if (hasText) {
                 label.textContent = 'Thought process';
+            } else if (tokens > 0) {
+                label.textContent = `Thought for ${tokens} tokens`;
             } else {
                 label.textContent = 'Thought process';
             }
