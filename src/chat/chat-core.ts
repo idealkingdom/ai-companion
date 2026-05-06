@@ -429,36 +429,19 @@ RULES:
                     baseUrl: baseUrl,
                     abortSignal: abortSignal,
                     enableThinking: settings.general?.enableThinking !== false,
+                    // #44: Real-time reasoning streaming (for models like Gemini/DeepSeek)
+                    onReasoningChunk: (text: string) => {
+                        if (onAgentStep && text) {
+                            onAgentStep({ type: 'thinking', text });
+                        }
+                    },
                     onStepFinish: (event: any) => {
                         if (abortSignal?.aborted) return;
                         stepCount++;
                         outputChannel.appendLine(`[Agentic] Step ${stepCount} finished`);
 
-                        // #44: Extract reasoning text from the step result
-                        // OpenAI provides reasoning via event.reasoningText (NOT via fullStream)
-                        if (onAgentStep && settings.general?.enableThinking !== false) {
-                            const reasoningText = event.reasoningText;
-                            if (reasoningText && reasoningText.trim()) {
-                                outputChannel.appendLine(`[Agentic] Step ${stepCount} reasoning: ${reasoningText.length} chars`);
-                                onAgentStep({
-                                    type: 'thinking',
-                                    text: reasoningText
-                                });
-                            } else if (event.reasoning && Array.isArray(event.reasoning) && event.reasoning.length > 0) {
-                                // Fallback: consolidate reasoning parts
-                                const consolidated = event.reasoning
-                                    .filter((r: any) => r.text)
-                                    .map((r: any) => r.text)
-                                    .join('\n\n');
-                                if (consolidated.trim()) {
-                                    outputChannel.appendLine(`[Agentic] Step ${stepCount} reasoning parts: ${consolidated.length} chars`);
-                                    onAgentStep({
-                                        type: 'thinking',
-                                        text: consolidated
-                                    });
-                                }
-                            }
-                        }
+                        // Note: Reasoning is extracted post-stream via result.steps (line ~585)
+                        // onStepFinish.reasoningText is unreliable for some providers
 
                         // Stream tool activity to frontend
                         // AI SDK v6: event has 'toolCalls' array and 'toolResults' array
@@ -551,15 +534,7 @@ RULES:
                         const reasoningTokens = usage?.outputTokenDetails?.reasoningTokens 
                             || usage?.reasoningTokens || 0;
                         outputChannel.appendLine(`[Agentic] Step finished: reason=${(part as any).finishReason}, reasoning=${reasoningTokens} tokens`);
-                        
-                        // #44: If the model used reasoning tokens but didn't stream text,
-                        // notify the UI about the token count so the thinking block shows something
-                        if (reasoningTokens > 0 && onAgentStep) {
-                            onAgentStep({
-                                type: 'thinking',
-                                text: `__TOKENS__${reasoningTokens}`
-                            });
-                        }
+                        // Note: reasoning text + token counts sent post-stream via result.steps
                         break;
                     }
 
@@ -581,6 +556,53 @@ RULES:
             }
 
             outputChannel.appendLine(`[Agentic] Completed in ${stepCount} steps, response length: ${fullText.length}`);
+
+            // #44: After stream is consumed, extract reasoning from result.steps
+            // This is the canonical AI SDK approach — works for ALL models.
+            // result.steps is a promise that resolves after fullStream is consumed.
+            if (onAgentStep && settings.general?.enableThinking !== false) {
+                try {
+                    const steps = await result.steps;
+                    let totalReasoningTokens = 0;
+                    let allReasoningText = '';
+                    
+                    for (const step of steps) {
+                        // Count reasoning tokens
+                        const stepTokens = (step.usage as any)?.outputTokenDetails?.reasoningTokens 
+                            || (step.usage as any)?.reasoningTokens || 0;
+                        totalReasoningTokens += stepTokens;
+                        
+                        // Consolidate reasoning text (like the AI SDK elements example)
+                        // step.reasoning is Array<ReasoningPart> where each part has { type: 'reasoning', text: string }
+                        if (step.reasoningText && step.reasoningText.trim()) {
+                            if (allReasoningText) { allReasoningText += '\n\n'; }
+                            allReasoningText += step.reasoningText;
+                        } else if (step.reasoning && Array.isArray(step.reasoning) && step.reasoning.length > 0) {
+                            const consolidated = step.reasoning
+                                .filter((r: any) => r.text)
+                                .map((r: any) => r.text)
+                                .join('\n\n');
+                            if (consolidated.trim()) {
+                                if (allReasoningText) { allReasoningText += '\n\n'; }
+                                allReasoningText += consolidated;
+                            }
+                        }
+                    }
+                    
+                    outputChannel.appendLine(`[Agentic] Reasoning: ${totalReasoningTokens} tokens, text length: ${allReasoningText.length}`);
+                    
+                    // Send consolidated reasoning to UI
+                    if (allReasoningText.trim()) {
+                        onAgentStep({ type: 'thinking', text: allReasoningText });
+                    }
+                    // Always send token count if reasoning was used
+                    if (totalReasoningTokens > 0) {
+                        onAgentStep({ type: 'thinking', text: `__TOKENS__${totalReasoningTokens}` });
+                    }
+                } catch (e) {
+                    outputChannel.appendLine(`[Agentic] Failed to extract reasoning: ${e}`);
+                }
+            }
 
             // Send completion step event
             if (onAgentStep) {

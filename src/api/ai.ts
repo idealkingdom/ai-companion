@@ -79,6 +79,7 @@ export async function openAIAgenticRequest(
         onStepFinish?: (event: any) => void;
         abortSignal?: AbortSignal;
         enableThinking?: boolean;
+        onReasoningChunk?: (text: string) => void;
     } = {}
 ) {
     const openai = createOpenAI({
@@ -105,11 +106,22 @@ export async function openAIAgenticRequest(
                     options.onStepFinish(event);
                 }
             },
+            // #44: Capture reasoning chunks in real-time (for models that stream them)
+            onChunk: ({ chunk }: any) => {
+                if (chunk.type === 'reasoning-delta' || chunk.type === 'reasoning') {
+                    const text = chunk.delta || chunk.text || '';
+                    if (text && options.onReasoningChunk) {
+                        options.onReasoningChunk(text);
+                    }
+                }
+            },
             onError: (event: any) => {
                 outputChannel.appendLine(`[Agentic] Stream error: ${event?.error?.message || event?.error || JSON.stringify(event)}`);
             },
             onFinish: (event: any) => {
-                outputChannel.appendLine(`[Agentic] Finished. finishReason=${event.finishReason}, totalUsage=${JSON.stringify(event.totalUsage)}`);
+                const reasoningLen = event.reasoningText?.length || 0;
+                const stepsWithReasoning = event.steps?.filter((s: any) => s.reasoningText).length || 0;
+                outputChannel.appendLine(`[Agentic] Finished. finishReason=${event.finishReason}, totalUsage=${JSON.stringify(event.totalUsage)}, reasoningTextLen=${reasoningLen}, stepsWithReasoning=${stepsWithReasoning}`);
             }
         };
 

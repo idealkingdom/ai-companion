@@ -1069,10 +1069,22 @@ function renderAgentStep(step) {
         const tokenMatch = step.text && step.text.match(/^__TOKENS__(\d+)$/);
         if (tokenMatch) {
             const tokenCount = parseInt(tokenMatch[1], 10);
+            // Find ANY thinking block (non-finalized first, then most recent finalized)
             let thinkingBlock = chatbox.querySelector('.agent-thinking-block:not([data-finalized="true"])');
+            if (!thinkingBlock) {
+                // Post-stream token count — find the most recent finalized block
+                const all = chatbox.querySelectorAll('.agent-thinking-block');
+                thinkingBlock = all.length > 0 ? all[all.length - 1] : null;
+            }
             if (thinkingBlock) {
                 const prev = parseInt(thinkingBlock.dataset.tokens || '0', 10);
-                thinkingBlock.dataset.tokens = String(prev + tokenCount);
+                const total = prev + tokenCount;
+                thinkingBlock.dataset.tokens = String(total);
+                // Update label with token count
+                const label = thinkingBlock.querySelector('.thinking-label');
+                if (label) {
+                    label.textContent = `Thought for ${total} tokens`;
+                }
             }
             scrollToBottom();
             return;
