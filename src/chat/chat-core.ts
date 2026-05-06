@@ -114,6 +114,7 @@ export class ChatCoreService {
 
         let aiResponseText = "";
         let totalUsage: any = null;
+        const collectedAgentSteps: any[] = [];
 
         const abortController = new AbortController();
         ChatCoreService.activeAbortControllers.set(data.chat_id, abortController);
@@ -193,11 +194,18 @@ export class ChatCoreService {
             // ─── DETERMINE MODE: AGENTIC vs STANDARD ────────────────────────
             const isAgenticMode = this.isAgenticAgent(data.agentId, appSettings);
 
+            const trackingOnAgentStep = (step: any) => {
+                collectedAgentSteps.push(step);
+                if (onAgentStep) {
+                    onAgentStep(step);
+                }
+            };
+
             if (isAgenticMode) {
                 const response = await this.processAgenticRequest(
                     data, finalContextMessages, finalCurrentMessage,
                     targetModel, apiKey || accessToken, temperature, apiBaseUrl,
-                    appSettings, onChunk, onAgentStep, abortController.signal
+                    appSettings, onChunk, trackingOnAgentStep, abortController.signal
                 );
                 aiResponseText = response.text;
                 totalUsage = response.usage;
@@ -212,7 +220,7 @@ export class ChatCoreService {
             }
 
             // --- STEP E: SAVE AI RESPONSE ---
-            await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText);
+            await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText, [], [], data.agentId, collectedAgentSteps);
             outputChannel.appendLine("Chat interaction saved and processed.");
 
         } catch (error: any) {
@@ -229,7 +237,7 @@ export class ChatCoreService {
                 aiResponseText = 'Sorry, I could not process your request at this time. Error: ' + (error?.message || 'Unknown error');
                 if (onChunk) { onChunk(aiResponseText); }
             }
-            await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText);
+            await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText, [], [], data.agentId, collectedAgentSteps);
         } finally {
             ChatCoreService.activeAbortControllers.delete(data.chat_id);
         }

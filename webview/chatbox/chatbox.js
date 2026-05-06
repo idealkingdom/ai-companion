@@ -2148,6 +2148,37 @@ window.addEventListener('message', event => {
                     showLoadingIndicator();
                 }
             } else {
+                if (message.agentSteps && message.agentSteps.length > 0) {
+                    for (const step of message.agentSteps) {
+                        renderAgentStep(step);
+                    }
+                    
+                    // Finalize thinking blocks and groups
+                    document.querySelectorAll('.agent-thinking-block:not([data-finalized="true"])').forEach(thinkingBlock => {
+                        thinkingBlock.dataset.finalized = 'true';
+                        thinkingBlock.classList.remove('streaming');
+                        thinkingBlock.open = false;
+                        const label = thinkingBlock.querySelector('.thinking-label');
+                        if (label && !label.textContent.includes('Thought for')) {
+                            label.textContent = 'Thought process';
+                        }
+                    });
+
+                    document.querySelectorAll('details.agent-steps-group:not([data-finalized="true"])').forEach(group => {
+                        if (group.dataset.timer) {
+                            clearInterval(parseInt(group.dataset.timer));
+                            delete group.dataset.timer;
+                            const ms = Date.now() - parseInt(group.dataset.startTime);
+                            const secs = Math.floor(ms / 1000);
+                            const summaryText = group.querySelector('.summary-text');
+                            if (summaryText) {
+                                summaryText.textContent = `Worked for ${secs}s`;
+                            }
+                            group.open = false;
+                        }
+                        group.dataset.finalized = "true";
+                    });
+                }
                 appendAIMessage(message.content);
             }
             // Re-enable send button

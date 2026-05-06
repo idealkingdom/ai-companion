@@ -396,6 +396,7 @@ export async function chatMessageListener(message: any) {
                             images: displayImages,
                             role: msg.role === ROLE.USER ? ROLE.USER : ROLE.BOT,
                             isHistory: true, // TODO flag to avoid saving again
+                            agentSteps: msg.agentSteps // <--- Restore agent steps
                         });
                     }
                 }
