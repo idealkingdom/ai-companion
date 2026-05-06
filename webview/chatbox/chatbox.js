@@ -632,20 +632,26 @@ function getCurrentDate() {
     return now.toLocaleString('en-US', options);
 }
 
+let _scrollTimeout = null;
 function scrollToBottom() {
-    // Use rAF to ensure DOM has been painted before scrolling
-    requestAnimationFrame(() => {
-        chatLog.scrollTop = chatLog.scrollHeight;
-        // Double-tap: after sticky elements may have resized
-        setTimeout(() => {
+    if (_scrollTimeout) {
+        clearTimeout(_scrollTimeout);
+    }
+    _scrollTimeout = setTimeout(() => {
+        // Use rAF to ensure DOM has been painted before scrolling
+        requestAnimationFrame(() => {
             chatLog.scrollTop = chatLog.scrollHeight;
-            // Also scroll the last element into view as a fallback
-            const lastChild = chatbox.lastElementChild;
-            if (lastChild) {
-                lastChild.scrollIntoView({ block: 'end', behavior: 'instant' });
-            }
-        }, 60);
-    });
+            // Double-tap: after sticky elements may have resized
+            setTimeout(() => {
+                chatLog.scrollTop = chatLog.scrollHeight;
+                // Also scroll the last element into view as a fallback
+                const lastChild = chatbox.lastElementChild;
+                if (lastChild) {
+                    lastChild.scrollIntoView({ block: 'end', behavior: 'instant' });
+                }
+            }, 60);
+        });
+    }, 10);
 }
 
 
@@ -1157,12 +1163,6 @@ function renderAgentStep(step) {
         if (step.text) {
             const contentEl = thinkingBlock.querySelector('.thinking-content');
             if (contentEl) {
-                // Add step separator for multi-step reasoning
-                const stepNum = parseInt(thinkingBlock.dataset.stepCount || '0', 10) + 1;
-                thinkingBlock.dataset.stepCount = String(stepNum);
-                if (stepNum > 1) {
-                    contentEl.textContent += '\n───\n';
-                }
                 contentEl.textContent += step.text;
             }
             // Update label to show it's working

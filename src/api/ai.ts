@@ -1,6 +1,7 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { generateText, streamText, stepCountIs } from 'ai';
 import { outputChannel } from '../logger';
+import * as vscode from 'vscode';
 
 /**
  * Standard non-streaming request (no tools).
@@ -116,7 +117,20 @@ export async function openAIAgenticRequest(
                 }
             },
             onError: (event: any) => {
-                outputChannel.appendLine(`[Agentic] Stream error: ${event?.error?.message || event?.error || JSON.stringify(event)}`);
+                const errObj = event?.error;
+                const errMsgs = [
+                    errObj?.message,
+                    errObj?.cause?.message,
+                    typeof errObj === 'string' ? errObj : JSON.stringify(errObj)
+                ].filter(Boolean).join(' | ');
+
+                outputChannel.appendLine(`[Agentic] Stream error: ${errMsgs}`);
+
+                // Notification for quota or billing issues
+                const lowerMsg = errMsgs.toLowerCase();
+                if (lowerMsg.includes('quota') || lowerMsg.includes('429') || lowerMsg.includes('insufficient_quota') || lowerMsg.includes('billing')) {
+                    vscode.window.showErrorMessage('AI API Error: You may have exceeded your quota or rate limit. Please check your API billing details.');
+                }
             },
             onFinish: (event: any) => {
                 const reasoningLen = event.reasoningText?.length || 0;
