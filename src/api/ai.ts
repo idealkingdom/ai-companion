@@ -128,7 +128,7 @@ export async function openAIAgenticRequest(
         // #44: Enable reasoning/thinking tokens when supported
         if (options.enableThinking) {
             streamOptions.providerOptions = {
-                openai: { reasoningEffort: 'medium' }
+                openai: { reasoningEffort: 'medium', reasoningSummary: 'detailed' }
             };
             outputChannel.appendLine(`[Agentic] Thinking/reasoning enabled for model=${model}, providerOptions set`);
         } else {
