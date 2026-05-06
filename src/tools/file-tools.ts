@@ -51,6 +51,17 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
                 return { error: `File not found: ${absPath}` };
             }
 
+            // Check cache first (saves tokens on repeated reads)
+            const cached = workspaceIndex.getCachedSkeleton(absPath);
+            if (cached) {
+                return {
+                    file: params.filePath,
+                    totalLines: cached.totalLines,
+                    skeleton: cached.skeleton || '(No structural elements found)',
+                    _cached: true
+                };
+            }
+
             const content = fs.readFileSync(absPath, 'utf-8');
             const lines = content.split('\n');
             const skeleton: string[] = [];
@@ -69,13 +80,21 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
                     skeleton.push(`L${i + 1}: ${line}`);
                 } else if (/^\s*(const|let|var)\s+\w+\s*=\s*(async\s*)?\(/.test(line)) {
                     skeleton.push(`L${i + 1}: ${line}`);
+                } else if (/^\s*def\s+\w+/.test(line) || /^\s*class\s+\w+/.test(line)) {
+                    // Python support
+                    skeleton.push(`L${i + 1}: ${line}`);
                 }
             }
+
+            const skeletonStr = skeleton.join('\n') || '(No structural elements found)';
+
+            // Cache it for future calls
+            workspaceIndex.cacheSkeleton(absPath, skeletonStr, lines.length);
 
             return {
                 file: params.filePath,
                 totalLines: lines.length,
-                skeleton: skeleton.join('\n') || '(No structural elements found)',
+                skeleton: skeletonStr,
             };
         }
     } as any);

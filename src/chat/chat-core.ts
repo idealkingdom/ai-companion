@@ -350,14 +350,20 @@ As you complete each task, update it to: ✅ [task description]
 Show the updated checklist after each step so the user can track progress.`
             : '';
 
-        // #51: Include workspace file tree in context
+        // #51: Include workspace file tree in context (compact mode to save tokens)
         await this.workspaceIndex.refresh();
-        const fileTree = this.workspaceIndex.getFileTreeString();
+        const fileTree = this.workspaceIndex.getCompactTreeString();
         // Cap the tree to avoid blowing up the context window
-        const maxTreeChars = 3000;
+        const maxTreeChars = 4000;
         const truncatedTree = fileTree.length > maxTreeChars
             ? fileTree.substring(0, maxTreeChars) + '\n... (truncated, use list_workspace for full tree)'
             : fileTree;
+
+        // #55: Auto-inject active editor context so the agent doesn't waste tool calls
+        const activeEditorCtx = this.workspaceIndex.getActiveEditorContext();
+        const editorSection = activeEditorCtx
+            ? `\n--- ACTIVE EDITOR FILES ---\nThese files are currently open in the user's editor. You already have their skeletons and cursor positions. Do NOT re-read them with read_file_skeleton unless you need fresh data after an edit.\n${activeEditorCtx}\n`
+            : '';
 
         const agenticSystemPrompt = `${systemPrompt}
 
@@ -365,7 +371,7 @@ ${systemInfo}
 
 --- WORKSPACE FILE TREE ---
 ${truncatedTree}
-
+${editorSection}
 --- AGENT CONTEXT ---
 You have access to tools to read, search, and modify files in the user's workspace.
 Workspace root: ${workspaceRoot}
@@ -382,7 +388,8 @@ RULES:
 - NEVER read an entire large file. Use skeleton first, then line ranges.
 - When editing, provide the EXACT target text to replace (including whitespace).
 - Always verify your changes compile after editing.
-- Edits are applied DIRECTLY to the file. The user can review changes inline and revert if needed.${todoInstruction}`;
+- Edits are applied DIRECTLY to the file. The user can review changes inline and revert if needed.
+- Skip tool calls for files you already have context for (active editor files above).${todoInstruction}`;
 
         // Build payload
         const messages = [
@@ -646,6 +653,11 @@ RULES:
     /**
      * Ephemeral Memory Compaction: Truncate large tool results from older messages.
      * Also deduplicates system prompts (#47) to save context tokens.
+     * 
+     * Token-saving strategy:
+     * - Remove duplicate system messages
+     * - Truncate tool outputs older than the last 4 messages
+     * - Compact very large assistant messages from older turns
      */
     private compactMessages(messages: any[]): any[] {
         const seenSystemContents = new Set<string>();
@@ -662,16 +674,27 @@ RULES:
                 return true;
             })
             .map((msg, idx, arr) => {
-                // Only compact messages that aren't the last 2 (keep recent context fresh)
-                if (idx < arr.length - 2 && msg.role === 'tool' && msg.content) {
+                const isRecent = idx >= arr.length - 4; // Keep last 4 messages fresh
+
+                // Compact old tool results aggressively
+                if (!isRecent && msg.role === 'tool' && msg.content) {
                     const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-                    if (content.length > 500) {
+                    if (content.length > 200) {
                         return {
                             ...msg,
-                            content: '[Tool output condensed for memory efficiency — ' + content.length + ' chars]'
+                            content: content.substring(0, 200) + '... [truncated, ' + content.length + ' chars]'
                         };
                     }
                 }
+
+                // Compact old assistant messages that are very long
+                if (!isRecent && msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.length > 1000) {
+                    return {
+                        ...msg,
+                        content: msg.content.substring(0, 600) + '\n... [earlier response truncated for token efficiency]'
+                    };
+                }
+
                 return msg;
             });
     }
