@@ -46,21 +46,6 @@ export class ReviewCodeLensProvider implements vscode.CodeLensProvider {
             }));
         });
 
-        // Add global actions at top of file if there are pending edits
-        if (pendingEdits.length > 0) {
-            const topRange = new vscode.Range(0, 0, 0, 0);
-            lenses.push(new vscode.CodeLens(topRange, {
-                title: `$(check-all) Accept All (${pendingEdits.length} changes)`,
-                command: 'ai-companion.acceptAll',
-                arguments: [uriStr]
-            }));
-            lenses.push(new vscode.CodeLens(topRange, {
-                title: `$(discard) Revert All`,
-                command: 'ai-companion.rejectAll',
-                arguments: [uriStr]
-            }));
-        }
-
         return lenses;
     }
 }

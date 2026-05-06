@@ -98,7 +98,7 @@ export class ChatCoreService {
         images?: any[],
         agentId?: string
     }, onChunk?: (text: string) => void,
-       onAgentStep?: (step: AgentStepEvent) => void): Promise<{ text: string, usage?: any }> {
+        onAgentStep?: (step: AgentStepEvent) => void): Promise<{ text: string, usage?: any }> {
 
         const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
 
@@ -228,7 +228,7 @@ export class ChatCoreService {
                 outputChannel.appendLine(`[ChatCore] Request explicitly aborted by user for chatId=${data.chat_id}`);
                 aiResponseText = '*Agent stopped.*';
                 if (onAgentStep) {
-                    onAgentStep({ type: 'thinking', text: '🛑 Agent stopped by user' } as any);
+                    onAgentStep({ type: 'thinking', text: '-- Agent stopped by user' } as any);
                 }
                 if (onChunk) { onChunk('\n\n*Agent stopped.*'); }
             } else {
@@ -340,7 +340,7 @@ export class ChatCoreService {
         // Build the workspace-aware system prompt with system info (#52)
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || 'unknown';
         const systemInfo = getSystemInfo();
-        
+
         // #50: Task tracking prompt (when enabled)
         const todoInstruction = settings.general?.enableTodoList
             ? `\n\nTASK TRACKING:
@@ -541,7 +541,7 @@ RULES:
 
                     case 'finish-step': {
                         const usage = (part as any).usage;
-                        const reasoningTokens = usage?.outputTokenDetails?.reasoningTokens 
+                        const reasoningTokens = usage?.outputTokenDetails?.reasoningTokens
                             || usage?.reasoningTokens || 0;
                         outputChannel.appendLine(`[Agentic] Step finished: reason=${(part as any).finishReason}, reasoning=${reasoningTokens} tokens`);
                         // Note: reasoning text + token counts sent post-stream via result.steps
@@ -575,13 +575,13 @@ RULES:
                     const steps = await result.steps;
                     let totalReasoningTokens = 0;
                     let allReasoningText = '';
-                    
+
                     for (const step of steps) {
                         // Count reasoning tokens
-                        const stepTokens = (step.usage as any)?.outputTokenDetails?.reasoningTokens 
+                        const stepTokens = (step.usage as any)?.outputTokenDetails?.reasoningTokens
                             || (step.usage as any)?.reasoningTokens || 0;
                         totalReasoningTokens += stepTokens;
-                        
+
                         // Consolidate reasoning text (like the AI SDK elements example)
                         // step.reasoning is Array<ReasoningPart> where each part has { type: 'reasoning', text: string }
                         if (step.reasoningText && step.reasoningText.trim()) {
@@ -598,9 +598,9 @@ RULES:
                             }
                         }
                     }
-                    
+
                     outputChannel.appendLine(`[Agentic] Reasoning: ${totalReasoningTokens} tokens, text length: ${allReasoningText.length}`);
-                    
+
                     // Send consolidated reasoning to UI ONLY IF it wasn't streamed live
                     if (!streamedReasoning && allReasoningText.trim()) {
                         onAgentStep({ type: 'thinking', text: allReasoningText });

@@ -778,19 +778,27 @@ export async function chatMessageListener(message: any) {
 
         case CHAT_COMMANDS.CHAT_REVIEW_HUNKS:
             {
-                // #43: In direct-write model, just report pending edit count
                 const reviewManager = ReviewManager.getInstance();
                 const count = reviewManager.getTotalPendingCount();
                 
                 if (count === 0) {
                     vscode.window.showInformationMessage('No pending changes to review.');
                 } else {
-                    // Open the first file with pending edits so the user can see CodeLens
                     const uris = reviewManager.getStagedUris();
-                    if (uris.length > 0) {
-                        await vscode.window.showTextDocument(uris[0]);
-                    }
-                    vscode.window.showInformationMessage(`${count} pending change(s) across ${uris.length} file(s). Use inline Accept/Revert buttons.`);
+                    const filesData = uris.map(uri => {
+                        const edits = reviewManager.getPendingEdits(uri.toString()) || [];
+                        return {
+                            fileName: path.basename(uri.fsPath),
+                            uri: uri.toString(),
+                            isNewFile: false,
+                            hunks: edits.map(e => ({ accepted: true })) // Dummy hunks just for the count
+                        };
+                    });
+
+                    await ChatViewProvider.getInstance().postMessage({
+                        command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
+                        content: filesData
+                    });
                 }
                 break;
             }
@@ -813,6 +821,56 @@ export async function chatMessageListener(message: any) {
                     command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
                     content: []
                 });
+                break;
+            }
+
+        case 'acceptFile':
+            {
+                const { uri } = message.data;
+                const fileUri = vscode.Uri.parse(uri);
+                const reviewManager = ReviewManager.getInstance();
+                reviewManager.acceptAllForFile(fileUri.toString());
+                vscode.window.showInformationMessage('Changes accepted in ' + path.basename(fileUri.fsPath));
+                
+                // Update the review window
+                const count = reviewManager.getTotalPendingCount();
+                if (count === 0) {
+                    await ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: [] });
+                } else {
+                    const uris = reviewManager.getStagedUris();
+                    const filesData = uris.map(u => ({
+                        fileName: path.basename(u.fsPath),
+                        uri: u.toString(),
+                        isNewFile: false,
+                        hunks: (reviewManager.getPendingEdits(u.toString()) || []).map(e => ({ accepted: true }))
+                    }));
+                    await ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: filesData });
+                }
+                break;
+            }
+        
+        case 'rejectFile':
+            {
+                const { uri } = message.data;
+                const fileUri = vscode.Uri.parse(uri);
+                const reviewManager = ReviewManager.getInstance();
+                await reviewManager.revertAllForFile(fileUri.toString());
+                vscode.window.showInformationMessage('Changes reverted in ' + path.basename(fileUri.fsPath));
+                
+                // Update the review window
+                const count = reviewManager.getTotalPendingCount();
+                if (count === 0) {
+                    await ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: [] });
+                } else {
+                    const uris = reviewManager.getStagedUris();
+                    const filesData = uris.map(u => ({
+                        fileName: path.basename(u.fsPath),
+                        uri: u.toString(),
+                        isNewFile: false,
+                        hunks: (reviewManager.getPendingEdits(u.toString()) || []).map(e => ({ accepted: true }))
+                    }));
+                    await ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: filesData });
+                }
                 break;
             }
 

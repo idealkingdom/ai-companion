@@ -1418,17 +1418,14 @@ function renderHunkReviewPanel() {
         </div>
         <div class="hunk-review-actions">
             <div class="hunk-action-info">
-                ${acceptedHunks}/${totalHunks} changes selected
+                ${hunkReviewState.files.length} file(s) with pending changes
             </div>
             <div class="hunk-action-buttons">
-                <button class="hunk-action-btn undo" onclick="undoHunkToggle()" title="Undo last toggle (Ctrl+Z)" ${hunkReviewState.undoStack.length === 0 ? 'disabled style="opacity:0.3;pointer-events:none"' : ''}>
-                    ↶ Undo
-                </button>
                 <button class="hunk-action-btn discard" onclick="discardAllHunks()">
-                    ✕ Reject All
+                    ✕ Reject All Files
                 </button>
                 <button class="hunk-action-btn commit" onclick="commitSelectedHunks()">
-                    ✓ Save Changes (${acceptedHunks})
+                    ✓ Accept All Files
                 </button>
             </div>
         </div>
@@ -1442,23 +1439,18 @@ function renderFileSection(file, fileIdx) {
         ? '<span class="hunk-file-badge new-file">NEW</span>'
         : '<span class="hunk-file-badge modified">MODIFIED</span>';
 
-    const hunksHtml = file.hunks.map((hunk, hunkIdx) => renderHunkCard(hunk, fileIdx, hunkIdx)).join('');
-
     return `
         <div class="hunk-file-section" data-file-idx="${fileIdx}">
-            <div class="hunk-file-header">
-                <div class="hunk-file-name" onclick="toggleFileSection(${fileIdx})">
+            <div class="hunk-file-header" style="cursor: default;">
+                <div class="hunk-file-name" onclick="sendMessage('chatOpenFile', { uri: '${file.uri}' })" style="cursor: pointer; text-decoration: underline;" title="Open File for Direct Review">
                     ${badge}
                     ${escapeHtml(file.fileName)}
-                    <span style="opacity:0.4; font-weight:400">(${file.hunks.length} hunk${file.hunks.length > 1 ? 's' : ''})</span>
+                    <span style="opacity:0.4; font-weight:400; text-decoration: none;">(${file.hunks.length} hunk${file.hunks.length > 1 ? 's' : ''})</span>
                 </div>
                 <div style="display:flex; gap:8px; align-items:center;">
-                    <button class="hunk-toggle-btn" style="border:none; padding:2px 6px; font-size:0.7rem; opacity:0.7" onclick="event.stopPropagation(); sendMessage('chatOpenFile', { uri: '${file.uri}' })" title="Open File for Direct Review">📂 Open File</button>
-                    <span class="hunk-file-toggle" onclick="toggleFileSection(${fileIdx})">▼</span>
+                    <button class="hunk-toggle-btn" style="border:none; padding:4px 8px; font-size:0.75rem; background: rgba(76, 175, 80, 0.2); color: #4CAF50; cursor: pointer; border-radius: 4px;" onclick="sendMessage('acceptFile', { uri: '${file.uri}' })" title="Accept all changes in this file">✓ Accept All</button>
+                    <button class="hunk-toggle-btn" style="border:none; padding:4px 8px; font-size:0.75rem; background: rgba(244, 67, 54, 0.2); color: #f44336; cursor: pointer; border-radius: 4px;" onclick="sendMessage('rejectFile', { uri: '${file.uri}' })" title="Reject all changes in this file">✕ Reject All</button>
                 </div>
-            </div>
-            <div class="hunk-file-body">
-                ${hunksHtml}
             </div>
         </div>
     `;
