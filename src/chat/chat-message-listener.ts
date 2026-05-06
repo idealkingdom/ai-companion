@@ -83,6 +83,21 @@ export async function chatMessageListener(message: any) {
                     command: 'chatStagingUpdate',
                     content: { stagedFilesCount: count }
                 });
+
+                // Send initial workspace index stats
+                try {
+                    const { WorkspaceIndexService } = require('../services/workspace-index');
+                    const wsIndex = new WorkspaceIndexService();
+                    await wsIndex.refresh();
+                    const fileCount = wsIndex.getFileList().length;
+                    await ChatViewProvider.getInstance().postMessage({
+                        command: 'indexUpdate',
+                        content: { fileCount, lastUpdated: new Date().toISOString() }
+                    });
+                    wsIndex.dispose();
+                } catch (e) {
+                    outputChannel.appendLine(`[Index] Initial index failed: ${e}`);
+                }
                 break;
             }
         case 'searchWorkspaceFiles':
@@ -898,6 +913,24 @@ export async function chatMessageListener(message: any) {
                     resolver(true);
                     chunkAcks.delete(seq.toString());
                 }
+                break;
+            }
+
+        case 'refreshIndex':
+            {
+                const { WorkspaceIndexService } = require('../services/workspace-index');
+                const wsIndex = new WorkspaceIndexService();
+                await wsIndex.refresh();
+                const fileCount = wsIndex.getFileList().length;
+                outputChannel.appendLine(`[Index] Manual refresh: ${fileCount} files indexed.`);
+                
+                await ChatViewProvider.getInstance().postMessage({
+                    command: 'indexUpdate',
+                    content: { fileCount, lastUpdated: new Date().toISOString() }
+                });
+                
+                vscode.window.showInformationMessage(`Workspace index refreshed: ${fileCount} files indexed.`);
+                wsIndex.dispose();
                 break;
             }
 

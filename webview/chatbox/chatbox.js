@@ -2330,6 +2330,19 @@ window.addEventListener('message', event => {
             applyUISettings(message.ui);
             break;
 
+        case 'indexUpdate':
+            {
+                const indexPill = document.getElementById('count-index');
+                if (indexPill && message.content) {
+                    indexPill.textContent = message.content.fileCount || '0';
+                    const pillEl = document.getElementById('pill-index');
+                    if (pillEl) {
+                        pillEl.title = `Workspace Index: ${message.content.fileCount} files — Last updated: ${new Date(message.content.lastUpdated).toLocaleTimeString()} — Click to Refresh`;
+                    }
+                }
+                break;
+            }
+
         case 'agentsUpdate':
             if (window.VS_CONSTANTS) {
                 window.VS_CONSTANTS.AGENTS = message.agents;
