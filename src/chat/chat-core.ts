@@ -420,6 +420,7 @@ RULES:
         const agentTemp = Math.min(temperature, 0.3);
 
         let stepCount = 0;
+        let streamedReasoning = false;
 
         try {
             const result = await openAIAgenticRequest(
@@ -431,6 +432,7 @@ RULES:
                     enableThinking: settings.general?.enableThinking !== false,
                     // #44: Real-time reasoning streaming (for models like Gemini/DeepSeek)
                     onReasoningChunk: (text: string) => {
+                        streamedReasoning = true;
                         if (onAgentStep && text) {
                             onAgentStep({ type: 'thinking', text });
                         }
@@ -591,8 +593,8 @@ RULES:
                     
                     outputChannel.appendLine(`[Agentic] Reasoning: ${totalReasoningTokens} tokens, text length: ${allReasoningText.length}`);
                     
-                    // Send consolidated reasoning to UI
-                    if (allReasoningText.trim()) {
+                    // Send consolidated reasoning to UI ONLY IF it wasn't streamed live
+                    if (!streamedReasoning && allReasoningText.trim()) {
                         onAgentStep({ type: 'thinking', text: allReasoningText });
                     }
                     // Always send token count if reasoning was used

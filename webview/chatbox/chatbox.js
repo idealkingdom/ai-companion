@@ -1023,6 +1023,41 @@ function appendUserMessage(message, images = [], files = []) {
     scrollToBottom();
 }
 
+function getOrCreateAgentStepsGroup() {
+    let detailsEl = chatbox.querySelector('details.agent-steps-group:not([data-finalized="true"])');
+    if (!detailsEl) {
+        hideLoadingIndicator();
+
+        detailsEl = document.createElement('details');
+        detailsEl.className = 'agent-steps-group';
+        detailsEl.open = true;
+        detailsEl.dataset.startTime = Date.now();
+
+        const summary = document.createElement('summary');
+        summary.className = 'agent-steps-summary';
+        summary.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg> <span class="summary-text">Working...</span>`;
+        detailsEl.appendChild(summary);
+
+        const stepsContainer = document.createElement('div');
+        stepsContainer.className = 'agent-steps-container';
+        detailsEl.appendChild(stepsContainer);
+
+        chatbox.appendChild(detailsEl);
+
+        detailsEl.dataset.timer = setInterval(() => {
+            const ms = Date.now() - parseInt(detailsEl.dataset.startTime);
+            const secs = Math.floor(ms / 1000);
+            const summaryText = summary.querySelector('.summary-text');
+            if (summaryText) {
+                summaryText.textContent = `Worked for ${secs}s`;
+            }
+        }, 1000);
+
+        return stepsContainer;
+    }
+    return detailsEl.querySelector('.agent-steps-container');
+}
+
 
 /**
  * Renders an Agent tool step card in the chat log.
@@ -1115,7 +1150,7 @@ function renderAgentStep(step) {
             content.className = 'thinking-content';
             thinkingBlock.appendChild(content);
 
-            chatbox.appendChild(thinkingBlock);
+            getOrCreateAgentStepsGroup().appendChild(thinkingBlock);
         }
 
         // Append the reasoning text (if any — empty string for reasoning-start)
@@ -1165,39 +1200,8 @@ function renderAgentStep(step) {
         }
     }
 
-    // Find or create the active agent steps container wrapper
-    let detailsEl = chatbox.querySelector('details.agent-steps-group:not([data-finalized="true"])');
-    let stepsContainer;
-    if (!detailsEl) {
-        hideLoadingIndicator();
-
-        detailsEl = document.createElement('details');
-        detailsEl.className = 'agent-steps-group';
-        detailsEl.open = true;
-        detailsEl.dataset.startTime = Date.now();
-
-        const summary = document.createElement('summary');
-        summary.className = 'agent-steps-summary';
-        summary.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg> <span class="summary-text">Working...</span>`;
-        detailsEl.appendChild(summary);
-
-        stepsContainer = document.createElement('div');
-        stepsContainer.className = 'agent-steps-container';
-        detailsEl.appendChild(stepsContainer);
-
-        chatbox.appendChild(detailsEl);
-
-        detailsEl.dataset.timer = setInterval(() => {
-            const ms = Date.now() - parseInt(detailsEl.dataset.startTime);
-            const secs = Math.floor(ms / 1000);
-            const summaryText = summary.querySelector('.summary-text');
-            if (summaryText) {
-                summaryText.textContent = `Worked for ${secs}s`;
-            }
-        }, 1000);
-    } else {
-        stepsContainer = detailsEl.querySelector('.agent-steps-container');
-    }
+    // Helper is defined below
+    const stepsContainer = getOrCreateAgentStepsGroup();
 
     const stepEl = (step.toolCallId && stepsContainer.querySelector(`[data-tool-call-id="${step.toolCallId}"]`)) ||
         document.createElement('div');
@@ -2206,6 +2210,18 @@ window.addEventListener('message', event => {
                         group.open = false; // Close it to keep UI clean
                     }
                     group.dataset.finalized = "true";
+                }
+            });
+
+            // #44: Finalize any open thinking blocks
+            document.querySelectorAll('.agent-thinking-block:not([data-finalized="true"])').forEach(thinkingBlock => {
+                thinkingBlock.dataset.finalized = 'true';
+                thinkingBlock.classList.remove('streaming');
+                thinkingBlock.open = false; // auto-collapse when done
+                
+                const label = thinkingBlock.querySelector('.thinking-label');
+                if (label && !label.textContent.includes('Thought for')) {
+                    label.textContent = 'Thought process';
                 }
             });
 
