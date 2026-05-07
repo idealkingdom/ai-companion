@@ -596,6 +596,27 @@ if (resetCssBtn) {
     });
 }
 
+// #67: Generate Theme Button
+const generateThemeBtn = document.getElementById('generateThemeBtn');
+const themePromptInput = document.getElementById('themePromptInput');
+
+if (generateThemeBtn && themePromptInput) {
+    generateThemeBtn.addEventListener('click', () => {
+        const prompt = themePromptInput.value.trim();
+        if (!prompt) {
+            showModal('Empty Prompt', 'Please describe the theme you want to generate.', false, true);
+            return;
+        }
+        generateThemeBtn.disabled = true;
+        generateThemeBtn.innerHTML = '<span class="status-spinner" style="width:12px;height:12px;border-width:2px;"></span> Generating...';
+        vscode.postMessage({ command: 'generateTheme', data: { prompt } });
+    });
+
+    themePromptInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { generateThemeBtn.click(); }
+    });
+}
+
 // Save Button
 saveBtn.addEventListener('click', () => {
     persistSettings();
@@ -658,6 +679,30 @@ window.addEventListener('message', event => {
                 renderPrompts();
                 renderModelTable();
                 break;
+
+            // #67: AI-generated theme result
+            case 'generateThemeResult': {
+                const genBtn = document.getElementById('generateThemeBtn');
+                if (genBtn) {
+                    genBtn.disabled = false;
+                    genBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> Generate';
+                }
+                if (message.success && message.css) {
+                    if (customCssInput) {
+                        customCssInput.value = message.css;
+                        currentSettings.ui.customCss = message.css;
+                        if (themeTemplateSelect) {
+                            themeTemplateSelect.value = 'custom';
+                            updateDeleteButtonVisibility();
+                        }
+                        applyUISettings(currentSettings.ui);
+                        persistSettings();
+                    }
+                } else {
+                    showModal('Generation Failed', message.error || 'Failed to generate theme. Please try again.', false, true);
+                }
+                break;
+            }
         }
     } catch (err) {
         console.error('Error handling message:', err);

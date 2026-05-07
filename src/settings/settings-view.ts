@@ -47,7 +47,62 @@ export class SettingsView {
                         vscode.commands.executeCommand('ai-companion.updateUISettings', message.settings.ui);
                         break;
 
+                    case 'generateTheme':
+                        try {
+                            const appSettings = this._settingsManager.getSettings();
+                            const provider = appSettings.models.provider || 'OpenAI';
+                            const pConfig = appSettings.models.providerSettings?.[provider] || {};
+                            const apiKey = pConfig.apiKey || appSettings.models.apiKey || '';
+                            const baseUrl = pConfig.baseUrl || '';
+                            const model = appSettings.models.textModel || 'gpt-4o';
 
+                            if (!apiKey) {
+                                this._panel.webview.postMessage({
+                                    command: 'generateThemeResult',
+                                    success: false,
+                                    error: 'No API key configured. Please set up your API key in the Models tab first.'
+                                });
+                                return;
+                            }
+
+                            const { aiRequest } = require('../api/ai');
+                            const themePrompt = message.data?.prompt || '';
+                            const systemPrompt = `You are a CSS theme generator for a VS Code extension chatbox UI. Generate ONLY valid CSS code — no markdown, no explanations, no code fences.
+
+The CSS you generate will be injected into a chatbox webview. Available CSS variables to override:
+--app-bg, --chat-bg, --text-color, --border-color, --input-bg, --input-fg, --input-focus-border, 
+--user-msg-bg, --code-bg, --accent-color, --accent-glow, --accent-gradient, --sidebar-bg, 
+--panel-bg, --panel-border, --bg-base, --font-ui, --font-editor
+
+You can also style: body, .message-body, .unified-input-container, .send-btn-premium, code, pre, etc.
+Use !important for overrides. Include a comment header with the theme name.`;
+
+                            const result = await aiRequest(
+                                [
+                                    { role: 'system', content: systemPrompt },
+                                    { role: 'user', content: `Generate a CSS theme: ${themePrompt}` }
+                                ],
+                                model, apiKey, 0.7, provider, baseUrl
+                            );
+
+                            // Clean up response — strip any markdown fences if accidentally included
+                            let css = result.content || '';
+                            css = css.replace(/^```(?:css)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
+                            this._panel.webview.postMessage({
+                                command: 'generateThemeResult',
+                                success: true,
+                                css
+                            });
+                        } catch (err: any) {
+                            outputChannel.appendLine(`[Settings] Theme generation error: ${err.message}`);
+                            this._panel.webview.postMessage({
+                                command: 'generateThemeResult',
+                                success: false,
+                                error: err.message || 'Theme generation failed.'
+                            });
+                        }
+                        break;
                 }
             },
             null,

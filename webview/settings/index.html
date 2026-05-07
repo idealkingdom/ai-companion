@@ -248,6 +248,24 @@
                             </div>
                         </div>
 
+                        <!-- #67: AI Theme Generator -->
+                        <div class="field-row mt-4">
+                            <div class="form-group flex-1">
+                                <label>AI Theme Generator</label>
+                                <p class="section-desc">Describe the theme you want and let AI generate it for you.</p>
+                                <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                    <input type="text" id="themePromptInput" class="styled-input" 
+                                        placeholder="e.g. A dark purple cyberpunk theme with neon green accents" 
+                                        style="flex: 1;">
+                                    <button id="generateThemeBtn" class="primary-btn glass-btn"
+                                        style="padding: 6px 16px; font-size: 0.8rem; width: auto; margin: 0; white-space: nowrap; display: flex; align-items: center; gap: 6px;">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                                        Generate
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="field-row">
                             <div class="form-group flex-1">
                                 <textarea id="customCssInput" class="styled-input styled-textarea code-font" rows="22"
