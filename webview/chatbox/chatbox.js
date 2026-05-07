@@ -1254,9 +1254,23 @@ function renderAgentStep(step) {
             'create_file': '▷',
             'find_symbol': '◎',
             'run_command': '⚡',
-            'search_workspace': '◈'
+            'search_workspace': '◈',
+            'scrape_url': '🌐'
+        };
+        // #61: Human-readable tool labels
+        const toolLabels = {
+            'list_workspace': 'Listing Workspace',
+            'read_file_skeleton': 'Reading File Skeleton',
+            'read_line_range': 'Reading Lines',
+            'chunk_replace': 'Editing File',
+            'create_file': 'Creating File',
+            'find_symbol': 'Finding Symbol',
+            'run_command': 'Running Command',
+            'search_workspace': 'Searching Workspace',
+            'scrape_url': 'Scraping URL'
         };
         const icon = icons[step.toolName] || '🛠️';
+        const displayName = toolLabels[step.toolName] || step.toolName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
         const argsPreview = step.args ? JSON.stringify(step.args).substring(0, 120) : '';
 
         // All tools now show as "Running" initially. 
@@ -1264,7 +1278,7 @@ function renderAgentStep(step) {
         stepEl.innerHTML = `
             <div class="step-header">
                 <span class="step-icon">${icon}</span>
-                <span class="step-tool-name">${step.toolName}</span>
+                <span class="step-tool-name">${displayName}</span>
                 <span class="step-status running">Running</span>
             </div>
             <div class="step-args">${argsPreview}</div>
