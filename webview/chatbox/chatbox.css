@@ -208,6 +208,7 @@ span.logo svg{
   gap: 1rem;
   word-wrap: break-word;
   overflow-x: hidden;
+  padding-bottom: 3rem;
 }
 
 .message-content {
