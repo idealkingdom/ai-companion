@@ -651,11 +651,11 @@ function updateDynamicPadding() {
             const contentBottom = lastChild.offsetTop + lastChild.offsetHeight;
             const visibleContentHeight = contentBottom - lastUserMsg.offsetTop;
             
-            // Get exact padding of chatLog to prevent the 30px "push up" drift
+            // Get exact padding-bottom of chatLog to prevent pushing up too far
             const style = window.getComputedStyle(chatLog);
-            const paddingY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+            const paddingBottom = parseFloat(style.paddingBottom) || 0;
             
-            let requiredPadding = chatLog.clientHeight - visibleContentHeight - paddingY; 
+            let requiredPadding = chatLog.clientHeight - visibleContentHeight - paddingBottom; 
             if (requiredPadding < 0) requiredPadding = 0;
             chatbox.style.paddingBottom = `${requiredPadding}px`;
             return;
@@ -1054,7 +1054,14 @@ function appendUserMessage(message, images = [], files = []) {
     }
 
     _isUserScrolledUp = false;
-    scrollToBottom(true);
+    updateDynamicPadding();
+    
+    // Jump the new message to the top of the viewport natively
+    setTimeout(() => {
+        if (newMessageElement) {
+            newMessageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, 50);
 }
 
 function getOrCreateAgentStepsGroup() {
