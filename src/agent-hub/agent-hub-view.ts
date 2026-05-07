@@ -10,8 +10,8 @@ import { outputChannel } from '../logger';
 import { SourceIndexService, SourceType, IndexedSource } from '../services/source-index';
 import { WebScraperService } from '../services/web-scraper';
 import { DocumentParserService } from '../services/document-parser';
-import { SettingsManager, PromptDef } from '../services/settings-manager';
-import { getModelProviderOptions } from '../constants';
+import { SettingsManager } from '../services/settings-manager';
+import { getModelProviderOptions, PromptDef } from '../constants';
 
 export class AgentHubView {
     public static currentPanel: AgentHubView | undefined;
@@ -383,7 +383,8 @@ export class AgentHubView {
                 const newAgent: PromptDef = {
                     id: Date.now().toString(),
                     name: 'New Agent',
-                    content: 'You are an AI assistant.',
+                    description: 'A new custom agent profile.',
+                    systemPrompt: 'You are an AI assistant.',
                     isActive: true,
                     order: settings.prompts.length + 1,
                     linkedSources: []
@@ -399,7 +400,7 @@ export class AgentHubView {
                 const { id, field, value } = message.data;
                 const settings = this.settingsManager.getSettings();
                 settings.prompts = settings.prompts || [];
-                const agent = settings.prompts.find(p => p.id === id);
+                const agent = settings.prompts.find((p: PromptDef) => p.id === id);
                 if (!agent) { return; }
 
                 if (field === 'name') { agent.name = value; }
@@ -415,11 +416,11 @@ export class AgentHubView {
                 const { agentId: aId, newIndex } = message.data;
                 const settings5 = this.settingsManager.getSettings();
                 settings5.prompts = settings5.prompts || [];
-                const agent5 = settings5.prompts.find(p => p.id === aId);
+                const agent5 = settings5.prompts.find((p: PromptDef) => p.id === aId);
                 if (agent5) {
-                    settings5.prompts = settings5.prompts.filter(p => p.id !== aId);
+                    settings5.prompts = settings5.prompts.filter((p: PromptDef) => p.id !== aId);
                     settings5.prompts.splice(newIndex, 0, agent5);
-                    settings5.prompts.forEach((p, i) => p.order = i + 1);
+                    settings5.prompts.forEach((p: PromptDef, i: number) => p.order = i + 1);
                     await this.settingsManager.updateSettings({ prompts: settings5.prompts });
                 }
                 this.sendAgents();
@@ -429,8 +430,8 @@ export class AgentHubView {
             case 'deleteAgent': {
                 const settings2 = this.settingsManager.getSettings();
                 settings2.prompts = settings2.prompts || [];
-                settings2.prompts = settings2.prompts.filter(p => p.id !== message.data.id);
-                settings2.prompts.forEach((p, i) => p.order = i + 1);
+                settings2.prompts = settings2.prompts.filter((p: PromptDef) => p.id !== message.data.id);
+                settings2.prompts.forEach((p: PromptDef, i: number) => p.order = i + 1);
                 await this.settingsManager.updateSettings({ prompts: settings2.prompts });
                 this.sendAgents();
                 return;
@@ -440,7 +441,7 @@ export class AgentHubView {
                 const { agentId, sourceId } = message.data;
                 const settings3 = this.settingsManager.getSettings();
                 settings3.prompts = settings3.prompts || [];
-                const agent3 = settings3.prompts.find(p => p.id === agentId);
+                const agent3 = settings3.prompts.find((p: PromptDef) => p.id === agentId);
                 if (!agent3) { return; }
 
                 if (!agent3.linkedSources) { agent3.linkedSources = []; }
@@ -456,10 +457,10 @@ export class AgentHubView {
                 const { agentId: aId, sourceId: sId } = message.data;
                 const settings4 = this.settingsManager.getSettings();
                 settings4.prompts = settings4.prompts || [];
-                const agent4 = settings4.prompts.find(p => p.id === aId);
+                const agent4 = settings4.prompts.find((p: PromptDef) => p.id === aId);
                 if (!agent4 || !agent4.linkedSources) { return; }
 
-                agent4.linkedSources = agent4.linkedSources.filter(id => id !== sId);
+                agent4.linkedSources = agent4.linkedSources.filter((id: string) => id !== sId);
                 await this.settingsManager.updateSettings({ prompts: settings4.prompts });
                 this.sendAgents();
                 return;
@@ -471,7 +472,7 @@ export class AgentHubView {
                 const { agentId } = message.data;
                 const settings5 = this.settingsManager.getSettings();
                 settings5.prompts = settings5.prompts || [];
-                const agent5 = settings5.prompts.find(p => p.id === agentId);
+                const agent5 = settings5.prompts.find((p: PromptDef) => p.id === agentId);
                 if (!agent5) { return; }
 
                 // Gather context: agent name + current prompt + linked source content

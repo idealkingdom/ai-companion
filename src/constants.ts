@@ -8,6 +8,52 @@ export enum MODEL_PROVIDER {
     GEMINI = 'Gemini'
 }
 
+export interface PromptDef {
+    id: string;
+    name: string;
+    description: string;
+    systemPrompt: string;
+    isDefault?: boolean;
+    isActive?: boolean;
+    linkedSources?: string[];
+    [key: string]: any;
+}
+
+export interface AppSettings {
+    general: {
+        systemPrompt: string;
+        enableThinking: boolean;
+        temperature: number;
+        theme: string;
+    };
+    models: {
+        textModel: string;
+        imageModel: string;
+        baseUrl: string;
+        apiKey: string;
+        provider: string;
+        providerSettings: Record<string, {
+            apiKey: string;
+            baseUrl: string;
+            textModel: string;
+            imageModel: string;
+        }>;
+        inactiveModels: string[];
+    };
+    permissions: {
+        readFilesConfirmation: boolean;
+        writeFilesConfirmation: boolean;
+        runCommandsConfirmation: boolean;
+    };
+    ui: {
+        sidebarPosition: 'left' | 'right';
+        showLineNumbers: boolean;
+    };
+    prompts: PromptDef[];
+    customTemplates: any[];
+    customModels: any[];
+}
+
 export function getModelProviderOptions(): Record<string, { name: string; models: { text: string[]; image: string[] } }> {
     try {
         const modelsJsonPath = path.join(__dirname, '..', 'models.json');
@@ -25,4 +71,3 @@ export function getModelProviderOptions(): Record<string, { name: string; models
         }
     };
 }
-

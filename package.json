@@ -20,6 +20,7 @@
           "default": "OpenAI",
           "enum": [
             "OpenAI",
+            "Gemini",
             "Mistral",
             "DeepSeek"
           ],
@@ -217,6 +218,7 @@
     "webpack-cli": "^6.0.1"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.68",
     "@ai-sdk/openai": "^3.0.50",
     "ai": "^6.0.145",
     "pdf-parse": "^1.1.1",

@@ -1,34 +1,75 @@
 import { createOpenAI } from '@ai-sdk/openai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText, streamText, stepCountIs } from 'ai';
 import { outputChannel } from '../logger';
 import * as vscode from 'vscode';
 
+// ─── HELPER: Resolve the correct AI SDK model instance ──────────────────────
+// OpenAI, DeepSeek, Mistral, and any other OpenAI-compatible provider all use
+// `createOpenAI` with a different `baseURL`.  Only Google Gemini uses a
+// completely different SDK (`@ai-sdk/google`).
+
+function resolveModel(provider: string, model: string, apiKey: string, baseUrl?: string) {
+    if (provider === 'Gemini') {
+        const google = createGoogleGenerativeAI({ 
+            apiKey,
+            baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined
+        });
+        return google(model);
+    }
+
+    // All OpenAI-compatible providers (OpenAI, DeepSeek, Mistral, Custom, etc.)
+    const openai = createOpenAI({
+        apiKey,
+        baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
+    });
+    return openai(model);
+}
+
+function resolveAgenticModel(provider: string, model: string, apiKey: string, baseUrl?: string) {
+    if (provider === 'Gemini') {
+        const google = createGoogleGenerativeAI({ 
+            apiKey,
+            baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined
+        });
+        return google(model);
+    }
+
+    // OpenAI-compat with strict compatibility for tool calling
+    const openai = createOpenAI({
+        apiKey,
+        baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
+        compatibility: 'strict',
+    } as any);
+    return openai(model);
+}
+
+// ─── PUBLIC API ─────────────────────────────────────────────────────────────
+
 /**
  * Standard non-streaming request (no tools).
  */
-export async function openAIRequest(
+export async function aiRequest(
     messages: any[],
     model: string,
     accessToken: string,
     temperature: number,
+    provider: string,
     baseUrl?: string
 ): Promise<{ content: string }> {
 
-    const openai = createOpenAI({
-        apiKey: accessToken,
-        baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
-    });
+    const resolvedModel = resolveModel(provider, model, accessToken, baseUrl);
 
     try {
         const { text } = await generateText({
-            model: openai(model),
+            model: resolvedModel,
             messages: messages,
             temperature: temperature,
         });
 
         return { content: text };
     } catch (error) {
-        outputChannel.appendLine("Error during OpenAI Request: " + error);
+        outputChannel.appendLine("Error during AI Request: " + error);
         throw error;
     }
 }
@@ -36,22 +77,20 @@ export async function openAIRequest(
 /**
  * Standard streaming request (no tools).
  */
-export async function openAIStreamRequest(
+export async function aiStreamRequest(
     messages: any[],
     model: string,
     accessToken: string,
     temperature: number,
+    provider: string,
     baseUrl?: string,
     abortSignal?: AbortSignal
 ) {
-    const openai = createOpenAI({
-        apiKey: accessToken,
-        baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
-    });
+    const resolvedModel = resolveModel(provider, model, accessToken, baseUrl);
 
     try {
         const result = await streamText({
-            model: openai(model),
+            model: resolvedModel,
             messages: messages,
             temperature: temperature,
             abortSignal: abortSignal,
@@ -59,7 +98,7 @@ export async function openAIStreamRequest(
 
         return result;
     } catch (error) {
-        outputChannel.appendLine("Error during OpenAI Stream Request: " + error);
+        outputChannel.appendLine("Error during AI Stream Request: " + error);
         throw error;
     }
 }
@@ -67,12 +106,15 @@ export async function openAIStreamRequest(
 /**
  * Agentic streaming request — injects tools and allows multi-step autonomous execution.
  * Uses AI SDK v6's stopWhen + stepCountIs for loop control.
+ * 
+ * Works with ALL providers: OpenAI, DeepSeek, Mistral, Gemini, Custom.
  */
-export async function openAIAgenticRequest(
+export async function aiAgenticRequest(
     messages: any[],
     model: string,
     accessToken: string,
     temperature: number,
+    provider: string,
     tools: Record<string, any>,
     options: {
         maxSteps?: number;
@@ -83,19 +125,15 @@ export async function openAIAgenticRequest(
         onReasoningChunk?: (text: string) => void;
     } = {}
 ) {
-    const openai = createOpenAI({
-        apiKey: accessToken,
-        baseURL: options.baseUrl && options.baseUrl.trim() !== '' ? options.baseUrl : undefined,
-        compatibility: 'strict',
-    } as any);
+    const resolvedModel = resolveAgenticModel(provider, model, accessToken, options.baseUrl);
 
-    outputChannel.appendLine(`[Agentic] Starting request: model=${model}, tools=${Object.keys(tools).join(',')}, maxSteps=${options.maxSteps || 15}`);
+    outputChannel.appendLine(`[Agentic] Starting request: provider=${provider}, model=${model}, tools=${Object.keys(tools).join(',')}, maxSteps=${options.maxSteps || 15}`);
     outputChannel.appendLine(`[Agentic] API key present: ${!!accessToken && accessToken.length > 0}, key length: ${accessToken?.length || 0}`);
     outputChannel.appendLine(`[Agentic] Message count: ${messages.length}, baseUrl: ${options.baseUrl || '(default)'}`);
 
     try {
         const streamOptions: any = {
-            model: openai(model),
+            model: resolvedModel,
             messages: messages,
             tools: tools,
             stopWhen: stepCountIs(options.maxSteps || 15),
@@ -141,10 +179,18 @@ export async function openAIAgenticRequest(
 
         // #44: Enable reasoning/thinking tokens when supported
         if (options.enableThinking) {
-            streamOptions.providerOptions = {
-                openai: { reasoningEffort: 'medium', reasoningSummary: 'detailed' }
-            };
-            outputChannel.appendLine(`[Agentic] Thinking/reasoning enabled for model=${model}, providerOptions set`);
+            if (provider === 'Gemini') {
+                // Google Gemini uses a different provider key for thinking config
+                streamOptions.providerOptions = {
+                    google: { thinkingConfig: { thinkingBudget: 1024 } }
+                };
+            } else {
+                // OpenAI-compatible providers
+                streamOptions.providerOptions = {
+                    openai: { reasoningEffort: 'medium', reasoningSummary: 'detailed' }
+                };
+            }
+            outputChannel.appendLine(`[Agentic] Thinking/reasoning enabled for provider=${provider}, model=${model}`);
         } else {
             outputChannel.appendLine(`[Agentic] Thinking/reasoning DISABLED for model=${model}`);
         }
@@ -157,3 +203,19 @@ export async function openAIAgenticRequest(
         throw error;
     }
 }
+
+// ─── BACKWARD-COMPAT ALIASES ────────────────────────────────────────────────
+// These ensure existing callers don't break during migration.
+
+export const openAIRequest = (
+    messages: any[], model: string, accessToken: string, temperature: number, baseUrl?: string
+) => aiRequest(messages, model, accessToken, temperature, 'OpenAI', baseUrl);
+
+export const openAIStreamRequest = (
+    messages: any[], model: string, accessToken: string, temperature: number, baseUrl?: string, abortSignal?: AbortSignal
+) => aiStreamRequest(messages, model, accessToken, temperature, 'OpenAI', baseUrl, abortSignal);
+
+export const openAIAgenticRequest = (
+    messages: any[], model: string, accessToken: string, temperature: number,
+    tools: Record<string, any>, options: any = {}
+) => aiAgenticRequest(messages, model, accessToken, temperature, 'OpenAI', tools, options);

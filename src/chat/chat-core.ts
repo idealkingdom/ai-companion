@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as os from 'os';
-import { openAIRequest, openAIStreamRequest, openAIAgenticRequest } from '../api/ai';
+import { aiRequest, aiStreamRequest, aiAgenticRequest } from '../api/ai';
 import { outputChannel } from '../logger';
 import { ROLE } from '../chat/chat-constants';
 import { ChatHistoryService } from './chat-history';
@@ -165,30 +165,37 @@ export class ChatCoreService {
             }
 
             const configModel = appSettings.models.provider;
-            const isVisionCapable = (configModel === 'OpenAI' || !configModel) && hasImages;
+            // Gemini models natively support vision, same as OpenAI
+            const isVisionCapable = (configModel === 'OpenAI' || configModel === 'Gemini' || !configModel) && hasImages;
 
-            let targetModel: string = 'gpt-4o-mini';
+            // Use the provider's configured model — never hardcode a specific provider's model ID
+            const fallbackTextModel = appSettings.models.textModel;
+            const fallbackImageModel = appSettings.models.imageModel || fallbackTextModel;
+
+            let targetModel: string = fallbackTextModel;
             let finalContextMessages = [...contextMessages];
             let finalCurrentMessage: any = currentMessageContent;
 
             if (hasImages) {
                 if (isVisionCapable) {
-                    targetModel = appSettings.models.imageModel || 'gpt-4o-mini';
+                    targetModel = fallbackImageModel;
                 } else {
                     const descriptionContext = storedImageDescriptions.map((d, i) => `[Image ${i + 1} Description: ${d}]`).join("\n");
                     finalCurrentMessage = `${data.message}\n\n${descriptionContext}`;
                 }
             } else {
-                targetModel = appSettings.models.textModel || 'gpt-4o';
+                targetModel = fallbackTextModel;
             }
 
             // Resolve API key and base URL from provider-specific settings
             const activeProvider = appSettings.models.provider || 'OpenAI';
             const providerConfig = appSettings.models.providerSettings?.[activeProvider];
             const apiBaseUrl = providerConfig?.baseUrl || '';
-            const apiKey = providerConfig?.apiKey || '';
 
-            outputChannel.appendLine(`[ChatCore] Provider=${activeProvider}, model=${targetModel}, hasApiKey=${!!apiKey}, baseUrl=${apiBaseUrl || '(default)'}`);
+            // #FIX: Fallback to global apiKey if provider-specific key is missing
+            const apiKey = providerConfig?.apiKey || appSettings.models.apiKey || '';
+
+            outputChannel.appendLine(`[ChatCore] Provider=${activeProvider}, model=${targetModel}, hasApiKey=${!!apiKey}, keyLen=${apiKey.length}, baseUrl=${apiBaseUrl || '(default)'}`);
 
 
             // ─── DETERMINE MODE: AGENTIC vs STANDARD ────────────────────────
@@ -233,9 +240,22 @@ export class ChatCoreService {
                 if (onChunk) { onChunk('\n\n*Agent stopped.*'); }
             } else {
                 console.error('Error fetching chat response:', error);
-                outputChannel.appendLine('[ChatCore] Error: ' + (error?.message || error));
-                aiResponseText = 'Sorry, I could not process your request at this time. Error: ' + (error?.message || 'Unknown error');
-                if (onChunk) { onChunk(aiResponseText); }
+
+                let extractedErrorMsg = 'Unknown error';
+                if (error instanceof Error) {
+                    extractedErrorMsg = error.message;
+                } else if (error && typeof error === 'object') {
+                    extractedErrorMsg = error.message || error.error?.message || error.details || JSON.stringify(error);
+                } else if (typeof error === 'string') {
+                    extractedErrorMsg = error;
+                }
+
+                outputChannel.appendLine('[ChatCore] Error: ' + extractedErrorMsg);
+
+                aiResponseText = ''; // Clear response text to prevent duplicate bubble
+                if (onAgentStep) {
+                    onAgentStep({ type: 'thinking', text: `❌ Agent error: ${extractedErrorMsg}` } as any);
+                }
             }
             await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText, [], [], data.agentId, collectedAgentSteps);
         } finally {
@@ -281,6 +301,9 @@ export class ChatCoreService {
         const isO1 = model.startsWith('o1');
         const requestTemperature = isO1 ? 1 : temperature;
 
+        // Resolve the active provider for routing
+        const activeProvider = settings.models?.provider || 'OpenAI';
+
         for (let i = 0; i < steps.length; i++) {
             const step = steps[i];
             const isLastStep = i === steps.length - 1;
@@ -292,24 +315,28 @@ export class ChatCoreService {
             ];
 
             if (isLastStep && onChunk) {
-                const result = await openAIStreamRequest(
-                    apiPayload, model, apiKey, requestTemperature, baseUrl, abortSignal
+                const result = await aiStreamRequest(
+                    apiPayload, model, apiKey, requestTemperature, activeProvider, baseUrl, abortSignal
                 );
                 let fullText = '';
-                for await (const chunk of result.textStream) {
+                for await (const chunk of result.fullStream) {
                     if (abortSignal && abortSignal.aborted) {
                         throw new Error('AbortError');
                     }
-                    fullText += chunk;
-                    onChunk(chunk);
+                    if (chunk.type === 'text-delta') {
+                        fullText += chunk.text;
+                        onChunk(chunk.text);
+                    } else if (chunk.type === 'error') {
+                        throw chunk.error;
+                    }
                 }
                 const usage = await result.usage;
                 pipelineContext = fullText;
                 aiResponseText = fullText;
                 totalUsage = usage;
             } else {
-                const response = await openAIRequest(
-                    apiPayload, model, apiKey, requestTemperature, baseUrl
+                const response = await aiRequest(
+                    apiPayload, model, apiKey, requestTemperature, activeProvider, baseUrl
                 );
                 pipelineContext = response.content;
                 aiResponseText = response.content;
@@ -405,7 +432,9 @@ RULES:
             writeFilesConfirmation: settings.permissions?.writeFilesConfirmation ?? true,
             runCommandsConfirmation: settings.permissions?.runCommandsConfirmation ?? true,
             onApprovalRequest: async (toolCallId, toolName, args, opts) => {
-                if (abortSignal?.aborted) return;
+                if (abortSignal?.aborted) {
+                    return;
+                }
                 if (onAgentStep) {
                     onAgentStep({
                         type: 'tool_call' as any,
@@ -434,12 +463,15 @@ RULES:
         // Lower temperature for agent mode precision
         const agentTemp = Math.min(temperature, 0.3);
 
+        // Resolve the active provider for routing
+        const activeProvider = settings.models?.provider || 'OpenAI';
+
         let stepCount = 0;
         let streamedReasoning = false;
 
         try {
-            const result = await openAIAgenticRequest(
-                messages, model, apiKey, agentTemp, tools,
+            const result = await aiAgenticRequest(
+                messages, model, apiKey, agentTemp, activeProvider, tools,
                 {
                     maxSteps: 15,
                     baseUrl: baseUrl,
@@ -453,7 +485,9 @@ RULES:
                         }
                     },
                     onStepFinish: (event: any) => {
-                        if (abortSignal?.aborted) return;
+                        if (abortSignal?.aborted) {
+                            return;
+                        }
                         stepCount++;
                         outputChannel.appendLine(`[Agentic] Step ${stepCount} finished`);
 
@@ -562,7 +596,7 @@ RULES:
                     // ─── Other ───────────────────────────────────────
                     case 'error':
                         outputChannel.appendLine(`[Agentic] Stream error part: ${(part as any).error}`);
-                        break;
+                        throw (part as any).error; // #FIX: Throw the actual API error instead of swallowing it
                     case 'source':
                     case 'raw':
                         break; // metadata, no action

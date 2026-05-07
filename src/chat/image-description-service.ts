@@ -1,4 +1,4 @@
-import { openAIRequest } from '../api/ai';
+import { aiRequest } from '../api/ai';
 
 
 import { SettingsManager } from '../services/settings-manager';
@@ -9,18 +9,18 @@ export class ImageDescriptionService {
 
     /**
      * Generates a text description (caption) for a given Base64 image.
-     * Uses a lightweight vision model (e.g. GPT-4o-mini) to save costs.
+     * Uses the configured image model and provider.
      */
     public async describeImage(base64Image: string): Promise<string> {
         try {
             const appSettings = this.settingsManager.getSettings();
-            const currentProvider = appSettings.models.provider;
+            const currentProvider = appSettings.models.provider || 'OpenAI';
             const pSettings = appSettings.models.providerSettings?.[currentProvider] || {};
             const accessToken = pSettings.apiKey || '';
+            const baseUrl = pSettings.baseUrl || '';
 
-            // Use gpt-4o-mini for fast/cheap vision
-            // If strictly unavailable, could fallback to GPT-4o
-            const visionModel = appSettings.models.imageModel || "gpt-4o-mini";
+            // Use the configured image model for vision (falls back to text model)
+            const visionModel = appSettings.models.imageModel || appSettings.models.textModel;
 
             const messages = [
                 {
@@ -37,15 +37,14 @@ export class ImageDescriptionService {
                 }
             ];
 
-            // Reuse existing API wrapper
-            // Note: openAIRequest expects standard { role, content } objects, 
-            // but our content here is an array (Multimodal). 
-            // LangChain's ChatOpenAI handles this if the type allows it, or we cast 'any'.
-            const response = await openAIRequest(
+            // Use the provider-agnostic request function
+            const response = await aiRequest(
                 messages as any,
                 visionModel,
                 accessToken,
-                0.3 // Low temp for factual description
+                0.3, // Low temp for factual description
+                currentProvider,
+                baseUrl
             );
 
             return response.content || "Image description unavailable.";

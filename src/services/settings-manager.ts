@@ -1,60 +1,11 @@
 import * as vscode from 'vscode';
-import { MODEL_PROVIDER, getModelProviderOptions } from '../constants';
+import { AppSettings, MODEL_PROVIDER } from '../constants';
+import { getModelProviderOptions } from '../constants';
 
-export interface PromptDef {
-    id: string;
-    name: string;
-    content: string;
-    isActive: boolean;
-    order: number;
-    linkedSources?: string[];
-}
-
-export interface CustomModel {
-    id: string;
-    name: string;
-    provider: string;
-    apiKey: string;
-    baseUrl: string;
-    supportsImage: boolean;
-}
-
-export interface AppSettings {
-    general: {
-        systemPrompt: string;
-        enableTodoList?: boolean;
-        enableThinking?: boolean;
-    };
-    models: {
-        textModel: string;
-        imageModel: string;
-        baseUrl: string;
-        apiKey: string;
-        provider: string;
-        inactiveModels?: string[];
-        providerSettings: Record<string, {
-            textModel?: string;
-            imageModel?: string;
-            apiKey?: string;
-            baseUrl?: string;
-        }>;
-    };
-    permissions: {
-        allowShellExecution: boolean;
-        allowFileModification: boolean;
-    };
-    ui: {
-        theme: 'dark' | 'light' | 'system';
-        fontSize: number;
-        accentColor: string;
-        customCss: string;
-        lastCustomCss?: string;
-    };
-    prompts?: PromptDef[];
-    customTemplates?: any[];
-    customModels?: CustomModel[];
-}
-
+/**
+ * Default settings for the application.
+ * #52: Dynamic population from models.json registry.
+ */
 export const DEFAULT_SETTINGS: AppSettings = (() => {
     const options = getModelProviderOptions();
     const defaultProviderKey = Object.keys(options)[0] || MODEL_PROVIDER.OPEN_AI;
@@ -77,9 +28,10 @@ export const DEFAULT_SETTINGS: AppSettings = (() => {
 
     return {
         general: {
-            systemPrompt: "You are an expert code assistant. Answer coding relevant topics only.",
-            enableTodoList: false,
-            enableThinking: true
+            systemPrompt: "You are an expert AI assistant.",
+            enableThinking: true,
+            temperature: 0.7,
+            theme: 'dark'
         },
         models: {
             textModel: defaultTextModel,
@@ -91,31 +43,26 @@ export const DEFAULT_SETTINGS: AppSettings = (() => {
             inactiveModels: []
         },
         permissions: {
-            allowShellExecution: false,
-            allowFileModification: false
+            readFilesConfirmation: true,
+            writeFilesConfirmation: true,
+            runCommandsConfirmation: true
         },
         ui: {
-            theme: 'system',
-            fontSize: 14,
-            accentColor: '#007acc',
-            customCss: `/* ─── AI Companion Premium Styles ─── */\n\n/* 1. Global Typography */\nbody {\n    font-family: var(--font-ui, -apple-system, BlinkMacSystemFont, sans-serif) !important;\n    -webkit-font-smoothing: antialiased;\n}\n\n/* 2. Input Editor Enhancements */\n#messageInput, code, .textarea {\n    font-family: var(--font-editor, monospace) !important;\n    font-size: 0.92rem !important;\n    line-height: 1.6 !important;\n}\n\n/* 3. Floating Bubble Adjustments */\n.message-body {\n    border-radius: 12px !important;\n    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;\n}\n`
+            sidebarPosition: 'right',
+            showLineNumbers: true
         },
         prompts: [
             {
-                id: 'agent-assistant-1',
-                name: 'Chat',
-                content: 'You are a helpful and expert AI coding assistant. Provide clean, secure, and well-documented code.',
-                isActive: true,
-                order: 1
-            },
-            {
-                id: 'agent-architect-2',
-                name: 'Architect',
-                content: 'You are a Senior Technical Lead and Systems Architect. When analyzing problems, outline the solution step-by-step, listing prerequisites, edge cases, and architectural diagrams before writing any code.',
-                isActive: true,
-                order: 2
+                id: 'agent-1',
+                name: 'Software Engineer',
+                description: 'Expert in coding and architecture.',
+                systemPrompt: 'You are an expert software engineer.',
+                isDefault: true,
+                isActive: true
             }
-        ]
+        ],
+        customTemplates: [],
+        customModels: []
     };
 })();
 
@@ -134,13 +81,9 @@ export class SettingsManager {
 
         let finalPrompts = stored.prompts || [];
         if (finalPrompts.length === 0) {
-            // Guarantee predefined agents load securely for existing profiles
             finalPrompts = [...(DEFAULT_SETTINGS.prompts || [])];
         }
-        // Migration: Removed previous logic that force-enabled default agents, 
-        // as it was overriding user's explicit choices to disable them.
 
-        // Ensure structure (naive merge)
         const merged: AppSettings = {
             general: { ...DEFAULT_SETTINGS.general, ...stored.general },
             models: { ...DEFAULT_SETTINGS.models, ...stored.models },
@@ -151,16 +94,29 @@ export class SettingsManager {
             customModels: stored.customModels || []
         };
 
-        // Ensure providerSettings exists inside models if it wasn't there (though spread above handles it if stored.models has it)
-        // If stored.models didn't have providerSettings (older version), we need defaults.
         if (!merged.models.providerSettings) {
             merged.models.providerSettings = DEFAULT_SETTINGS.models.providerSettings;
         } else {
-            // Deep merge providerSettings to ensure keys exist
             merged.models.providerSettings = {
                 ...DEFAULT_SETTINGS.models.providerSettings,
                 ...merged.models.providerSettings
             };
+        }
+
+        // Sync with VS Code official settings (#52)
+        const config = vscode.workspace.getConfiguration('aiCompanion');
+        const configProvider = config.get<string>('modelProvider');
+        const configToken = config.get<string>('accessToken');
+
+        if (configProvider && !stored.models?.provider) {
+            merged.models.provider = configProvider;
+        }
+        if (configToken && configToken.trim() !== '') {
+            merged.models.apiKey = configToken;
+            const currentProvider = merged.models.provider;
+            if (merged.models.providerSettings[currentProvider] && !merged.models.providerSettings[currentProvider].apiKey) {
+                merged.models.providerSettings[currentProvider].apiKey = configToken;
+            }
         }
 
         return merged;
