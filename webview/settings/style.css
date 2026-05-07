@@ -1273,3 +1273,43 @@ input:focus + .toggle-slider {
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+
+/* #67: Theme Generator — Hub-synced styles */
+.theme-gen-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 8px;
+}
+
+.theme-gen-input {
+    flex: 1;
+}
+
+.theme-gen-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border: 1px solid rgba(79, 172, 254, 0.2);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--accent-color, #4facfe);
+    font-family: var(--font-ui, inherit);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.theme-gen-btn:hover {
+    background: rgba(79, 172, 254, 0.1);
+    border-color: rgba(79, 172, 254, 0.35);
+}
+
+.theme-gen-btn:disabled {
+    opacity: 0.6;
+    pointer-events: none;
+}
