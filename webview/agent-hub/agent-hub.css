@@ -1156,3 +1156,25 @@ body {
     background: color-mix(in srgb, var(--hub-text) 5%, transparent);
     color: var(--hub-text);
 }
+
+/* #68: Rules scope dropdown */
+.rule-scope-select {
+    padding: 4px 8px;
+    font-size: 11px;
+    border-radius: 4px;
+    border: 1px solid var(--hub-border);
+    background: var(--hub-card);
+    color: var(--hub-text);
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.rule-scope-select:hover {
+    border-color: var(--hub-accent);
+}
+
+.rule-scope-select:focus {
+    border-color: var(--hub-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--hub-accent) 20%, transparent);
+}

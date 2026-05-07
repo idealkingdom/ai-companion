@@ -98,6 +98,14 @@ export class AgentHubView {
         });
     }
 
+    private sendRules() {
+        const settings = this.settingsManager.getSettings();
+        this._panel.webview.postMessage({
+            command: 'loadRules',
+            rules: (settings as any).rules || []
+        });
+    }
+
     // ─── MESSAGE HANDLER ─────────────────────────────────────────────────
 
     private async _handleMessage(message: any) {
@@ -532,6 +540,53 @@ export class AgentHubView {
                         generatedPrompt: null
                     });
                 }
+                return;
+            }
+
+            // ═══ RULES (#68) ═══════════════════════════════════════════
+
+            case 'requestRules': {
+                this.sendRules();
+                return;
+            }
+
+            case 'addRule': {
+                const settings = this.settingsManager.getSettings() as any;
+                if (!settings.rules) { settings.rules = []; }
+                const newRule = {
+                    id: Date.now().toString(),
+                    name: 'New Rule',
+                    content: '',
+                    scope: 'global'
+                };
+                settings.rules.push(newRule);
+                await this.settingsManager.updateSettings({ rules: settings.rules } as any);
+                vscode.window.showInformationMessage(`Rule '${newRule.name}' created!`);
+                this.sendRules();
+                return;
+            }
+
+            case 'updateRule': {
+                const { id, field, value } = message.data;
+                const settings = this.settingsManager.getSettings() as any;
+                if (!settings.rules) { return; }
+                const rule = settings.rules.find((r: any) => r.id === id);
+                if (!rule) { return; }
+
+                if (field === 'name') { rule.name = value; }
+                else if (field === 'content') { rule.content = value; }
+                else if (field === 'scope') { rule.scope = value; }
+
+                await this.settingsManager.updateSettings({ rules: settings.rules } as any);
+                return;
+            }
+
+            case 'deleteRule': {
+                const settings = this.settingsManager.getSettings() as any;
+                if (!settings.rules) { return; }
+                settings.rules = settings.rules.filter((r: any) => r.id !== message.data.id);
+                await this.settingsManager.updateSettings({ rules: settings.rules } as any);
+                this.sendRules();
                 return;
             }
         }

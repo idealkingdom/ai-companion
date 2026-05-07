@@ -9,6 +9,7 @@
     // ─── STATE ───────────────────────────────────────────────────────────
     let sources = [];
     let agents = [];
+    let rules = [];
 
     // ─── DOM REFS ────────────────────────────────────────────────────────
     const urlInput = document.getElementById('url-input');
@@ -26,6 +27,13 @@
     const activeCountEl = document.getElementById('active-agent-count');
     const agentsList = document.getElementById('agents-list');
     const agentsEmpty = document.getElementById('agents-empty');
+
+    // Rules DOM refs
+    const btnAddRule = document.getElementById('btn-add-rule');
+    const ruleCountEl = document.getElementById('rule-count');
+    const globalRuleCountEl = document.getElementById('global-rule-count');
+    const rulesList = document.getElementById('rules-list');
+    const rulesEmpty = document.getElementById('rules-empty');
 
     // Content Viewer
     const contentViewer = document.getElementById('content-viewer');
@@ -83,6 +91,9 @@
             if (target === 'agents') {
                 vscode.postMessage({ command: 'requestAgents' });
             }
+            if (target === 'rules') {
+                vscode.postMessage({ command: 'requestRules' });
+            }
         });
     });
 
@@ -123,6 +134,11 @@
         searchTimeout = setTimeout(() => {
             vscode.postMessage({ command: 'searchSources', data: { query } });
         }, 300);
+    });
+
+    // ─── RULES: ADD ──────────────────────────────────────────────────────
+    btnAddRule?.addEventListener('click', () => {
+        vscode.postMessage({ command: 'addRule' });
     });
 
     // ─── AGENTS: ADD ─────────────────────────────────────────────────────
@@ -173,8 +189,11 @@
                 openViewer(msg.source);
                 break;
             case 'smartGenerateResult':
-                // Replace the agent's prompt textarea with the generated content
                 applyGeneratedPrompt(msg.agentId, msg.generatedPrompt);
+                break;
+            case 'loadRules':
+                rules = msg.rules || [];
+                renderRules();
                 break;
         }
     });
@@ -519,4 +538,87 @@
     // ─── INIT ────────────────────────────────────────────────────────────
     vscode.postMessage({ command: 'requestSources' });
     vscode.postMessage({ command: 'requestAgents' });
+    vscode.postMessage({ command: 'requestRules' });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // RENDER: RULES (#68)
+    // ═══════════════════════════════════════════════════════════════════════
+    function renderRules() {
+        if (!rulesList) return;
+
+        if (ruleCountEl) ruleCountEl.textContent = String(rules.length);
+        if (globalRuleCountEl) globalRuleCountEl.textContent = String(rules.filter(r => r.scope === 'global').length);
+
+        if (rules.length === 0) {
+            rulesList.innerHTML = '';
+            if (rulesEmpty) {
+                rulesList.appendChild(rulesEmpty);
+                rulesEmpty.style.display = 'flex';
+            }
+            return;
+        }
+
+        if (rulesEmpty) rulesEmpty.style.display = 'none';
+
+        rulesList.innerHTML = rules.map(rule => {
+            return `
+            <div class="agent-card" data-rule-id="${rule.id}">
+                <div class="agent-card-top">
+                    <div class="agent-card-top-left">
+                        <div class="agent-avatar">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        </div>
+                        <input type="text" class="agent-name-input rule-name-input" value="${escHtml(rule.name)}" placeholder="Rule name" data-rule-id="${rule.id}" data-field="name">
+                    </div>
+                    <div class="agent-card-actions">
+                        <select class="rule-scope-select" data-rule-id="${rule.id}" data-field="scope" title="Scope">
+                            <option value="global" ${rule.scope === 'global' ? 'selected' : ''}>Global</option>
+                            <option value="workspace" ${rule.scope === 'workspace' ? 'selected' : ''}>Workspace</option>
+                        </select>
+                        <button class="hub-btn icon-only danger" title="Delete" onclick="hubDeleteRule('${rule.id}')">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="agent-prompt-area">
+                    <div class="agent-prompt-label-row">
+                        <span class="agent-prompt-label">Rule Content</span>
+                    </div>
+                    <textarea class="agent-prompt-textarea rule-content-textarea" placeholder="e.g. Always use TypeScript strict mode..." spellcheck="false" data-rule-id="${rule.id}" data-field="content">${escHtml(rule.content)}</textarea>
+                </div>
+            </div>`;
+        }).join('');
+
+        // Attach input listeners for rules
+        rulesList.querySelectorAll('.rule-name-input').forEach(input => {
+            input.addEventListener('input', (e) => {
+                vscode.postMessage({ command: 'updateRule', data: { id: e.target.dataset.ruleId, field: 'name', value: e.target.value } });
+            });
+        });
+
+        rulesList.querySelectorAll('.rule-content-textarea').forEach(ta => {
+            ta.addEventListener('input', (e) => {
+                vscode.postMessage({ command: 'updateRule', data: { id: e.target.dataset.ruleId, field: 'content', value: e.target.value } });
+            });
+        });
+
+        rulesList.querySelectorAll('.rule-scope-select').forEach(sel => {
+            sel.addEventListener('change', (e) => {
+                vscode.postMessage({ command: 'updateRule', data: { id: e.target.dataset.ruleId, field: 'scope', value: e.target.value } });
+                const r = rules.find(r => r.id === e.target.dataset.ruleId);
+                if (r) r.scope = e.target.value;
+                if (globalRuleCountEl) globalRuleCountEl.textContent = String(rules.filter(r => r.scope === 'global').length);
+            });
+        });
+    }
+
+    window.hubDeleteRule = async function (id) {
+        const rule = rules.find(r => r.id === id);
+        const name = rule ? rule.name : 'this rule';
+        const confirmed = await showModal('Delete Rule', `Are you sure you want to delete "${name}"? This action cannot be undone.`);
+        if (confirmed) {
+            vscode.postMessage({ command: 'deleteRule', data: { id } });
+        }
+    };
 })();

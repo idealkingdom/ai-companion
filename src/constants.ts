@@ -52,6 +52,7 @@ export interface AppSettings {
     prompts: PromptDef[];
     customTemplates: any[];
     customModels: any[];
+    rules: { id: string; name: string; content: string; scope: 'global' | 'workspace' }[];
 }
 
 export function getModelProviderOptions(): Record<string, { name: string; models: { text: string[]; image: string[] } }> {

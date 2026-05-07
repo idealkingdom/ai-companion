@@ -62,7 +62,8 @@ export const DEFAULT_SETTINGS: AppSettings = (() => {
             }
         ],
         customTemplates: [],
-        customModels: []
+        customModels: [],
+        rules: []
     };
 })();
 
@@ -91,7 +92,8 @@ export class SettingsManager {
             ui: { ...DEFAULT_SETTINGS.ui, ...stored.ui },
             prompts: finalPrompts,
             customTemplates: stored.customTemplates || [],
-            customModels: stored.customModels || []
+            customModels: stored.customModels || [],
+            rules: stored.rules || []
         };
 
         if (!merged.models.providerSettings) {
