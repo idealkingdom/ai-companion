@@ -110,6 +110,19 @@ code, pre                    — color, font-family, background
 .toolbar-btn                 — color, background
 *::-webkit-scrollbar-thumb   — background
 
+═══ UX & COLOR GUIDELINES ═══
+• Use complementary or analogous color harmonies — never random colors
+• Ensure WCAG AA contrast ratio (4.5:1 for text, 3:1 for large text)
+• --text-color must always be readable against --chat-bg and --app-bg
+• --input-fg must be readable against --input-bg
+• --user-msg-fg must be readable against --user-msg-bg
+• Use subtle, low-opacity backgrounds for message bubbles (0.06–0.15 alpha)
+• Accent colors should pop but not be harsh — use saturation wisely
+• Dark themes: light text on dark bg. Light themes: dark text on light bg.
+• Borders and shadows should be subtle, not distracting
+• Send button gradient should harmonize with the accent color
+• Pick a cohesive palette of 2-3 colors max, derive all others from them
+
 ═══ RULES ═══
 • Always use !important for overrides
 • Start with a comment header: /* ─── Theme Name ─── */
@@ -219,9 +232,8 @@ body { background: linear-gradient(145deg, #0a0a1a 0%, #0d0d2b 50%, #0a0a1a 100%
             'AI Companion Settings',
             column || vscode.ViewColumn.One,
             {
-                // Enable javascript in the webview
                 enableScripts: true,
-                // And restrict the webview to only loading content from our extension's `media` directory.
+                retainContextWhenHidden: true,
                 localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'webview')]
             }
         );

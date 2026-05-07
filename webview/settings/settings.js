@@ -599,6 +599,7 @@ if (resetCssBtn) {
 // #67: Generate Theme Button
 const generateThemeBtn = document.getElementById('generateThemeBtn');
 const themePromptInput = document.getElementById('themePromptInput');
+let _genTimeout = null; // safety timeout to reset button
 
 if (generateThemeBtn && themePromptInput) {
     generateThemeBtn.addEventListener('click', () => {
@@ -610,6 +611,16 @@ if (generateThemeBtn && themePromptInput) {
         generateThemeBtn.disabled = true;
         generateThemeBtn.innerHTML = '<span class="status-spinner" style="width:12px;height:12px;border-width:2px;"></span> Generating...';
         vscode.postMessage({ command: 'generateTheme', data: { prompt } });
+
+        // Safety timeout: auto-reset after 60s if no response
+        clearTimeout(_genTimeout);
+        _genTimeout = setTimeout(() => {
+            if (generateThemeBtn.disabled) {
+                generateThemeBtn.disabled = false;
+                generateThemeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> Generate';
+                showModal('Generation Timeout', 'Theme generation took too long. Please try again.', false, true);
+            }
+        }, 60000);
     });
 
     themePromptInput.addEventListener('keydown', (e) => {
@@ -682,6 +693,7 @@ window.addEventListener('message', event => {
 
             // #67: AI-generated theme result
             case 'generateThemeResult': {
+                clearTimeout(_genTimeout);
                 const genBtn = document.getElementById('generateThemeBtn');
                 if (genBtn) {
                     genBtn.disabled = false;
