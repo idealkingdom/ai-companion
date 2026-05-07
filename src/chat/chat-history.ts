@@ -84,7 +84,7 @@ export class ChatHistoryService {
             const newChat: Conversation = {
                 chat_id: chatId,
                 // Title logic: User message = title, AI message = "New Chat"
-                title: role === ROLE.USER ? messageText.substring(0, 40) + (messageText.length > 40 ? "..." : "") : "New Chat",
+                title: role === ROLE.USER ? messageText.substring(0, 100) : "New Chat",
                 timestamp: timestamp,
                 messages: [newMessage],
                 agentId: agentId
@@ -104,7 +104,7 @@ export class ChatHistoryService {
 
             // Update title if it's still generic and the user typed something
             if (chat.title === "New Chat" && role === ROLE.USER) {
-                chat.title = messageText.substring(0, 40) + (messageText.length > 40 ? "..." : "");
+                chat.title = messageText.substring(0, 100);
             }
 
             // Move to top (Most Recent)
