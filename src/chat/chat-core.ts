@@ -368,7 +368,8 @@ export class ChatCoreService {
         onAgentStep?: (step: AgentStepEvent) => void,
         abortSignal?: AbortSignal
     ): Promise<{ text: string, usage?: any }> {
-        ReviewManager.getInstance().startTurn();
+        // Note: We do NOT call ReviewManager.startTurn() here.
+        // Pending edits are global and persist until the user accepts/reverts them.
 
         // Resolve the agent's system prompt
         const agent = (settings.prompts || []).find((p: any) => p.id === data.agentId);
