@@ -57,7 +57,7 @@ html, body {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-size: 15px;
+  font-size: var(--vscode-font-size, 13px);
   font-family: var(--font-editor);
   line-height: 1.6;
 }
@@ -248,7 +248,7 @@ span.logo svg{
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   border-radius: 0 6px 6px 0;
   padding: 10px 14px;
-  font-size: 0.88rem;
+  font-size: 1rem;
   line-height: 1.6;
   position: sticky;
   top: 0;
