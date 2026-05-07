@@ -69,6 +69,7 @@ export class SettingsView {
                             const themePrompt = message.data?.prompt || '';
 
                             const systemPrompt = `You are a CSS theme generator for a VS Code extension chatbox UI.
+The CSS you generate will ONLY be applied to the chat interface (not the settings panel or agent hub).
 Output ONLY valid CSS code. No markdown, no explanations, no code fences, no backticks.
 
 ═══ CSS VARIABLES (override inside :root) ═══

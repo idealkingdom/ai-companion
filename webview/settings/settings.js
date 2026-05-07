@@ -728,18 +728,9 @@ window.addEventListener('message', event => {
 let uiStyleNode = null;
 
 function applyUISettings(uiData) {
-    if (!uiData) {
-        return;
-    }
-    
-    if (!uiStyleNode) {
-        uiStyleNode = document.createElement('style');
-        document.head.appendChild(uiStyleNode);
-    }
-    
-    let styleRules = uiData.customCss || '';
-    
-    uiStyleNode.innerHTML = styleRules;
+    // Theme CSS is only applied to the chatbox webview, not the Settings panel.
+    // This function intentionally does nothing here — it exists to avoid
+    // breaking calls in populateForm() and generateThemeResult.
 }
 
 function populateForm() {
