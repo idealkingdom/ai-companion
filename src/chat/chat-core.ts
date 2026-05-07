@@ -289,11 +289,10 @@ export class ChatCoreService {
         settings: any, onChunk?: (text: string) => void, abortSignal?: AbortSignal
     ): Promise<{ text: string, usage?: any }> {
 
-        // Default Chat uses the global system prompt + system info (#52)
+        // #64: Default Chat uses ONLY the global system prompt — no extra system info
+        // System info is only needed for agentic mode (tool execution context)
         const systemPrompt = settings.general?.systemPrompt || "You are an expert AI assistant.";
-        const systemInfo = getSystemInfo();
-        const fullSystemPrompt = `${systemPrompt}\n\n${systemInfo}`;
-        const steps = [{ content: fullSystemPrompt }];
+        const steps = [{ content: systemPrompt }];
 
         let pipelineContext = currentMessage;
         let aiResponseText = "";
