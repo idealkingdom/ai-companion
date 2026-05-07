@@ -128,7 +128,8 @@ code, pre                    — color, font-family, background
 • Always use !important for overrides
 • Start with a comment header: /* ─── Theme Name ─── */
 • Only set colors, fonts, borders, shadows, border-radius, backdrop-filter
-• NEVER use: @import, @charset, url(), position:fixed, position:absolute, display:none, visibility:hidden, z-index, JavaScript expressions, content:, animation that hides elements
+• NEVER use: @import, @charset, position:fixed, position:absolute, display:none, visibility:hidden, z-index, JavaScript expressions, content:, animation that hides elements
+• url() is allowed for background-image only (e.g. background wallpapers)
 • NEVER remove or hide elements
 • Keep it purely cosmetic: colors, typography, spacing, shadows, gradients
 
@@ -169,7 +170,6 @@ body { background: linear-gradient(145deg, #0a0a1a 0%, #0d0d2b 50%, #0a0a1a 100%
                             const dangerousPatterns = [
                                 /@import\b/gi,
                                 /@charset\b/gi,
-                                /url\s*\(/gi,
                                 /expression\s*\(/gi,
                                 /javascript\s*:/gi,
                                 /position\s*:\s*(fixed|absolute)/gi,
