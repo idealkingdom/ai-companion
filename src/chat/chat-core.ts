@@ -164,12 +164,16 @@ export class ChatCoreService {
                 contextMessages.pop();
             }
 
-            const configModel = appSettings.models.provider;
-            // Gemini models natively support vision, same as OpenAI
-            const isVisionCapable = (configModel === 'OpenAI' || configModel === 'Gemini' || !configModel) && hasImages;
+            // #66: Determine vision capability dynamically from provider config
+            const configProvider = appSettings.models.provider;
+            const { getModelProviderOptions } = require('../constants');
+            const providerOptions = getModelProviderOptions();
+            const providerData = providerOptions[configProvider];
+            const providerImageModels: string[] = providerData?.models?.image || [];
 
             // Use the provider's configured model — never hardcode a specific provider's model ID
             const fallbackTextModel = appSettings.models.textModel;
+            // #66: If no image model is configured, default to the text model
             const fallbackImageModel = appSettings.models.imageModel || fallbackTextModel;
 
             let targetModel: string = fallbackTextModel;
@@ -177,11 +181,20 @@ export class ChatCoreService {
             let finalCurrentMessage: any = currentMessageContent;
 
             if (hasImages) {
-                if (isVisionCapable) {
+                // Check if the provider supports image models at all
+                const providerSupportsVision = providerImageModels.length > 0;
+
+                if (providerSupportsVision) {
                     targetModel = fallbackImageModel;
+                    // Warn if the selected image model isn't in the provider's image-capable list
+                    if (providerImageModels.length > 0 && !providerImageModels.includes(targetModel)) {
+                        outputChannel.appendLine(`[ChatCore] ⚠ Warning: Model "${targetModel}" may not support images. Image-capable models for ${configProvider}: ${providerImageModels.join(', ')}`);
+                    }
                 } else {
+                    // Provider doesn't list image models — fall back to text description
                     const descriptionContext = storedImageDescriptions.map((d, i) => `[Image ${i + 1} Description: ${d}]`).join("\n");
                     finalCurrentMessage = `${data.message}\n\n${descriptionContext}`;
+                    outputChannel.appendLine(`[ChatCore] Provider "${configProvider}" has no image models listed — using text descriptions instead.`);
                 }
             } else {
                 targetModel = fallbackTextModel;
