@@ -1096,7 +1096,7 @@ details[open] summary .file-arrow {
 .mode-dropdown-options {
     position: absolute;
     bottom: calc(100% + 5px);
-    left: 0;
+    right: 0;
     background: var(--vscode-dropdown-background);
     border: 1px solid var(--vscode-dropdown-border);
     border-radius: 6px;
@@ -1527,6 +1527,7 @@ details[open] summary .file-arrow {
 .toolbar-right-actions {
   display: flex;
   align-items: center;
+  gap: 10px;
 }
 
 /* Premium Pill Buttons for Toolbar */
