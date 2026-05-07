@@ -394,10 +394,19 @@ export async function chatMessageListener(message: any) {
                         // so the frontend knows if it's USER or BOT.
 
                         // RESOLVE IMAGES: Convert "img_123.png" -> "vscode-resource://..."
+                        // #63: Extract original display names from message text (e.g. "[Pasted Image 2]")
                         let displayImages: any[] = [];
                         if (msg.images && msg.images.length > 0) {
-                            displayImages = msg.images.map(fileName => ({
-                                name: "Image",
+                            // Extract image names from message text by finding [Bracketed Names]
+                            const namePattern = /\[(Pasted Image[^\]]*|Image[^\]]*)\]/g;
+                            const messageNames: string[] = [];
+                            let match;
+                            while ((match = namePattern.exec(msg.message)) !== null) {
+                                messageNames.push(match[1]);
+                            }
+
+                            displayImages = msg.images.map((fileName, idx) => ({
+                                name: messageNames[idx] || `Image ${idx + 1}`,
                                 dataUrl: imageService.getWebviewUri(fileName, webview),
                                 path: imageService.getImagePath(fileName).fsPath // <--- Send REAL path
                             }));
