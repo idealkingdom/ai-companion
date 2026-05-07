@@ -24,13 +24,13 @@
       <span class="hub-title">Agent Hub</span>
     </div>
     <nav class="hub-tabs">
-      <button class="hub-tab active" data-tab="sources" id="tab-sources">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/></svg>
-        Sources
-      </button>
-      <button class="hub-tab" data-tab="agents" id="tab-agents">
+      <button class="hub-tab active" data-tab="agents" id="tab-agents">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         Agents
+      </button>
+      <button class="hub-tab" data-tab="sources" id="tab-sources">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/></svg>
+        Sources
       </button>
       <button class="hub-tab" data-tab="rules" id="tab-rules">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
@@ -41,7 +41,7 @@
 
   <!-- ─── SOURCES TAB ─────────────────────────────────────────────────── -->
   <main class="hub-content">
-    <section id="panel-sources" class="hub-panel active">
+    <section id="panel-sources" class="hub-panel">
 
       <!-- Add Source Section -->
       <div class="add-source-section">
@@ -92,7 +92,7 @@
     </section>
 
     <!-- ─── AGENTS TAB ──────────────────────────────────────────────── -->
-    <section id="panel-agents" class="hub-panel">
+    <section id="panel-agents" class="hub-panel active">
       <div class="agents-header-row">
         <div>
           <h2 class="section-title">Agent Profiles</h2>

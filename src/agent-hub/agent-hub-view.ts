@@ -589,6 +589,58 @@ export class AgentHubView {
                 this.sendRules();
                 return;
             }
+
+            case 'smartGenerateRule': {
+                const { ruleId } = message.data;
+                const settings = this.settingsManager.getSettings() as any;
+                const rule = (settings.rules || []).find((r: any) => r.id === ruleId);
+                if (!rule) { return; }
+
+                try {
+                    const { aiRequest } = require('../api/ai');
+                    const providerName = settings.models.provider || 'OpenAI';
+                    const pConfig = settings.models.providerSettings?.[providerName] || {};
+                    const apiKey = pConfig.apiKey || settings.models.apiKey || '';
+                    const baseUrl = pConfig.baseUrl || '';
+
+                    const result = await aiRequest(
+                        [
+                            {
+                                role: 'system',
+                                content: 'You are an expert at writing precise, actionable rules for AI coding assistants. Output ONLY the rule text — no markdown, no explanations, no quotes. Rules should be clear, specific, and enforceable.'
+                            },
+                            {
+                                role: 'user',
+                                content: `Generate a detailed rule for an AI coding assistant based on this rule name: "${rule.name}".\nCurrent content: "${rule.content || '(empty)'}"\n\nThe rule should:\n- Be specific and actionable\n- Cover edge cases\n- Be 50-200 words\n- Use imperative language`
+                            }
+                        ],
+                        settings.models.textModel,
+                        apiKey,
+                        0.7,
+                        providerName,
+                        baseUrl
+                    );
+
+                    if (result.content) {
+                        rule.content = result.content;
+                        await this.settingsManager.updateSettings({ rules: settings.rules } as any);
+                        this._panel.webview.postMessage({
+                            command: 'smartGenerateRuleResult',
+                            ruleId,
+                            generatedContent: result.content
+                        });
+                    }
+                } catch (err: any) {
+                    outputChannel.appendLine(`[AgentHub] Rule Generate failed: ${err.message}`);
+                    vscode.window.showErrorMessage(`Rule Generate failed: ${err.message}`);
+                    this._panel.webview.postMessage({
+                        command: 'smartGenerateRuleResult',
+                        ruleId,
+                        generatedContent: null
+                    });
+                }
+                return;
+            }
         }
     }
 

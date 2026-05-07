@@ -195,6 +195,9 @@
                 rules = msg.rules || [];
                 renderRules();
                 break;
+            case 'smartGenerateRuleResult':
+                applyGeneratedRule(msg.ruleId, msg.generatedContent);
+                break;
         }
     });
 
@@ -574,6 +577,7 @@
                         <select class="rule-scope-select" data-rule-id="${rule.id}" data-field="scope" title="Scope">
                             <option value="global" ${rule.scope === 'global' ? 'selected' : ''}>Global</option>
                             <option value="workspace" ${rule.scope === 'workspace' ? 'selected' : ''}>Workspace</option>
+                            <option value="assignable" ${rule.scope === 'assignable' ? 'selected' : ''}>Assignable</option>
                         </select>
                         <button class="hub-btn icon-only danger" title="Delete" onclick="hubDeleteRule('${rule.id}')">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -584,6 +588,10 @@
                 <div class="agent-prompt-area">
                     <div class="agent-prompt-label-row">
                         <span class="agent-prompt-label">Rule Content</span>
+                        <button class="hub-btn ghost small smart-gen-btn" data-rule-id="${rule.id}" title="Generate rule content from name" onclick="hubSmartGenerateRule('${rule.id}')">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                            Generate
+                        </button>
                     </div>
                     <textarea class="agent-prompt-textarea rule-content-textarea" placeholder="e.g. Always use TypeScript strict mode..." spellcheck="false" data-rule-id="${rule.id}" data-field="content">${escHtml(rule.content)}</textarea>
                 </div>
@@ -621,4 +629,30 @@
             vscode.postMessage({ command: 'deleteRule', data: { id } });
         }
     };
+
+    window.hubSmartGenerateRule = function (ruleId) {
+        const btn = rulesList?.querySelector(`.smart-gen-btn[data-rule-id="${ruleId}"]`);
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="status-spinner"></span> Generating...';
+        }
+        vscode.postMessage({ command: 'smartGenerateRule', data: { ruleId } });
+    };
+
+    function applyGeneratedRule(ruleId, generatedContent) {
+        if (!generatedContent) return;
+        const ta = rulesList?.querySelector(`textarea[data-rule-id="${ruleId}"]`);
+        if (ta) {
+            ta.value = generatedContent;
+            ta.style.borderColor = 'var(--hub-accent)';
+            setTimeout(() => { ta.style.borderColor = ''; }, 2000);
+        }
+        const rule = rules.find(r => r.id === ruleId);
+        if (rule) { rule.content = generatedContent; }
+        const btn = rulesList?.querySelector(`.smart-gen-btn[data-rule-id="${ruleId}"]`);
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> Generate`;
+        }
+    }
 })();
