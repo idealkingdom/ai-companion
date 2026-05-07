@@ -67,15 +67,75 @@ export class SettingsView {
 
                             const { aiRequest } = require('../api/ai');
                             const themePrompt = message.data?.prompt || '';
-                            const systemPrompt = `You are a CSS theme generator for a VS Code extension chatbox UI. Generate ONLY valid CSS code — no markdown, no explanations, no code fences.
 
-The CSS you generate will be injected into a chatbox webview. Available CSS variables to override:
---app-bg, --chat-bg, --text-color, --border-color, --input-bg, --input-fg, --input-focus-border, 
---user-msg-bg, --code-bg, --accent-color, --accent-glow, --accent-gradient, --sidebar-bg, 
---panel-bg, --panel-border, --bg-base, --font-ui, --font-editor
+                            const systemPrompt = `You are a CSS theme generator for a VS Code extension chatbox UI.
+Output ONLY valid CSS code. No markdown, no explanations, no code fences, no backticks.
 
-You can also style: body, .message-body, .unified-input-container, .send-btn-premium, code, pre, etc.
-Use !important for overrides. Include a comment header with the theme name.`;
+═══ CSS VARIABLES (override inside :root) ═══
+--app-bg              Main app background
+--chat-bg             Chat area background (body bg)
+--text-color          Primary text color
+--border-color        General borders
+--input-bg            Input field background
+--input-fg            Input field text color
+--input-placeholder   Input placeholder color
+--input-focus-border  Input focus ring color
+--user-msg-bg         User message bubble background
+--user-msg-fg         User message text color
+--code-bg             Code block background
+--code-fg             Code block text color
+--accent-color        Primary accent (links, highlights)
+--accent-glow         Accent glow (rgba for shadows)
+--accent-gradient     Accent gradient (for buttons)
+--sidebar-bg          Sidebar panel background
+--panel-bg            Panel/card background
+--panel-border        Panel border color
+--bg-base             Base background fallback
+--font-ui             UI font family
+--font-editor         Editor/code font family
+--system-msg-bg       System message background
+--system-msg-fg       System message text color
+--btn-secondary-bg    Secondary button background
+--btn-secondary-fg    Secondary button text color
+
+═══ SAFE SELECTORS TO STYLE ═══
+body                         — background, font-family, color, text-shadow
+.message-body                — border, border-radius, box-shadow, backdrop-filter, background
+.unified-input-container     — border, border-radius, box-shadow, background, backdrop-filter
+.send-btn-premium            — background, box-shadow, border-radius, color
+code, pre                    — color, font-family, background
+.agent-step-card             — background, border
+.agent-thinking-block        — background, border
+.status-pill                 — background, border
+.toolbar-btn                 — color, background
+*::-webkit-scrollbar-thumb   — background
+
+═══ RULES ═══
+• Always use !important for overrides
+• Start with a comment header: /* ─── Theme Name ─── */
+• Only set colors, fonts, borders, shadows, border-radius, backdrop-filter
+• NEVER use: @import, @charset, url(), position:fixed, position:absolute, display:none, visibility:hidden, z-index, JavaScript expressions, content:, animation that hides elements
+• NEVER remove or hide elements
+• Keep it purely cosmetic: colors, typography, spacing, shadows, gradients
+
+═══ EXAMPLE (Futuristic theme) ═══
+:root {
+    --app-bg: #0a0a1a !important;
+    --chat-bg: #070714 !important;
+    --text-color: #e0e8ff !important;
+    --border-color: rgba(0, 242, 254, 0.15) !important;
+    --input-bg: rgba(15, 15, 40, 0.8) !important;
+    --input-fg: #c8d6ff !important;
+    --input-focus-border: #00f2fe !important;
+    --user-msg-bg: rgba(79, 172, 254, 0.08) !important;
+    --code-bg: rgba(0, 242, 254, 0.05) !important;
+    --accent-color: #00f2fe !important;
+    --accent-glow: rgba(0, 242, 254, 0.3) !important;
+    --accent-gradient: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%) !important;
+}
+body { background: linear-gradient(145deg, #0a0a1a 0%, #0d0d2b 50%, #0a0a1a 100%) !important; }
+.message-body { border: 1px solid rgba(0, 242, 254, 0.12) !important; border-radius: 16px !important; background: rgba(10, 10, 30, 0.6) !important; }
+.send-btn-premium { background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%) !important; }`;
 
                             const result = await aiRequest(
                                 [
@@ -85,9 +145,41 @@ Use !important for overrides. Include a comment header with the theme name.`;
                                 model, apiKey, 0.7, provider, baseUrl
                             );
 
-                            // Clean up response — strip any markdown fences if accidentally included
+                            // ─── SANITIZE OUTPUT ─────────────────────────────
                             let css = result.content || '';
+
+                            // Strip markdown fences
                             css = css.replace(/^```(?:css)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
+
+                            // Remove dangerous patterns
+                            const dangerousPatterns = [
+                                /@import\b/gi,
+                                /@charset\b/gi,
+                                /url\s*\(/gi,
+                                /expression\s*\(/gi,
+                                /javascript\s*:/gi,
+                                /position\s*:\s*(fixed|absolute)/gi,
+                                /display\s*:\s*none/gi,
+                                /visibility\s*:\s*hidden/gi,
+                                /opacity\s*:\s*0(?!\.\d)/gi,
+                                /z-index\s*:\s*\d{4,}/gi,
+                                /<script/gi,
+                                /<\/script/gi,
+                            ];
+
+                            for (const pattern of dangerousPatterns) {
+                                css = css.replace(pattern, '/* [removed] */');
+                            }
+
+                            // Basic validation: must contain at least one CSS rule or variable
+                            if (!css.includes('{') || !css.includes('}')) {
+                                this._panel.webview.postMessage({
+                                    command: 'generateThemeResult',
+                                    success: false,
+                                    error: 'AI returned invalid CSS. Please try rephrasing your prompt.'
+                                });
+                                return;
+                            }
 
                             this._panel.webview.postMessage({
                                 command: 'generateThemeResult',
