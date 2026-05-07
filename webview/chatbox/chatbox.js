@@ -633,7 +633,18 @@ function getCurrentDate() {
 }
 
 let _scrollTimeout = null;
-function scrollToBottom() {
+let _isUserScrolledUp = false;
+
+chatLog.addEventListener('scroll', () => {
+    // 1. Auto-scroll logic: A buffer of ~60px accounts for minor layout shifts
+    const distanceToBottom = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight;
+    _isUserScrolledUp = distanceToBottom > 60;
+});
+
+function scrollToBottom(force = false) {
+    if (!force && _isUserScrolledUp) {
+        return; // Don't interrupt if user scrolled up
+    }
     if (_scrollTimeout) {
         clearTimeout(_scrollTimeout);
     }
@@ -1008,13 +1019,6 @@ function appendUserMessage(message, images = [], files = []) {
 
     const newMessageElement = tempDiv.firstElementChild;
 
-    // #42: Remove sticky from previous user message, add to new one
-    const prevSticky = chatbox.querySelector('.user-message.sticky-user-msg');
-    if (prevSticky) {
-        prevSticky.classList.remove('sticky-user-msg');
-    }
-    newMessageElement.classList.add('sticky-user-msg');
-
     chatbox.appendChild(newMessageElement);
 
     // Important: Since we injected new <pre> blocks inside the details, 
@@ -1026,7 +1030,8 @@ function appendUserMessage(message, images = [], files = []) {
         }, 0);
     }
 
-    scrollToBottom();
+    _isUserScrolledUp = false;
+    scrollToBottom(true);
 }
 
 function getOrCreateAgentStepsGroup() {
@@ -1728,6 +1733,8 @@ function appendAIMessage(response) {
 
 function chatRequest(content) {
     sendMessage('chatRequest', content);
+    _isUserScrolledUp = false;
+    scrollToBottom(true);
     appendUserMessage(content.message, content.images);
 }
 
@@ -1796,8 +1803,20 @@ function retryLastMessage(btn) {
     if (startIdx <= 0 || startIdx > allMessages.length) { return; }
 
     const removedCount = allMessages.length - startIdx;
-    for (let i = startIdx; i < allMessages.length; i++) {
-        allMessages[i].remove();
+    
+    // Blast away all DOM nodes that come after userMsgEl
+    if (userMsgEl) {
+        let nextNode = userMsgEl.nextSibling;
+        while (nextNode) {
+            const toRemove = nextNode;
+            nextNode = nextNode.nextSibling;
+            toRemove.remove();
+        }
+    } else {
+        // Fallback for non-button invocation
+        for (let i = startIdx; i < allMessages.length; i++) {
+            allMessages[i].remove();
+        }
     }
 
     showLoadingIndicator();
@@ -1814,12 +1833,19 @@ function editUserMessage(btn) {
     const userMsgEl = btn.closest('.user-message');
     const rawText = decodeURIComponent(userMsgEl.dataset.rawText || '');
 
-    // Only remove AI messages AFTER this user message (user bubble stays)
+    // Count formal AI/user messages for the backend history trim
     const allMessages = Array.from(chatbox.querySelectorAll('.user-message, .system-message'));
     const startIdx = allMessages.indexOf(userMsgEl);
     const messagesAfter = allMessages.slice(startIdx + 1);
-    messagesAfter.forEach(el => el.remove());
     const removedCount = messagesAfter.length + 1; // +1 = the user msg itself for history delete
+
+    // Blast away all DOM nodes that come after userMsgEl
+    let nextNode = userMsgEl.nextSibling;
+    while (nextNode) {
+        const toRemove = nextNode;
+        nextNode = nextNode.nextSibling;
+        toRemove.remove();
+    }
 
     // Swap the text span for a textarea, IN-PLACE inside the existing bubble
     const textSpan = userMsgEl.querySelector('.message-text');
@@ -2298,7 +2324,9 @@ window.addEventListener('message', event => {
                         group.dataset.finalized = "true";
                     });
                 }
-                appendAIMessage(message.content);
+                if (message.content) {
+                    appendAIMessage(message.content);
+                }
             }
             // Re-enable send button
             toggleSendButton("off");
@@ -2376,10 +2404,17 @@ window.addEventListener('message', event => {
             });
 
             if (activeStreamNode) {
-                setTimeout(() => {
-                    hljs.highlightAll();
-                    addAllCopyButtons();
-                }, 0);
+                if (!activeStreamAccumulator) {
+                    const parentBubble = activeStreamNode.closest('.system-message');
+                    if (parentBubble) {
+                        parentBubble.remove();
+                    }
+                } else {
+                    setTimeout(() => {
+                        hljs.highlightAll();
+                        addAllCopyButtons();
+                    }, 0);
+                }
             }
             
             // #48: Check if AI ended with a question

@@ -241,15 +241,18 @@ span.logo svg{
   max-width: 100%;
   width: 100%;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-primary, #1e1e1e); /* Solid background to prevent overlap bleed */
   color: var(--user-msg-fg, var(--text-color));
   border: none;
   border-left: 3px solid var(--accent-color, #4facfe);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   border-radius: 0 6px 6px 0;
   padding: 10px 14px;
   font-size: 0.88rem;
   line-height: 1.6;
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 50;
   overflow-wrap: break-word;
 }
 
@@ -265,15 +268,7 @@ span.logo svg{
   margin-bottom: 4px;
 }
 
-/* #42: Sticky last user message */
-.user-message.sticky-user-msg {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  background: var(--bg-primary, #1e1e1e);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
-}
+
 
 @media (min-width: 900px) {
   .system-message, .user-message {
@@ -1250,6 +1245,8 @@ details[open] summary .file-arrow {
     line-height: 1.55;
     max-height: 300px;
     overflow-y: auto;
+    overflow-x: hidden;
+    contain: content;
     animation: thinkingFadeIn 0.3s ease-out;
 }
 
