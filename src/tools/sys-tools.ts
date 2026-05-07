@@ -160,8 +160,34 @@ export function createSysTools() {
         }
     } as any);
 
+    // ─── TOOL: get_workspace_problems ───────────────────────────────────
+    const get_workspace_problems = tool({
+        description: 'Get all current workspace problems (errors, warnings, hints) from the IDE diagnostics. Use this to verify if your code changes introduced any new errors.',
+        inputSchema: z.object({}),
+        execute: async () => {
+            const diagnostics = vscode.languages.getDiagnostics();
+            let problemsText = "";
+            
+            diagnostics.forEach(([uri, fileDiagnostics]) => {
+                if (fileDiagnostics.length === 0) return;
+                problemsText += `File: ${vscode.workspace.asRelativePath(uri)}\n`;
+                fileDiagnostics.forEach(p => {
+                    problemsText += `  - [${vscode.DiagnosticSeverity[p.severity]}] Line ${p.range.start.line + 1}: ${p.message}\n`;
+                });
+                problemsText += "\n";
+            });
+
+            if (!problemsText) {
+                problemsText = "No problems found in the workspace.";
+            }
+
+            return { problems: problemsText };
+        }
+    } as any);
+
     return {
         run_command,
-        search_workspace
+        search_workspace,
+        get_workspace_problems
     };
 }

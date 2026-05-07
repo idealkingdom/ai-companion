@@ -30,7 +30,7 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
         ...webTools
     };
 
-    const readTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol', 'search_workspace', 'scrape_url'];
+    const readTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol', 'search_workspace', 'scrape_url', 'get_workspace_problems'];
     const writeTools = ['chunk_replace', 'create_file'];
     const commandTools = ['run_command'];
 

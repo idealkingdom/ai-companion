@@ -424,12 +424,13 @@ WORKFLOW:
 3. Use read_line_range to examine specific sections you need
 4. Use chunk_replace to make surgical edits (provide exact target text)
 5. Use search_workspace to find patterns across the codebase
-6. Use run_command for builds, tests, git operations
+6. Use get_workspace_problems to verify if your changes introduced any lint or syntax errors
+7. Use run_command for builds, tests, git operations
 
 RULES:
 - NEVER read an entire large file. Use skeleton first, then line ranges.
 - When editing, provide the EXACT target text to replace (including whitespace).
-- Always verify your changes compile after editing.
+- Always verify your changes compile and don't introduce workspace problems after editing.
 - Edits are applied DIRECTLY to the file. The user can review changes inline and revert if needed.
 - Skip tool calls for files you already have context for (active editor files above).${todoInstruction}`;
 
