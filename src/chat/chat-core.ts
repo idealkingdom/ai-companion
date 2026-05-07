@@ -266,8 +266,10 @@ export class ChatCoreService {
                 outputChannel.appendLine('[ChatCore] Error: ' + extractedErrorMsg);
 
                 aiResponseText = ''; // Clear response text to prevent duplicate bubble
+                const errorStep = { type: 'thinking', text: `❌ Agent error: ${extractedErrorMsg}` };
+                collectedAgentSteps.push(errorStep);
                 if (onAgentStep) {
-                    onAgentStep({ type: 'thinking', text: `❌ Agent error: ${extractedErrorMsg}` } as any);
+                    onAgentStep(errorStep as any);
                 }
             }
             await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText, [], [], data.agentId, collectedAgentSteps);
@@ -678,7 +680,7 @@ RULES:
 
             // If model returned empty text, provide a fallback
             if (!fullText || fullText.trim() === '') {
-                fullText = '(Agent completed but produced no text response. The model may not support tool calling with this configuration.)';
+                fullText = 'Task completed.';
                 if (onChunk) { onChunk(fullText); }
             }
 
@@ -689,10 +691,6 @@ RULES:
                 throw error; // Let the top-level catch handle the cancellation gracefully
             }
             outputChannel.appendLine(`[Agentic] ERROR: ${error?.message || error}`);
-            const errorMsg = `Agent error: ${error?.message || 'Unknown error'}`;
-            if (onAgentStep) {
-                onAgentStep({ type: 'thinking', text: `❌ ${errorMsg}` });
-            }
             throw error;
         }
     }

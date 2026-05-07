@@ -306,12 +306,21 @@ export async function chatMessageListener(message: any) {
 
                 ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.CHAT_STREAM_START });
 
-                const { text: aiResponse, usage } = await coreService.processChatRequest(retryData, async (chunk) => {
-                    await ChatViewProvider.getInstance().postMessage({
-                        command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
-                        content: chunk
-                    });
-                });
+                const { text: aiResponse, usage } = await coreService.processChatRequest(
+                    retryData, 
+                    async (chunk) => {
+                        await ChatViewProvider.getInstance().postMessage({
+                            command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
+                            content: chunk
+                        });
+                    },
+                    async (step) => {
+                        await ChatViewProvider.getInstance().postMessage({
+                            command: CHAT_COMMANDS.CHAT_AGENT_STEP,
+                            content: step
+                        });
+                    }
+                );
 
                 if (usage) {
                     ChatViewProvider.getInstance().postMessage({
