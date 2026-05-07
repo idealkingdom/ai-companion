@@ -641,6 +641,33 @@ chatLog.addEventListener('scroll', () => {
     _isUserScrolledUp = distanceToBottom > 60;
 });
 
+// Dynamic padding calculation that perfectly accounts for container padding
+function updateDynamicPadding() {
+    const userMessages = chatbox.querySelectorAll('.user-message');
+    const lastUserMsg = userMessages[userMessages.length - 1];
+    if (lastUserMsg) {
+        const lastChild = chatbox.lastElementChild;
+        if (lastChild) {
+            const contentBottom = lastChild.offsetTop + lastChild.offsetHeight;
+            const visibleContentHeight = contentBottom - lastUserMsg.offsetTop;
+            
+            // Get exact padding of chatLog to prevent the 30px "push up" drift
+            const style = window.getComputedStyle(chatLog);
+            const paddingY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+            
+            let requiredPadding = chatLog.clientHeight - visibleContentHeight - paddingY; 
+            if (requiredPadding < 0) requiredPadding = 0;
+            chatbox.style.paddingBottom = `${requiredPadding}px`;
+            return;
+        }
+    }
+    chatbox.style.paddingBottom = '3rem';
+}
+
+chatbox.addEventListener('toggle', (e) => {
+    updateDynamicPadding();
+}, true);
+
 function scrollToBottom(force = false) {
     if (!force && _isUserScrolledUp) {
         return; 
@@ -650,28 +677,13 @@ function scrollToBottom(force = false) {
     }
     _scrollTimeout = setTimeout(() => {
         requestAnimationFrame(() => {
-            const lastChild = chatbox.lastElementChild;
-            if (!lastChild) {
+            updateDynamicPadding();
+            chatLog.scrollTop = chatLog.scrollHeight;
+            
+            setTimeout(() => {
+                updateDynamicPadding();
                 chatLog.scrollTop = chatLog.scrollHeight;
-                return;
-            }
-            
-            // Calculate the absolute bottom coordinate of the last message's content
-            const childBottom = lastChild.offsetTop + lastChild.offsetHeight;
-            const visibleBottom = chatLog.scrollTop + chatLog.clientHeight;
-            
-            // Only scroll down if the content is pushing past the viewport
-            // (or if forced, e.g. on load, to snap to the bottom of the content)
-            if (force || childBottom > visibleBottom - 60) {
-                // Scroll just enough to show the bottom of the content, avoiding the deep padding
-                chatLog.scrollTop = childBottom - chatLog.clientHeight + 40;
-                
-                // Double-tap in case images/formatting push it down further
-                setTimeout(() => {
-                    const newChildBottom = lastChild.offsetTop + lastChild.offsetHeight;
-                    chatLog.scrollTop = newChildBottom - chatLog.clientHeight + 40;
-                }, 60);
-            }
+            }, 60);
         });
     }, 10);
 }
@@ -1042,13 +1054,7 @@ function appendUserMessage(message, images = [], files = []) {
     }
 
     _isUserScrolledUp = false;
-    
-    // Jump the new message to the top of the viewport
-    setTimeout(() => {
-        if (newMessageElement) {
-            newMessageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-    }, 50);
+    scrollToBottom(true);
 }
 
 function getOrCreateAgentStepsGroup() {
