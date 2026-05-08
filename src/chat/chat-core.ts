@@ -568,7 +568,7 @@ RULES:
             const result = await aiAgenticRequest(
                 messages, model, apiKey, agentTemp, activeProvider, tools,
                 {
-                    maxSteps: modelTier === 'small' ? 5 : modelTier === 'mid' ? 10 : 15,
+                    maxSteps: modelTier === 'small' ? 10 : modelTier === 'mid' ? 20 : 25,
                     baseUrl: baseUrl,
                     abortSignal: abortSignal,
                     enableThinking: supportsReasoning,
