@@ -126,7 +126,6 @@ const baseUrlInput = document.getElementById('baseUrlInput');
 const textModelInput = document.getElementById('textModelInput');
 const imageModelInput = document.getElementById('imageModelInput');
 const enableTodoListInput = document.getElementById('enableTodoList');
-const alwaysProceedInput = document.getElementById('alwaysProceed');
 const customCssInput = document.getElementById('customCssInput');
 const resetCssBtn = document.getElementById('resetCssBtn');
 const themeTemplateSelect = document.getElementById('themeTemplateSelect');
@@ -753,9 +752,7 @@ function populateForm() {
     if (enableTodoListInput) {
         enableTodoListInput.checked = general.enableTodoList || false;
     }
-    if (alwaysProceedInput) {
-        alwaysProceedInput.checked = currentSettings.permissions?.alwaysProceed || false;
-    }
+
 
     // UI
     if (ui) {
@@ -819,14 +816,7 @@ function collectSettings() {
     if (enableTodoListInput) {
         currentSettings.general.enableTodoList = enableTodoListInput.checked;
     }
-    if (alwaysProceedInput) {
-        currentSettings.permissions.alwaysProceed = alwaysProceedInput.checked;
-        if (alwaysProceedInput.checked) {
-            currentSettings.permissions.readFilesConfirmation = false;
-            currentSettings.permissions.writeFilesConfirmation = false;
-            currentSettings.permissions.runCommandsConfirmation = false;
-        }
-    }
+
     
     if (!currentSettings.ui) {
         currentSettings.ui = {};

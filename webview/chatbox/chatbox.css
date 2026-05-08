@@ -1154,6 +1154,45 @@ details[open] summary .file-arrow {
     border-color: var(--input-focus-border);
 }
 
+/* Mini toggle for the Always Proceed switch in permissions dropdown */
+.mini-toggle {
+    position: relative;
+    display: inline-block;
+    width: 32px;
+    height: 18px;
+    flex-shrink: 0;
+}
+.mini-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.mini-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: rgba(255,255,255,0.1);
+    border-radius: 9px;
+    transition: background 0.2s;
+}
+.mini-toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    left: 2px;
+    bottom: 2px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s;
+}
+.mini-toggle input:checked + .mini-toggle-slider {
+    background: #ffb74d;
+}
+.mini-toggle input:checked + .mini-toggle-slider::before {
+    transform: translateX(14px);
+}
+
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(5px); }
     to { opacity: 1; transform: translateY(0); }

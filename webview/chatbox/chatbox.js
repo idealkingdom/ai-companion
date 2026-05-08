@@ -176,6 +176,7 @@ const permsOptionsMenu = document.getElementById('perms-options-menu');
 const tbReadPerm = document.getElementById('tb-read-perm');
 const tbWritePerm = document.getElementById('tb-write-perm');
 const tbCmdPerm = document.getElementById('tb-cmd-perm');
+const tbAlwaysProceed = document.getElementById('tb-always-proceed');
 
 function initModelDropdown() {
     if (!MODELS || !currentModelLabel || !modelOptionsMenu) return;
@@ -282,9 +283,44 @@ if (MODELS && currentModelLabel && modelOptionsMenu) {
 }
 
 if (PERMISSIONS && toolbarPermsBtn && permsOptionsMenu) {
-    tbReadPerm.value = PERMISSIONS.readFilesConfirmation ? 'ask' : 'auto';
-    tbWritePerm.value = PERMISSIONS.writeFilesConfirmation ? 'ask' : 'auto';
-    tbCmdPerm.value = PERMISSIONS.runCommandsConfirmation ? 'ask' : 'auto';
+    // Initialize Always Proceed toggle
+    const isAlwaysProceed = PERMISSIONS.alwaysProceed === true;
+    if (tbAlwaysProceed) {
+        tbAlwaysProceed.checked = isAlwaysProceed;
+    }
+
+    // Apply initial state
+    function applyAlwaysProceedState(enabled) {
+        tbReadPerm.value = enabled ? 'auto' : (PERMISSIONS.readFilesConfirmation ? 'ask' : 'auto');
+        tbWritePerm.value = enabled ? 'auto' : (PERMISSIONS.writeFilesConfirmation ? 'ask' : 'auto');
+        tbCmdPerm.value = enabled ? 'auto' : (PERMISSIONS.runCommandsConfirmation ? 'ask' : 'auto');
+        tbReadPerm.disabled = enabled;
+        tbWritePerm.disabled = enabled;
+        tbCmdPerm.disabled = enabled;
+        if (enabled) {
+            tbReadPerm.style.opacity = '0.4';
+            tbWritePerm.style.opacity = '0.4';
+            tbCmdPerm.style.opacity = '0.4';
+        } else {
+            tbReadPerm.style.opacity = '1';
+            tbWritePerm.style.opacity = '1';
+            tbCmdPerm.style.opacity = '1';
+        }
+    }
+    applyAlwaysProceedState(isAlwaysProceed);
+
+    if (tbAlwaysProceed) {
+        tbAlwaysProceed.addEventListener('change', (e) => {
+            const on = e.target.checked;
+            sendMessage('updateNestedSetting', { category: 'permissions', key: 'alwaysProceed', value: on });
+            if (on) {
+                sendMessage('updateNestedSetting', { category: 'permissions', key: 'readFilesConfirmation', value: false });
+                sendMessage('updateNestedSetting', { category: 'permissions', key: 'writeFilesConfirmation', value: false });
+                sendMessage('updateNestedSetting', { category: 'permissions', key: 'runCommandsConfirmation', value: false });
+            }
+            applyAlwaysProceedState(on);
+        });
+    }
 
     tbWritePerm.addEventListener('change', (e) => {
         const isAuto = e.target.value === 'auto';
