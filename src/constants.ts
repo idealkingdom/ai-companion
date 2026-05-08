@@ -89,3 +89,18 @@ export function getModelTier(provider: string, modelName: string): 'frontier' | 
     } catch {}
     return 'mid'; // Default for custom/unknown models
 }
+
+/**
+ * Check if a given model supports reasoning/thinking budgets.
+ * Looks up the `supportsReasoning` array in models.json.
+ */
+export function modelSupportsReasoning(provider: string, modelName: string): boolean {
+    try {
+        const providers = getModelProviderOptions() as any;
+        const providerData = providers[provider];
+        if (providerData?.supportsReasoning && Array.isArray(providerData.supportsReasoning)) {
+            return providerData.supportsReasoning.includes(modelName);
+        }
+    } catch {}
+    return false;
+}

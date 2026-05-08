@@ -10,7 +10,7 @@ import { ImageDescriptionService } from './image-description-service';
 import { SettingsManager } from '../services/settings-manager';
 import { WorkspaceIndexService } from '../services/workspace-index';
 import { createToolRegistry } from '../tools/tool-registry';
-import { getModelTier } from '../constants';
+import { getModelTier, modelSupportsReasoning } from '../constants';
 import { handleInlineReview } from './chat-message-listener';
 import { ReviewManager } from './review-manager';
 import { ApprovalService } from './approval-service';
@@ -552,7 +552,7 @@ RULES:
                     maxSteps: modelTier === 'small' ? 5 : modelTier === 'mid' ? 10 : 15,
                     baseUrl: baseUrl,
                     abortSignal: abortSignal,
-                    enableThinking: true, // Always enabled — models that don't support it will simply ignore
+                    enableThinking: modelSupportsReasoning(activeProvider, model),
                     apiKeyHeader: apiKeyHeader,
                     onFinish: (event: any) => {
                         const usage = event.usage || event.totalUsage;
