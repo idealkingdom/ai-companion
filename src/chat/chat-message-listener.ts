@@ -289,6 +289,7 @@ export async function chatMessageListener(message: any) {
                 const chatId = message.data.chat_id;
                 const deleteCount = message.data.count ?? 2;
                 const overrideMessage = message.data.overrideMessage ?? null;
+                const retryAgentId = message.data.agentId || null;
 
                 // 1. Delete messages from history, get the original user text back
                 const lastUserMessage = await historyService.deleteLastMessages(chatId, deleteCount);
@@ -307,6 +308,7 @@ export async function chatMessageListener(message: any) {
                 const retryData = {
                     message: messageToSend,
                     chat_id: chatId,
+                    agentId: retryAgentId,
                     timestamp: new Date().toISOString(),
                     files: [],
                     images: []

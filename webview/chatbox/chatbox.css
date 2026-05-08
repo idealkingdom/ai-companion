@@ -1205,12 +1205,16 @@ details[open] summary .file-arrow {
 .agent-steps-group {
     background: transparent;
     margin: 8px 0;
+    position: relative;
+    z-index: 1;
 }
 
 /* ─── Thinking/Reasoning Block (#44) ─── */
 .agent-thinking-block {
     background: transparent;
     margin: 8px 0;
+    position: relative;
+    z-index: 1;
 }
 
 .agent-thinking-block.streaming .thinking-summary {
@@ -1234,6 +1238,8 @@ details[open] summary .file-arrow {
     list-style: none;
     transition: background 0.2s, border-color 0.2s;
     width: max-content;
+    position: relative;
+    z-index: 0;
 }
 
 .thinking-summary::-webkit-details-marker {
@@ -1317,6 +1323,8 @@ details[open] summary .file-arrow {
     list-style: none; /* Hide default arrow */
     transition: background 0.2s;
     width: max-content;
+    position: relative;
+    z-index: 0;
 }
 
 .agent-steps-summary::-webkit-details-marker {

@@ -204,9 +204,10 @@ export async function aiAgenticRequest(
         // #44: Enable reasoning/thinking tokens when supported
         if (options.enableThinking) {
             if (provider === 'Gemini') {
-                // Google Gemini uses a different provider key for thinking config
+                // Google Gemini: thinkingBudget 0 = let the model decide automatically
+                // This works for both Gemini (configurable thinking) and Gemma (native thinking)
                 streamOptions.providerOptions = {
-                    google: { thinkingConfig: { thinkingBudget: 1024 } }
+                    google: { thinkingConfig: { thinkingBudget: 0 } }
                 };
             } else {
                 // OpenAI-compatible providers

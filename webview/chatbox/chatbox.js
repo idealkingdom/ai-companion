@@ -1913,7 +1913,7 @@ function retryLastMessage(btn) {
     showLoadingIndicator();
     toggleSendButton('disabled');
     // removedCount messages removed, plus the user message itself needs to be re-sent = +1
-    sendMessage(CHAT_COMMANDS.CHAT_RETRY, { chat_id: chatLog.dataset.chatId, count: removedCount + 1 });
+    sendMessage(CHAT_COMMANDS.CHAT_RETRY, { chat_id: chatLog.dataset.chatId, count: removedCount + 1, agentId: activeAgentId });
 }
 
 /**
@@ -1995,7 +1995,8 @@ function editUserMessage(btn) {
         sendMessage(CHAT_COMMANDS.CHAT_RETRY, {
             chat_id: chatLog.dataset.chatId,
             count: removedCount,
-            overrideMessage: newText
+            overrideMessage: newText,
+            agentId: activeAgentId
         });
     });
 
