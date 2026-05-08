@@ -6,10 +6,11 @@ import * as vscode from 'vscode';
 import { outputChannel } from '../logger';
 
 // ─── Persistent AI Terminal ─────────────────────────────────────────
-// We reuse a single VS Code terminal for all AI commands so users
-// can follow along in the Terminal panel without spawning new tabs.
+// Interactive terminal: users can type, Ctrl+C to stop servers, etc.
+// AI commands execute via spawn() and pipe output here.
 let aiTerminal: vscode.Terminal | undefined;
 let aiTerminalWriteEmitter: vscode.EventEmitter<string> | undefined;
+let activeChildProcess: cp.ChildProcess | undefined;
 
 function getOrCreateAITerminal(): { terminal: vscode.Terminal; writeEmitter: vscode.EventEmitter<string> } {
     // If the terminal was closed by the user, recreate it
@@ -24,14 +25,46 @@ function getOrCreateAITerminal(): { terminal: vscode.Terminal; writeEmitter: vsc
             onDidWrite: aiTerminalWriteEmitter.event,
             open: () => {
                 aiTerminalWriteEmitter!.fire('\x1b[36m╔══════════════════════════════════════════════╗\x1b[0m\r\n');
-                aiTerminalWriteEmitter!.fire('\x1b[36m║       🤖 AI Companion — Terminal Output      ║\x1b[0m\r\n');
-                aiTerminalWriteEmitter!.fire('\x1b[36m╚══════════════════════════════════════════════╝\x1b[0m\r\n\r\n');
+                aiTerminalWriteEmitter!.fire('\x1b[36m║       🤖 AI Companion — Terminal             ║\x1b[0m\r\n');
+                aiTerminalWriteEmitter!.fire('\x1b[36m╚══════════════════════════════════════════════╝\x1b[0m\r\n');
+                aiTerminalWriteEmitter!.fire('\x1b[90mInteractive: type here or Ctrl+C to stop processes\x1b[0m\r\n\r\n');
             },
             close: () => {
+                // Kill any active process when terminal is closed
+                if (activeChildProcess && !activeChildProcess.killed) {
+                    activeChildProcess.kill('SIGTERM');
+                    activeChildProcess = undefined;
+                }
                 aiTerminal = undefined;
                 aiTerminalWriteEmitter = undefined;
             },
-            handleInput: () => { /* read-only terminal */ }
+            handleInput: (data: string) => {
+                // Forward user input to the active child process
+                if (activeChildProcess && !activeChildProcess.killed && activeChildProcess.stdin) {
+                    // Ctrl+C → kill the process
+                    if (data === '\x03') {
+                        activeChildProcess.kill('SIGINT');
+                        aiTerminalWriteEmitter?.fire('\r\n\x1b[33m^C\x1b[0m\r\n');
+                        return;
+                    }
+                    // Forward the input to the child process
+                    activeChildProcess.stdin.write(data);
+                    // Echo the input to the terminal
+                    if (data === '\r') {
+                        aiTerminalWriteEmitter?.fire('\r\n');
+                    } else if (data === '\x7f') {
+                        // Backspace
+                        aiTerminalWriteEmitter?.fire('\b \b');
+                    } else {
+                        aiTerminalWriteEmitter?.fire(data);
+                    }
+                } else {
+                    // No active process — show hint
+                    if (data === '\r') {
+                        aiTerminalWriteEmitter?.fire('\r\n\x1b[90mNo active process. Commands are run by the AI agent.\x1b[0m\r\n');
+                    }
+                }
+            }
         };
 
         aiTerminal = vscode.window.createTerminal({
@@ -73,43 +106,79 @@ export function createSysTools() {
             outputChannel.appendLine(`[run_command] $ ${params.command} (cwd: ${execCwd})`);
 
             return new Promise<{ exitCode: number; output: string }>((resolve) => {
-                cp.exec(params.command, {
+                const child = cp.spawn('sh', ['-c', params.command], {
                     cwd: execCwd,
-                    timeout: 30000,
-                    maxBuffer: 1024 * 1024,
-                    env: { ...process.env, PAGER: 'cat' }
-                }, (error, stdout, stderr) => {
-                    let output = stdout || '';
-                    if (stderr) { output += '\nSTDERR:\n' + stderr; }
+                    env: { ...process.env, PAGER: 'cat' },
+                    stdio: ['pipe', 'pipe', 'pipe']
+                });
 
-                    // Write output to the AI Terminal (convert \n to \r\n for terminal)
-                    const termOutput = output.substring(0, 3000).replace(/\n/g, '\r\n');
-                    if (termOutput) {
-                        writeEmitter.fire(termOutput + '\r\n');
+                // Store as active process so user can interact (Ctrl+C, stdin)
+                activeChildProcess = child;
+
+                let stdout = '';
+                let stderr = '';
+                let killed = false;
+
+                // Set a timeout to prevent hanging
+                const timeout = setTimeout(() => {
+                    if (!child.killed) {
+                        killed = true;
+                        child.kill('SIGTERM');
+                        writeEmitter.fire('\r\n\x1b[33m── timed out after 30s ──\x1b[0m\r\n\r\n');
+                    }
+                }, 30000);
+
+                child.stdout?.on('data', (data: Buffer) => {
+                    const text = data.toString();
+                    stdout += text;
+                    // Stream to terminal in real-time
+                    const termText = text.replace(/\n/g, '\r\n');
+                    writeEmitter.fire(termText);
+                });
+
+                child.stderr?.on('data', (data: Buffer) => {
+                    const text = data.toString();
+                    stderr += text;
+                    // Stream stderr in red
+                    const termText = text.replace(/\n/g, '\r\n');
+                    writeEmitter.fire(`\x1b[31m${termText}\x1b[0m`);
+                });
+
+                child.on('close', (code) => {
+                    clearTimeout(timeout);
+                    if (activeChildProcess === child) {
+                        activeChildProcess = undefined;
                     }
 
-                    const exitCode = error ? (error.code || 1) : 0;
+                    const exitCode = code ?? (killed ? 124 : 1);
                     const exitColor = exitCode === 0 ? '\x1b[32m' : '\x1b[31m';
                     writeEmitter.fire(`${exitColor}── exit code: ${exitCode} ──\x1b[0m\r\n\r\n`);
 
-                    // Also log to output channel
                     outputChannel.appendLine(`[run_command] exit code: ${exitCode}`);
+
+                    let output = stdout || '';
+                    if (stderr) { output += '\nSTDERR:\n' + stderr; }
 
                     if (output.length > 3000) {
                         output = output.substring(0, 3000) + '\n... [output truncated at 3000 chars]';
                     }
 
-                    if (error && !stdout && !stderr) {
-                        resolve({
-                            exitCode: error.code || 1,
-                            output: error.message.substring(0, 1000)
-                        });
-                    } else {
-                        resolve({
-                            exitCode,
-                            output: output || '(no output)'
-                        });
+                    resolve({
+                        exitCode,
+                        output: output || '(no output)'
+                    });
+                });
+
+                child.on('error', (err) => {
+                    clearTimeout(timeout);
+                    if (activeChildProcess === child) {
+                        activeChildProcess = undefined;
                     }
+                    writeEmitter.fire(`\x1b[31m── error: ${err.message} ──\x1b[0m\r\n\r\n`);
+                    resolve({
+                        exitCode: 1,
+                        output: err.message.substring(0, 1000)
+                    });
                 });
             });
         }
