@@ -1094,7 +1094,7 @@ input:focus + .toggle-slider {
 
 .model-table-header {
     display: grid;
-    grid-template-columns: 1fr 120px 80px 100px 95px 90px;
+    grid-template-columns: 1fr 120px 80px 95px 100px 90px;
     gap: 16px;
     padding: 10px 24px;
     font-size: 0.8rem;
@@ -1145,7 +1145,7 @@ input:focus + .toggle-slider {
 
 .model-row {
     display: grid;
-    grid-template-columns: 1fr 120px 80px 100px 95px 90px;
+    grid-template-columns: 1fr 120px 80px 95px 100px 90px;
     gap: 16px;
     align-items: center;
     padding: 10px 24px;

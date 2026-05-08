@@ -1874,8 +1874,11 @@ function resetChat(content) {
     showChatView(); // Make sure we're on the chat view
     chatMessage.focus();
 
-    // Reset or set agent
-    updateActiveAgentUI(content.agentId);
+    // Only reset agent if the content explicitly provides one (e.g. loading from history)
+    // New chat should preserve whatever agent the user currently has selected
+    if (content.agentId !== undefined) {
+        updateActiveAgentUI(content.agentId);
+    }
 }
 
 

@@ -1140,15 +1140,15 @@ function renderModelTable() {
                         <span class="toggle-slider"></span>
                     </label>
                 </span>
-                <span class="model-image-radio${radioClass}">
-                    <input type="radio" name="imageModelRadio" value="${escapeHtml(modelName)}" ${isImageModel ? 'checked' : ''} ${radioDisabled} ${dataAttr}
-                        onchange="setImageModel('${escapeHtml(modelName)}')">
-                </span>
                 <span class="model-col-reasoning">
                     <label class="toggle-switch" title="Supports Reasoning">
                         <input id="${reasonToggleId}" type="checkbox" ${supportsReasoning ? 'checked' : ''} ${!isCustom ? 'disabled' : ''} onchange="toggleModelReasoning('${customId || ''}', this.checked)">
                         <span class="toggle-slider"></span>
                     </label>
+                </span>
+                <span class="model-image-radio${radioClass}">
+                    <input type="radio" name="imageModelRadio" value="${escapeHtml(modelName)}" ${isImageModel ? 'checked' : ''} ${radioDisabled} ${dataAttr}
+                        onchange="setImageModel('${escapeHtml(modelName)}')">
                 </span>
                 <span class="model-row-actions">${actionsHtml}</span>
             </div>

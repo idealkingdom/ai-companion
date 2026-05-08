@@ -293,7 +293,15 @@ export async function chatMessageListener(message: any) {
                 // 1. Delete messages from history, get the original user text back
                 const lastUserMessage = await historyService.deleteLastMessages(chatId, deleteCount);
                 const messageToSend = overrideMessage || lastUserMessage;
-                if (!messageToSend) { break; }
+                if (!messageToSend) {
+                    // No message recovered — cancel the loading state cleanly
+                    ChatViewProvider.getInstance().postMessage({
+                        command: CHAT_COMMANDS.CHAT_STREAM_END,
+                        content: '',
+                        role: ROLE.BOT
+                    });
+                    break;
+                }
 
                 // 2. Re-stream using recovered or overridden message
                 const retryData = {
@@ -306,34 +314,43 @@ export async function chatMessageListener(message: any) {
 
                 ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.CHAT_STREAM_START });
 
-                const { text: aiResponse, usage } = await coreService.processChatRequest(
-                    retryData, 
-                    async (chunk) => {
-                        await ChatViewProvider.getInstance().postMessage({
-                            command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
-                            content: chunk
-                        });
-                    },
-                    async (step) => {
-                        await ChatViewProvider.getInstance().postMessage({
-                            command: CHAT_COMMANDS.CHAT_AGENT_STEP,
-                            content: step
+                try {
+                    const { text: aiResponse, usage } = await coreService.processChatRequest(
+                        retryData, 
+                        async (chunk) => {
+                            await ChatViewProvider.getInstance().postMessage({
+                                command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
+                                content: chunk
+                            });
+                        },
+                        async (step) => {
+                            await ChatViewProvider.getInstance().postMessage({
+                                command: CHAT_COMMANDS.CHAT_AGENT_STEP,
+                                content: step
+                            });
+                        }
+                    );
+
+                    if (usage) {
+                        ChatViewProvider.getInstance().postMessage({
+                            command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
+                            usage: usage
                         });
                     }
-                );
 
-                if (usage) {
                     ChatViewProvider.getInstance().postMessage({
-                        command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
-                        usage: usage
+                        command: CHAT_COMMANDS.CHAT_STREAM_END,
+                        content: aiResponse,
+                        role: ROLE.BOT
+                    });
+                } catch (retryError: any) {
+                    outputChannel.appendLine(`[Retry] Error: ${retryError?.message || retryError}`);
+                    ChatViewProvider.getInstance().postMessage({
+                        command: CHAT_COMMANDS.CHAT_STREAM_END,
+                        content: `Error: ${retryError?.message || 'Retry failed'}`,
+                        role: ROLE.BOT
                     });
                 }
-
-                ChatViewProvider.getInstance().postMessage({
-                    command: CHAT_COMMANDS.CHAT_STREAM_END,
-                    content: aiResponse,
-                    role: ROLE.BOT
-                });
                 break;
             }
 
