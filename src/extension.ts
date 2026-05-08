@@ -1,6 +1,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import * as path from 'path';
 
 
 // import output channel for logging errors
@@ -95,22 +96,49 @@ export function activate(context: vscode.ExtensionContext) {
 
     // 5. Register Review Manager Commands — #43 Direct-Write Model
     const reviewManager = ReviewManager.getInstance();
+
+    // Helper: sync review state from ReviewManager → chatbox webview
+    const syncReviewToWebview = async () => {
+        const count = reviewManager.getTotalPendingCount();
+        if (count === 0) {
+            await ChatViewProvider.getInstance().postMessage({
+                command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
+                content: []
+            });
+        } else {
+            const uris = reviewManager.getStagedUris();
+            const filesData = uris.map(u => ({
+                fileName: path.basename(u.fsPath),
+                uri: u.toString(),
+                isNewFile: false,
+                hunks: (reviewManager.getPendingEdits(u.toString()) || []).map(e => ({ accepted: true }))
+            }));
+            await ChatViewProvider.getInstance().postMessage({
+                command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
+                content: filesData
+            });
+        }
+    };
+
     context.subscriptions.push(
-        vscode.commands.registerCommand('ai-companion.acceptEdit', (uriStr: string, editIndex: number) => {
+        vscode.commands.registerCommand('ai-companion.acceptEdit', async (uriStr: string, editIndex: number) => {
             reviewManager.acceptEdit(uriStr, editIndex);
             vscode.window.showInformationMessage('Change accepted.');
+            await syncReviewToWebview();
         }),
         vscode.commands.registerCommand('ai-companion.revertEdit', async (uriStr: string, editIndex: number) => {
             await reviewManager.revertEdit(uriStr, editIndex);
             vscode.window.showInformationMessage('Change reverted.');
+            await syncReviewToWebview();
         }),
-        vscode.commands.registerCommand('ai-companion.acceptAll', (uriStr?: string) => {
+        vscode.commands.registerCommand('ai-companion.acceptAll', async (uriStr?: string) => {
             if (uriStr) {
                 reviewManager.acceptAllForFile(uriStr);
             } else {
-                reviewManager.commitAll();
+                await reviewManager.commitAll();
             }
             vscode.window.showInformationMessage('All changes accepted.');
+            await syncReviewToWebview();
         }),
         vscode.commands.registerCommand('ai-companion.rejectAll', async (uriStr?: string) => {
             if (uriStr) {
@@ -119,6 +147,7 @@ export function activate(context: vscode.ExtensionContext) {
                 await reviewManager.discardAll();
             }
             vscode.window.showInformationMessage('All changes reverted.');
+            await syncReviewToWebview();
         })
     );
 
@@ -138,6 +167,22 @@ export function activate(context: vscode.ExtensionContext) {
             const editor = vscode.window.activeTextEditor;
             if (editor && event.document === editor.document) {
                 ReviewDecorationProvider.updateDecorations(editor);
+            }
+        })
+    );
+
+    // 7. Auto-accept edits when the user saves a file (save = user approves the changes)
+    context.subscriptions.push(
+        vscode.workspace.onDidSaveTextDocument(async (doc) => {
+            // Skip if the ReviewManager itself is saving (AI-initiated save)
+            if (reviewManager.isSaving) return;
+            
+            const uriStr = doc.uri.toString();
+            const pending = reviewManager.getPendingEdits(uriStr);
+            if (pending && pending.length > 0) {
+                reviewManager.acceptAllForFile(uriStr);
+                outputChannel.appendLine(`[Review] Auto-accepted ${pending.length} edit(s) on save: ${path.basename(doc.uri.fsPath)}`);
+                await syncReviewToWebview();
             }
         })
     );

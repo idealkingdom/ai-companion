@@ -653,6 +653,15 @@ function persistSettings() {
     applyUISettings(currentSettings.ui);
 }
 
+// Debounced version — use for text input fields to avoid flicker
+let _persistTimer = null;
+function debouncedPersist(delay = 800) {
+    if (_persistTimer) clearTimeout(_persistTimer);
+    _persistTimer = setTimeout(() => {
+        persistSettings();
+    }, delay);
+}
+
 // Add Prompt Button (now lives in Agent Hub — guard for backward compat)
 if (addPromptBtn) {
   addPromptBtn.addEventListener('click', () => {
@@ -922,6 +931,7 @@ function renderPrompts() {
         nameInput.addEventListener('input', (e) => {
             prompt.name = e.target.value;
             item.setAttribute('aria-label', `Agent: ${prompt.name || 'Unnamed'}`);
+            debouncedPersist();
         });
 
         // Content Change
@@ -946,6 +956,7 @@ function renderPrompts() {
                 charCount.textContent = String(prompt.content.length);
             }
             autoGrow(e.target);
+            debouncedPersist();
         });
 
         // Active toggle
@@ -959,6 +970,7 @@ function renderPrompts() {
             if (activeAgentCountValue) {
                 activeAgentCountValue.textContent = String(currentSettings.prompts.filter(p => !!p.isActive).length);
             }
+            persistSettings();
         });
 
         // Move Up
@@ -970,6 +982,7 @@ function renderPrompts() {
                 currentSettings.prompts[index - 1] = temp;
                 currentSettings.prompts.forEach((p, i) => p.order = i + 1);
                 renderPrompts();
+                persistSettings();
             }
         });
 
@@ -982,6 +995,7 @@ function renderPrompts() {
                 currentSettings.prompts[index + 1] = temp;
                 currentSettings.prompts.forEach((p, i) => p.order = i + 1);
                 renderPrompts();
+                persistSettings();
             }
         });
 
@@ -992,7 +1006,7 @@ function renderPrompts() {
                 e.stopPropagation();
                 const confirmed = await showModal(
                     'Delete Agent',
-                    `Are you sure you want to delete agent "${prompt.name || 'Unnamed'}"? This action cannot be undone and will be lost after saving.`
+                    `Are you sure you want to delete agent "${prompt.name || 'Unnamed'}"? This cannot be undone.`
                 );
 
                 if (confirmed) {
@@ -1001,6 +1015,7 @@ function renderPrompts() {
                         p.order = i + 1;
                     });
                     renderPrompts();
+                    persistSettings();
                 }
             });
         }

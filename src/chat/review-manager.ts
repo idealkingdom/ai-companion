@@ -39,6 +39,10 @@ export class ReviewManager {
     /** Original full-file content, stored when the first edit is made to a file in this turn */
     private originalSnapshots = new Map<string, string>();
 
+    /** Guard: prevents auto-accept when the AI itself saves a file */
+    private _isSaving = false;
+    public get isSaving() { return this._isSaving; }
+
     private constructor() {}
 
     public static getInstance(): ReviewManager {
@@ -125,12 +129,15 @@ export class ReviewManager {
                 return { success: false, error: 'WorkspaceEdit.applyEdit returned false.' };
             }
 
-            // Save the file
+            // Save the file (guarded so onDidSaveTextDocument won't auto-accept)
             try {
+                this._isSaving = true;
                 const updatedDoc = await vscode.workspace.openTextDocument(uri);
                 await updatedDoc.save();
             } catch (saveErr) {
                 // Non-fatal — edit was applied, save can be manual
+            } finally {
+                this._isSaving = false;
             }
 
             // Track the pending edit for CodeLens/decoration
@@ -182,9 +189,12 @@ export class ReviewManager {
             }
 
             try {
+                this._isSaving = true;
                 const doc = await vscode.workspace.openTextDocument(uri);
                 await doc.save();
-            } catch { /* non-fatal */ }
+            } catch { /* non-fatal */ } finally {
+                this._isSaving = false;
+            }
 
             // Track the entire file as a pending edit
             const lineCount = content.split('\n').length;
