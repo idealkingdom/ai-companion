@@ -73,3 +73,19 @@ export function getModelProviderOptions(): Record<string, { name: string; models
         }
     };
 }
+
+/**
+ * Resolve the tier for a given model name.
+ * Looks up the `tiers` map in models.json for the active provider.
+ * Custom/unknown models default to 'mid' (safe middle ground).
+ */
+export function getModelTier(provider: string, modelName: string): 'frontier' | 'mid' | 'small' {
+    try {
+        const providers = getModelProviderOptions() as any;
+        const providerData = providers[provider];
+        if (providerData?.tiers?.[modelName]) {
+            return providerData.tiers[modelName];
+        }
+    } catch {}
+    return 'mid'; // Default for custom/unknown models
+}

@@ -2,6 +2,7 @@ import { WorkspaceIndexService } from '../services/workspace-index';
 import { createFileTools } from './file-tools';
 import { createSysTools } from './sys-tools';
 import { createWebTools } from './web-tools';
+import { createCognitiveTools, ModelTier } from './cognitive-tools';
 import { ApprovalService } from '../chat/approval-service';
 import { ReviewManager } from '../chat/review-manager';
 import * as path from 'path';
@@ -11,6 +12,7 @@ export interface ToolRegistryOptions {
     readFilesConfirmation: boolean;
     writeFilesConfirmation: boolean;
     runCommandsConfirmation: boolean;
+    tier?: ModelTier;
     onApprovalRequest?: (toolCallId: string, toolName: string, args: any, options: { diffReviewRequired?: boolean }) => Promise<void>;
     abortSignal?: AbortSignal;
 }
@@ -23,11 +25,13 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
     const fileTools = createFileTools(workspaceIndex);
     const sysTools = createSysTools();
     const webTools = createWebTools();
+    const cognitiveTools = createCognitiveTools(options?.tier || 'mid');
 
     const allTools = {
         ...fileTools,
         ...sysTools,
-        ...webTools
+        ...webTools,
+        ...cognitiveTools
     };
 
     const readTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol', 'search_workspace', 'scrape_url', 'web_search', 'get_workspace_problems'];

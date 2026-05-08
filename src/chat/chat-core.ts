@@ -10,6 +10,7 @@ import { ImageDescriptionService } from './image-description-service';
 import { SettingsManager } from '../services/settings-manager';
 import { WorkspaceIndexService } from '../services/workspace-index';
 import { createToolRegistry } from '../tools/tool-registry';
+import { getModelTier } from '../constants';
 import { handleInlineReview } from './chat-message-listener';
 import { ReviewManager } from './review-manager';
 import { ApprovalService } from './approval-service';
@@ -436,14 +437,16 @@ You have access to tools to read, search, and modify files in the user's workspa
 Workspace root: ${workspaceRoot}
 
 WORKFLOW:
-1. Use list_workspace or find_symbol to understand the project structure
-2. Use read_file_skeleton to get an overview of relevant files (don't read full files unnecessarily)
-3. Use read_line_range to examine specific sections you need
-4. Use chunk_replace to make surgical edits (provide exact target text)
-5. Use search_workspace to find patterns across the codebase
-6. Use get_workspace_problems to verify if your changes introduced any lint or syntax errors
-7. Use run_command for builds, tests, git operations
-8. Use web_search to look up documentation, APIs, or current information online
+1. Call plan_task FIRST to break down the user's request into steps
+2. Use list_workspace or find_symbol to understand the project structure
+3. Use read_file_skeleton to get an overview of relevant files (don't read full files unnecessarily)
+4. Use read_line_range to examine specific sections you need
+5. Use chunk_replace to make surgical edits (provide exact target text)
+6. Use search_workspace to find patterns across the codebase
+7. Use get_workspace_problems to verify if your changes introduced any lint or syntax errors
+8. Use run_command for builds, tests, git operations
+9. Use web_search to look up documentation, APIs, or current information online
+10. Call verify_completion at the END to confirm all items were addressed
 
 RULES:
 - NEVER read an entire large file. Use skeleton first, then line ranges.
@@ -490,10 +493,18 @@ RULES:
             { role: 'user' as const, content: currentMessage }
         ];
 
+        // Resolve the active provider for routing
+        const activeProvider = settings.models?.provider || 'OpenAI';
+
+        // Resolve model tier for adaptive behavior
+        const modelTier = getModelTier(activeProvider, model);
+        outputChannel.appendLine(`[Agentic] Model tier: ${modelTier} (${activeProvider}/${model})`);
+
         // Apply alwaysProceed override — if enabled, skip all confirmation dialogs
         const alwaysProceed = settings.permissions?.alwaysProceed === true;
         const tools = createToolRegistry(this.workspaceIndex, {
             abortSignal: abortSignal,
+            tier: modelTier,
             readFilesConfirmation: alwaysProceed ? false : (settings.permissions?.readFilesConfirmation ?? false),
             writeFilesConfirmation: alwaysProceed ? false : (settings.permissions?.writeFilesConfirmation ?? true),
             runCommandsConfirmation: alwaysProceed ? false : (settings.permissions?.runCommandsConfirmation ?? true),
@@ -529,8 +540,7 @@ RULES:
         // Lower temperature for agent mode precision
         const agentTemp = Math.min(temperature, 0.3);
 
-        // Resolve the active provider for routing
-        const activeProvider = settings.models?.provider || 'OpenAI';
+
 
         let stepCount = 0;
         let streamedReasoning = false;
@@ -539,7 +549,7 @@ RULES:
             const result = await aiAgenticRequest(
                 messages, model, apiKey, agentTemp, activeProvider, tools,
                 {
-                    maxSteps: 15,
+                    maxSteps: modelTier === 'small' ? 5 : modelTier === 'mid' ? 10 : 15,
                     baseUrl: baseUrl,
                     abortSignal: abortSignal,
                     enableThinking: true, // Always enabled — models that don't support it will simply ignore
