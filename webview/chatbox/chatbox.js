@@ -680,34 +680,31 @@ chatLog.addEventListener('scroll', () => {
 // Dynamic padding: only adds bottom space when content overflows the viewport
 // and we need to push the last user message into view. Does nothing for short chats.
 function updateDynamicPadding() {
-    const totalContentHeight = chatbox.scrollHeight;
+    // Simple: if content is shorter than viewport, add padding to push it down
+    const contentHeight = chatbox.scrollHeight;
     const viewportHeight = chatLog.clientHeight;
 
-    // If all content fits within the viewport, no extra padding needed
-    if (totalContentHeight <= viewportHeight) {
+    if (contentHeight <= viewportHeight) {
         chatbox.style.paddingBottom = '0px';
         return;
     }
 
-    // Content overflows — check if we need to align the last user message
-    const userMessages = chatbox.querySelectorAll('.user-message');
-    const lastUserMsg = userMessages[userMessages.length - 1];
-    if (lastUserMsg) {
-        const lastChild = chatbox.lastElementChild;
-        if (lastChild) {
-            const contentBottom = lastChild.offsetTop + lastChild.offsetHeight;
-            const visibleContentHeight = contentBottom - lastUserMsg.offsetTop;
-            
-            const style = window.getComputedStyle(chatLog);
-            const paddingBottom = parseFloat(style.paddingBottom) || 0;
-            
-            let requiredPadding = chatLog.clientHeight - visibleContentHeight - paddingBottom; 
-            if (requiredPadding < 0) requiredPadding = 0;
-            chatbox.style.paddingBottom = `${requiredPadding}px`;
-            return;
-        }
+    // Find last user message and ensure content below it is visible
+    const lastUserMsg = chatbox.querySelector('.user-message:last-of-type');
+    if (!lastUserMsg) {
+        chatbox.style.paddingBottom = '0px';
+        return;
     }
-    chatbox.style.paddingBottom = '0px';
+
+    const lastChild = chatbox.lastElementChild;
+    if (!lastChild || lastChild === lastUserMsg) {
+        chatbox.style.paddingBottom = '0px';
+        return;
+    }
+
+    const contentBelowUser = (lastChild.offsetTop + lastChild.offsetHeight) - lastUserMsg.offsetTop;
+    const padding = Math.max(0, viewportHeight - contentBelowUser);
+    chatbox.style.paddingBottom = `${padding}px`;
 }
 
 chatbox.addEventListener('toggle', (e) => {
@@ -718,20 +715,13 @@ function scrollToBottom(force = false) {
     if (!force && _isUserScrolledUp) {
         return; 
     }
-    if (_scrollTimeout) {
-        clearTimeout(_scrollTimeout);
-    }
-    _scrollTimeout = setTimeout(() => {
-        requestAnimationFrame(() => {
-            updateDynamicPadding();
-            chatLog.scrollTop = chatLog.scrollHeight;
-            
-            setTimeout(() => {
-                updateDynamicPadding();
-                chatLog.scrollTop = chatLog.scrollHeight;
-            }, 60);
-        });
-    }, 10);
+    // Throttle to one scroll per animation frame — prevents layout thrashing
+    if (_scrollTimeout) return;
+    _scrollTimeout = requestAnimationFrame(() => {
+        _scrollTimeout = null;
+        updateDynamicPadding();
+        chatLog.scrollTop = chatLog.scrollHeight;
+    });
 }
 
 
@@ -1208,7 +1198,6 @@ function renderAgentStep(step) {
                     label.textContent = `Thought for ${total} tokens`;
                 }
             }
-            scrollToBottom();
             return;
         }
 
@@ -1252,7 +1241,6 @@ function renderAgentStep(step) {
                 label.textContent = 'Thinking...';
             }
         }
-        scrollToBottom();
         return;
     }
 
@@ -1369,7 +1357,6 @@ function renderAgentStep(step) {
             statusEl.classList.remove('running');
             statusEl.classList.add('done');
         }
-        scrollToBottom();
         return;
     }
 
@@ -2445,8 +2432,18 @@ window.addEventListener('message', event => {
 
             if (activeStreamNode) {
                 activeStreamAccumulator += message.content;
-                activeStreamNode.innerHTML = marked.parse(activeStreamAccumulator);
-                scrollToBottom();
+
+                // Batch markdown re-parse: only once per animation frame
+                if (!activeStreamNode._renderPending) {
+                    activeStreamNode._renderPending = true;
+                    requestAnimationFrame(() => {
+                        if (activeStreamNode) {
+                            activeStreamNode.innerHTML = marked.parse(activeStreamAccumulator);
+                            activeStreamNode._renderPending = false;
+                            scrollToBottom();
+                        }
+                    });
+                }
 
                 // Send ACK back to extension so it can send the next chunk
                 if (message.seq) {

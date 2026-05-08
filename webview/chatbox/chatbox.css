@@ -454,6 +454,7 @@ span.logo svg{
 
 .message-text {
   width: 100%;
+  contain: content; /* Isolate repaints during streaming */
 }
 .message-text p {
   margin: 0;
@@ -1348,18 +1349,18 @@ details[open] summary .file-arrow {
 }
 
 .agent-step-card {
-    background: rgba(40, 40, 42, 0.4);
+    background: rgba(40, 40, 42, 0.6);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 6px;
     padding: 6px 10px;
     font-size: 0.75rem;
     font-family: var(--font-ui);
     animation: stepFadeIn 0.3s ease-out;
-    backdrop-filter: blur(4px);
     display: flex;
     flex-direction: column;
     gap: 4px;
-    transition: all 0.2s ease;
+    transition: background 0.2s, border-color 0.2s;
+    contain: layout style;
 }
 
 .agent-step-card:hover {
