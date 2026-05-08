@@ -1079,7 +1079,7 @@ function renderModelTable() {
     const activeImageModel = currentSettings.models.imageModel;
 
     // Helper: build a model row with radio + edit + optional delete
-    function buildRow(modelName, providerKey, providerName, isCustom, customId, supportsImage) {
+    function buildRow(modelName, providerKey, providerName, isCustom, customId, supportsImage, modelSupportsReasoning) {
         let isActive = true;
         if (isCustom) {
             const cm = (currentSettings.customModels || []).find(m => m.id === customId);
@@ -1095,7 +1095,7 @@ function renderModelTable() {
         const configId = `config-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
 
         // Get existing config for this model
-        let apiKey = '', baseUrl = '', apiKeyHeaderVal = '', supportsReasoning = false;
+        let apiKey = '', baseUrl = '', apiKeyHeaderVal = '', supportsReasoning = modelSupportsReasoning;
         if (isCustom) {
             const cm = (currentSettings.customModels || []).find(m => m.id === customId);
             if (cm) { 
@@ -1128,6 +1128,7 @@ function renderModelTable() {
         const radioClass = !supportsImage ? ' disabled' : '';
 
         const activeToggleId = `active-toggle-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const reasonToggleId = `reason-toggle-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
 
         return `
             <div class="model-row">
@@ -1142,6 +1143,12 @@ function renderModelTable() {
                 <span class="model-image-radio${radioClass}">
                     <input type="radio" name="imageModelRadio" value="${escapeHtml(modelName)}" ${isImageModel ? 'checked' : ''} ${radioDisabled} ${dataAttr}
                         onchange="setImageModel('${escapeHtml(modelName)}')">
+                </span>
+                <span class="model-col-reasoning">
+                    <label class="toggle-switch" title="Supports Reasoning">
+                        <input id="${reasonToggleId}" type="checkbox" ${supportsReasoning ? 'checked' : ''} ${!isCustom ? 'disabled' : ''} onchange="toggleModelReasoning('${customId || ''}', this.checked)">
+                        <span class="toggle-slider"></span>
+                    </label>
                 </span>
                 <span class="model-row-actions">${actionsHtml}</span>
             </div>
@@ -1163,15 +1170,6 @@ function renderModelTable() {
                     <label>API Key Header <span style="font-size:0.72rem;opacity:0.6;">(optional)</span></label>
                     <input type="text" placeholder="e.g., x-api-key" value="${escapeHtml(apiKeyHeaderVal)}" data-config-field="apiKeyHeader">
                 </div>` : ''}
-                ${isCustom ? `<div class="config-field" style="margin-top: 10px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <label style="margin:0;">Supports Reasoning</label>
-                        <label class="toggle-switch">
-                            <input type="checkbox" data-config-field="supportsReasoning" ${supportsReasoning ? 'checked' : ''}>
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>` : ''}
                 <button class="config-save-btn" onclick="saveModelConfig('${configId}', '${isCustom ? customId : ''}', '${providerKey}')">Save</button>
             </div>`;
     }
@@ -1183,9 +1181,11 @@ function renderModelTable() {
         if (!source || !source.text) continue;
         const allModels = [...new Set([...source.text, ...(source.image || [])])];
         const imageModels = source.image || [];
+        const reasoningModels = providerData.supportsReasoning || [];
         for (const modelName of allModels) {
             const canImage = imageModels.includes(modelName);
-            builtinHtml += buildRow(modelName, providerKey, providerData.name || providerKey, false, null, canImage);
+            const canReason = reasoningModels.includes(modelName);
+            builtinHtml += buildRow(modelName, providerKey, providerData.name || providerKey, false, null, canImage, canReason);
         }
     }
     builtinBody.innerHTML = builtinHtml;
@@ -1202,11 +1202,42 @@ function renderModelTable() {
         if (customEmpty) customEmpty.style.display = 'none';
         let customHtml = '';
         for (const cm of customModels) {
-            customHtml += buildRow(cm.name, cm.provider, cm.provider, true, cm.id, !!cm.supportsImage);
+            customHtml += buildRow(cm.name, cm.provider, cm.provider, true, cm.id, !!cm.supportsImage, !!cm.supportsReasoning);
         }
         customBody.innerHTML = customHtml;
     }
 }
+
+window.toggleModelActive = function (isCustomStr, customId, modelName, isActive) {
+    const isCustom = isCustomStr === 'true';
+
+    if (isCustom) {
+        const cm = (currentSettings.customModels || []).find(m => m.id === customId);
+        if (cm) cm.isActive = isActive;
+    } else {
+        if (!currentSettings.models.inactiveModels) currentSettings.models.inactiveModels = [];
+        if (!isActive) {
+            if (!currentSettings.models.inactiveModels.includes(modelName)) {
+                currentSettings.models.inactiveModels.push(modelName);
+            }
+        } else {
+            currentSettings.models.inactiveModels = currentSettings.models.inactiveModels.filter(m => m !== modelName);
+        }
+    }
+
+    persistSettings();
+    populateModelDropdowns(currentSettings.models.provider, currentSettings.models.textModel, currentSettings.models.imageModel);
+};
+
+window.toggleModelReasoning = function (customId, supportsReasoning) {
+    if (customId) {
+        const cm = (currentSettings.customModels || []).find(m => m.id === customId);
+        if (cm) {
+            cm.supportsReasoning = supportsReasoning;
+            persistSettings();
+        }
+    }
+};
 
 // Section toggle
 window.toggleModelSection = function(section) {
@@ -1217,22 +1248,6 @@ window.toggleModelSection = function(section) {
     body.classList.toggle('collapsed');
 };
 
-// Handle active/inactive toggling
-window.toggleModelActive = function(isCustomStr, customId, modelName, isChecked) {
-    if (isCustomStr === 'true') {
-        const cm = (currentSettings.customModels || []).find(m => m.id === customId);
-        if (cm) cm.isActive = isChecked;
-    } else {
-        if (!currentSettings.models.inactiveModels) currentSettings.models.inactiveModels = [];
-        if (!isChecked) {
-            if (!currentSettings.models.inactiveModels.includes(modelName)) {
-                currentSettings.models.inactiveModels.push(modelName);
-            }
-        } else {
-            currentSettings.models.inactiveModels = currentSettings.models.inactiveModels.filter(m => m !== modelName);
-        }
-    }
-};
 
 // Toggle inline config panel
 window.toggleModelConfig = function(editId, configId) {
