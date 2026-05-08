@@ -2523,6 +2523,42 @@ window.addEventListener('message', event => {
             toggleSendButton("off");
             break;
 
+        case CHAT_COMMANDS.CHAT_CONTINUE_PROMPT:
+            {
+                const { chatId, agentId, extraSteps, stepsUsed } = message.data;
+                // Remove any existing continue banner
+                document.querySelectorAll('.continue-banner').forEach(b => b.remove());
+
+                const banner = document.createElement('div');
+                banner.className = 'continue-banner';
+                banner.innerHTML = `
+                    <div class="continue-banner-content">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+                        <span>Agent reached the step limit (${stepsUsed} steps). There may be more work to do.</span>
+                        <button class="continue-btn" id="continueAgentBtn">Continue</button>
+                        <button class="continue-dismiss-btn" id="dismissContinueBtn">Dismiss</button>
+                    </div>
+                `;
+                document.getElementById('chatLog').appendChild(banner);
+                scrollToBottom();
+
+                document.getElementById('continueAgentBtn').addEventListener('click', () => {
+                    banner.remove();
+                    showLoadingIndicator();
+                    isGenerating = true;
+                    toggleSendButton("on");
+                    sendMessage(CHAT_COMMANDS.CHAT_CONTINUE, {
+                        chatId,
+                        agentId
+                    });
+                });
+
+                document.getElementById('dismissContinueBtn').addEventListener('click', () => {
+                    banner.remove();
+                });
+                break;
+            }
+
         // Case: Resetting the view / New Chat
         case CHAT_COMMANDS.CHAT_RESET:
             resetChat(message.content);

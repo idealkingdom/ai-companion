@@ -241,7 +241,7 @@ export async function chatMessageListener(message: any) {
 
                 ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.CHAT_STREAM_START });
 
-                const { text: aiResponse, usage } = await coreService.processChatRequest(
+                const { text: aiResponse, usage, hitStepLimit, continuationMaxSteps } = await coreService.processChatRequest(
                     aiData,
                     // onChunk — stream text to frontend
                     async (chunk) => {
@@ -281,6 +281,43 @@ export async function chatMessageListener(message: any) {
                     content: aiResponse,
                     role: ROLE.BOT
                 });
+
+                // If the agent hit the step limit, offer continuation
+                if (hitStepLimit) {
+                    const extraSteps = Math.max(5, Math.floor((continuationMaxSteps || 20) / 2));
+                    ChatViewProvider.getInstance().postMessage({
+                        command: CHAT_COMMANDS.CHAT_CONTINUE_PROMPT,
+                        data: {
+                            chatId: aiData.chat_id,
+                            agentId: aiData.agentId,
+                            extraSteps,
+                            stepsUsed: continuationMaxSteps
+                        }
+                    });
+                }
+                break;
+            }
+
+        case CHAT_COMMANDS.CHAT_CONTINUE:
+            {
+                // User clicked "Continue" after hitting step limit
+                // Send a synthetic continuation message through the normal pipeline
+                const continueData = message.data;
+                outputChannel.appendLine(`[Continue] Continuing chat ${continueData.chatId} with agent ${continueData.agentId}`);
+
+                const syntheticMessage = {
+                    command: CHAT_COMMANDS.CHAT_REQUEST,
+                    data: {
+                        message: 'Continue working on the task. Pick up where you left off and complete the remaining work.',
+                        chat_id: continueData.chatId,
+                        agentId: continueData.agentId,
+                        images: [],
+                        imageDescriptions: []
+                    }
+                };
+
+                // Recurse into the same handler with the synthetic message
+                await chatMessageListener(syntheticMessage);
                 break;
             }
 

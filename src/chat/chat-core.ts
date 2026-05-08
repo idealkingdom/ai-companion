@@ -99,7 +99,7 @@ export class ChatCoreService {
         images?: any[],
         agentId?: string
     }, onChunk?: (text: string) => void,
-        onAgentStep?: (step: AgentStepEvent) => void): Promise<{ text: string, usage?: any }> {
+        onAgentStep?: (step: AgentStepEvent) => void): Promise<{ text: string, usage?: any, hitStepLimit?: boolean, continuationMaxSteps?: number }> {
 
         const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
 
@@ -115,6 +115,8 @@ export class ChatCoreService {
 
         let aiResponseText = "";
         let totalUsage: any = null;
+        let hitStepLimit = false;
+        let continuationMaxSteps = 0;
         const collectedAgentSteps: any[] = [];
 
         const abortController = new AbortController();
@@ -237,6 +239,10 @@ export class ChatCoreService {
                 );
                 aiResponseText = response.text;
                 if (!totalUsage) totalUsage = response.usage;
+                if (response.hitStepLimit) {
+                    hitStepLimit = true;
+                    continuationMaxSteps = response.maxSteps || 0;
+                }
             } else {
                 const response = await this.processStandardRequest(
                     data, finalContextMessages, finalCurrentMessage,
@@ -287,7 +293,7 @@ export class ChatCoreService {
             ChatCoreService.activeAbortControllers.delete(data.chat_id);
         }
 
-        return { text: aiResponseText, usage: totalUsage };
+        return { text: aiResponseText, usage: totalUsage, hitStepLimit, continuationMaxSteps };
     }
 
     /**
@@ -387,7 +393,7 @@ export class ChatCoreService {
         abortSignal?: AbortSignal,
         apiKeyHeader?: string,
         onUsageUpdate?: (usage: any) => void
-    ): Promise<{ text: string, usage?: any }> {
+    ): Promise<{ text: string, usage?: any, hitStepLimit?: boolean, maxSteps?: number }> {
         // Note: We do NOT call ReviewManager.startTurn() here.
         // Pending edits are global and persist until the user accepts/reverts them.
 
@@ -552,6 +558,7 @@ RULES:
 
         let stepCount = 0;
         let streamedReasoning = false;
+        let lastStepHadToolCalls = false;
 
         // Check if model supports reasoning
         let supportsReasoning = false;
@@ -602,7 +609,8 @@ RULES:
                             return;
                         }
                         stepCount++;
-                        outputChannel.appendLine(`[Agentic] Step ${stepCount} finished`);
+                        lastStepHadToolCalls = !!(event.toolCalls && event.toolCalls.length > 0);
+                        outputChannel.appendLine(`[Agentic] Step ${stepCount} finished (toolCalls: ${lastStepHadToolCalls})`);
 
                         // Note: Reasoning is extracted post-stream via result.steps (line ~585)
                         // onStepFinish.reasoningText is unreliable for some providers
@@ -776,14 +784,20 @@ RULES:
                 });
             }
 
+            // Detect if the model hit the step limit while still wanting to work
+            const hitStepLimit = stepCount >= maxSteps && lastStepHadToolCalls;
+            if (hitStepLimit) {
+                outputChannel.appendLine(`[Agentic] Hit step limit (${stepCount}/${maxSteps}) — model still had pending tool calls`);
+            }
+
             // If model returned empty text, provide a fallback
             if (!fullText || fullText.trim() === '') {
-                fullText = 'Task completed.';
+                fullText = hitStepLimit ? 'Reached step limit. There may be more work to do.' : 'Task completed.';
                 if (onChunk) { onChunk(fullText); }
             }
 
             const usage = await result.usage;
-            return { text: fullText, usage };
+            return { text: fullText, usage, hitStepLimit, maxSteps };
         } catch (error: any) {
             if (abortSignal?.aborted) {
                 throw error; // Let the top-level catch handle the cancellation gracefully
