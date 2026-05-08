@@ -10,7 +10,7 @@ import { ImageDescriptionService } from './image-description-service';
 import { SettingsManager } from '../services/settings-manager';
 import { WorkspaceIndexService } from '../services/workspace-index';
 import { createToolRegistry } from '../tools/tool-registry';
-import { getModelTier, modelSupportsReasoning } from '../constants';
+import { getModelTier } from '../constants';
 import { handleInlineReview } from './chat-message-listener';
 import { ReviewManager } from './review-manager';
 import { ApprovalService } from './approval-service';
@@ -545,6 +545,25 @@ RULES:
         let stepCount = 0;
         let streamedReasoning = false;
 
+        // Check if model supports reasoning
+        let supportsReasoning = false;
+        try {
+            const providers = require('../../models.json');
+            if (providers[activeProvider]?.supportsReasoning?.includes(model)) {
+                supportsReasoning = true;
+            }
+        } catch (e) {
+            outputChannel.appendLine(`[Agentic] Error reading models.json: ${e}`);
+        }
+        
+        // Check custom models
+        if (!supportsReasoning && settings.customModels) {
+            const customModel = settings.customModels.find((m: any) => m.name === model && m.provider === activeProvider);
+            if (customModel && customModel.supportsReasoning) {
+                supportsReasoning = true;
+            }
+        }
+
         try {
             const result = await aiAgenticRequest(
                 messages, model, apiKey, agentTemp, activeProvider, tools,
@@ -552,7 +571,7 @@ RULES:
                     maxSteps: modelTier === 'small' ? 5 : modelTier === 'mid' ? 10 : 15,
                     baseUrl: baseUrl,
                     abortSignal: abortSignal,
-                    enableThinking: modelSupportsReasoning(activeProvider, model),
+                    enableThinking: supportsReasoning,
                     apiKeyHeader: apiKeyHeader,
                     onFinish: (event: any) => {
                         const usage = event.usage || event.totalUsage;

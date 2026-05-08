@@ -1095,10 +1095,15 @@ function renderModelTable() {
         const configId = `config-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
 
         // Get existing config for this model
-        let apiKey = '', baseUrl = '', apiKeyHeaderVal = '';
+        let apiKey = '', baseUrl = '', apiKeyHeaderVal = '', supportsReasoning = false;
         if (isCustom) {
             const cm = (currentSettings.customModels || []).find(m => m.id === customId);
-            if (cm) { apiKey = cm.apiKey || ''; baseUrl = cm.baseUrl || ''; apiKeyHeaderVal = cm.apiKeyHeader || ''; }
+            if (cm) { 
+                apiKey = cm.apiKey || ''; 
+                baseUrl = cm.baseUrl || ''; 
+                apiKeyHeaderVal = cm.apiKeyHeader || ''; 
+                supportsReasoning = cm.supportsReasoning || false;
+            }
         } else {
             const ps = (currentSettings.models.providerSettings || {})[providerKey];
             if (ps) { apiKey = ps.apiKey || ''; baseUrl = ps.baseUrl || ''; }
@@ -1157,6 +1162,15 @@ function renderModelTable() {
                 ${isCustom && providerKey === 'Custom' ? `<div class="config-field">
                     <label>API Key Header <span style="font-size:0.72rem;opacity:0.6;">(optional)</span></label>
                     <input type="text" placeholder="e.g., x-api-key" value="${escapeHtml(apiKeyHeaderVal)}" data-config-field="apiKeyHeader">
+                </div>` : ''}
+                ${isCustom ? `<div class="config-field" style="margin-top: 10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <label style="margin:0;">Supports Reasoning</label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" data-config-field="supportsReasoning" ${supportsReasoning ? 'checked' : ''}>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
                 </div>` : ''}
                 <button class="config-save-btn" onclick="saveModelConfig('${configId}', '${isCustom ? customId : ''}', '${providerKey}')">Save</button>
             </div>`;
@@ -1246,6 +1260,8 @@ window.saveModelConfig = function(configId, customId, providerKey) {
     const baseUrl = baseUrlField?.value?.trim() || '';
     const apiKeyHeaderField = panel.querySelector('[data-config-field="apiKeyHeader"]');
     const apiKeyHeaderVal = apiKeyHeaderField?.value?.trim() || '';
+    const supportsReasoningField = panel.querySelector('[data-config-field="supportsReasoning"]');
+    const supportsReasoningVal = supportsReasoningField?.checked || false;
 
     if (customId) {
         // Custom model
@@ -1253,6 +1269,7 @@ window.saveModelConfig = function(configId, customId, providerKey) {
         if (cm) {
             cm.apiKey = apiKey;
             cm.baseUrl = baseUrl;
+            cm.supportsReasoning = supportsReasoningVal;
             if (apiKeyHeaderVal) { cm.apiKeyHeader = apiKeyHeaderVal; }
             else { delete cm.apiKeyHeader; }
         }
@@ -1295,6 +1312,7 @@ const addModelName = document.getElementById('addModelName');
 const addModelApiKey = document.getElementById('addModelApiKey');
 const addModelBaseUrl = document.getElementById('addModelBaseUrl');
 const addModelSupportsImage = document.getElementById('addModelSupportsImage');
+const addModelSupportsReasoning = document.getElementById('addModelSupportsReasoning');
 const addModelApiKeyHeader = document.getElementById('addModelApiKeyHeader');
 const addModelHeaderGroup = document.getElementById('addModelHeaderGroup');
 
@@ -1313,10 +1331,12 @@ function openAddModelModal() {
     if (addModelApiKey) addModelApiKey.value = '';
     if (addModelBaseUrl) addModelBaseUrl.value = '';
     if (addModelSupportsImage) addModelSupportsImage.checked = false;
+    if (addModelSupportsReasoning) addModelSupportsReasoning.checked = false;
     if (addModelApiKeyHeader) addModelApiKeyHeader.value = '';
     if (addModelHeaderGroup) addModelHeaderGroup.style.display = 'none';
     addModelModal.classList.remove('hidden');
 }
+
 
 function closeAddModelModal() {
     if (addModelModal) addModelModal.classList.add('hidden');
@@ -1347,6 +1367,7 @@ if (addModelSubmitBtn) {
 
         // Create the custom model
         const supportsImage = addModelSupportsImage?.checked || false;
+        const supportsReasoning = addModelSupportsReasoning?.checked || false;
         const apiKeyHeader = addModelApiKeyHeader?.value?.trim() || '';
         const newModel = {
             id: Date.now().toString(),
@@ -1355,6 +1376,7 @@ if (addModelSubmitBtn) {
             apiKey,
             baseUrl: baseUrl || '',
             supportsImage,
+            supportsReasoning,
             apiKeyHeader: apiKeyHeader || undefined
         };
 
