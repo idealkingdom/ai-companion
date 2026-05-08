@@ -4,7 +4,7 @@ const vscode = acquireVsCodeApi();
 
 // --- STATE ---
 let currentSettings = {
-    general: { enableTodoList: false, enableThinking: true, systemPrompt: '' },
+    general: { enableTodoList: false, systemPrompt: '' },
     models: {
         textModel: 'gpt-4o', imageModel: 'gpt-4o-mini', baseUrl: '', apiKey: '', provider: 'OpenAI',
         providerSettings: {}
@@ -13,7 +13,8 @@ let currentSettings = {
     permissions: {
         readFilesConfirmation: false,
         writeFilesConfirmation: true,
-        runCommandsConfirmation: true
+        runCommandsConfirmation: true,
+        alwaysProceed: false
     },
     ui: {
         fontFamily: '',
@@ -125,7 +126,7 @@ const baseUrlInput = document.getElementById('baseUrlInput');
 const textModelInput = document.getElementById('textModelInput');
 const imageModelInput = document.getElementById('imageModelInput');
 const enableTodoListInput = document.getElementById('enableTodoList');
-const enableThinkingInput = document.getElementById('enableThinking');
+const alwaysProceedInput = document.getElementById('alwaysProceed');
 const customCssInput = document.getElementById('customCssInput');
 const resetCssBtn = document.getElementById('resetCssBtn');
 const themeTemplateSelect = document.getElementById('themeTemplateSelect');
@@ -600,6 +601,7 @@ if (resetCssBtn) {
 const generateThemeBtn = document.getElementById('generateThemeBtn');
 const themePromptInput = document.getElementById('themePromptInput');
 let _genTimeout = null; // safety timeout to reset button
+let _genActive = false; // track if generation is active or timed out
 
 if (generateThemeBtn && themePromptInput) {
     generateThemeBtn.addEventListener('click', () => {
@@ -609,18 +611,20 @@ if (generateThemeBtn && themePromptInput) {
             return;
         }
         generateThemeBtn.disabled = true;
-        generateThemeBtn.innerHTML = '<span class="status-spinner" style="width:12px;height:12px;border-width:2px;"></span> Generating...';
+        _genActive = true;
+        generateThemeBtn.innerHTML = '<span class="status-spinner" style="width:12px;height:12px;border-width:2px;"></span> Generating (up to 2m)...';
         vscode.postMessage({ command: 'generateTheme', data: { prompt } });
 
-        // Safety timeout: auto-reset after 60s if no response
+        // Safety timeout: auto-reset after 120s if no response
         clearTimeout(_genTimeout);
         _genTimeout = setTimeout(() => {
             if (generateThemeBtn.disabled) {
+                _genActive = false;
                 generateThemeBtn.disabled = false;
                 generateThemeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> Generate';
                 showModal('Generation Timeout', 'Theme generation took too long. Please try again.', false, true);
             }
-        }, 60000);
+        }, 120000);
     });
 
     themePromptInput.addEventListener('keydown', (e) => {
@@ -694,6 +698,8 @@ window.addEventListener('message', event => {
             // #67: AI-generated theme result
             case 'generateThemeResult': {
                 clearTimeout(_genTimeout);
+                if (!_genActive) return; // Ignore if we timed out
+                _genActive = false;
                 const genBtn = document.getElementById('generateThemeBtn');
                 if (genBtn) {
                     genBtn.disabled = false;
@@ -747,8 +753,8 @@ function populateForm() {
     if (enableTodoListInput) {
         enableTodoListInput.checked = general.enableTodoList || false;
     }
-    if (enableThinkingInput) {
-        enableThinkingInput.checked = general.enableThinking !== false; // default true
+    if (alwaysProceedInput) {
+        alwaysProceedInput.checked = currentSettings.permissions?.alwaysProceed || false;
     }
 
     // UI
@@ -801,7 +807,7 @@ function updateDeleteButtonVisibility() {
     const value = themeTemplateSelect.value;
     if (value.startsWith('custom_')) {
         const templateId = value.substring(7);
-        deleteTemplateBtn.style.display = 'block';
+        deleteTemplateBtn.style.display = 'inline-flex';
         deleteTemplateBtn.dataset.templateId = templateId;
     } else {
         deleteTemplateBtn.style.display = 'none';
@@ -813,8 +819,13 @@ function collectSettings() {
     if (enableTodoListInput) {
         currentSettings.general.enableTodoList = enableTodoListInput.checked;
     }
-    if (enableThinkingInput) {
-        currentSettings.general.enableThinking = enableThinkingInput.checked;
+    if (alwaysProceedInput) {
+        currentSettings.permissions.alwaysProceed = alwaysProceedInput.checked;
+        if (alwaysProceedInput.checked) {
+            currentSettings.permissions.readFilesConfirmation = false;
+            currentSettings.permissions.writeFilesConfirmation = false;
+            currentSettings.permissions.runCommandsConfirmation = false;
+        }
     }
     
     if (!currentSettings.ui) {
@@ -1094,10 +1105,10 @@ function renderModelTable() {
         const configId = `config-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
 
         // Get existing config for this model
-        let apiKey = '', baseUrl = '';
+        let apiKey = '', baseUrl = '', apiKeyHeaderVal = '';
         if (isCustom) {
             const cm = (currentSettings.customModels || []).find(m => m.id === customId);
-            if (cm) { apiKey = cm.apiKey || ''; baseUrl = cm.baseUrl || ''; }
+            if (cm) { apiKey = cm.apiKey || ''; baseUrl = cm.baseUrl || ''; apiKeyHeaderVal = cm.apiKeyHeader || ''; }
         } else {
             const ps = (currentSettings.models.providerSettings || {})[providerKey];
             if (ps) { apiKey = ps.apiKey || ''; baseUrl = ps.baseUrl || ''; }
@@ -1153,6 +1164,10 @@ function renderModelTable() {
                     <label>Base URL</label>
                     <input type="text" placeholder="Leave empty for default" value="${escapeHtml(baseUrl)}" data-config-field="baseUrl">
                 </div>
+                ${isCustom && providerKey === 'Custom' ? `<div class="config-field">
+                    <label>API Key Header <span style="font-size:0.72rem;opacity:0.6;">(optional)</span></label>
+                    <input type="text" placeholder="e.g., x-api-key" value="${escapeHtml(apiKeyHeaderVal)}" data-config-field="apiKeyHeader">
+                </div>` : ''}
                 <button class="config-save-btn" onclick="saveModelConfig('${configId}', '${isCustom ? customId : ''}', '${providerKey}')">Save</button>
             </div>`;
     }
@@ -1239,6 +1254,8 @@ window.saveModelConfig = function(configId, customId, providerKey) {
     const baseUrlField = panel.querySelector('[data-config-field="baseUrl"]');
     const apiKey = apiKeyField?.value?.trim() || '';
     const baseUrl = baseUrlField?.value?.trim() || '';
+    const apiKeyHeaderField = panel.querySelector('[data-config-field="apiKeyHeader"]');
+    const apiKeyHeaderVal = apiKeyHeaderField?.value?.trim() || '';
 
     if (customId) {
         // Custom model
@@ -1246,6 +1263,8 @@ window.saveModelConfig = function(configId, customId, providerKey) {
         if (cm) {
             cm.apiKey = apiKey;
             cm.baseUrl = baseUrl;
+            if (apiKeyHeaderVal) { cm.apiKeyHeader = apiKeyHeaderVal; }
+            else { delete cm.apiKeyHeader; }
         }
     } else {
         // Built-in model — save to providerSettings
@@ -1286,6 +1305,15 @@ const addModelName = document.getElementById('addModelName');
 const addModelApiKey = document.getElementById('addModelApiKey');
 const addModelBaseUrl = document.getElementById('addModelBaseUrl');
 const addModelSupportsImage = document.getElementById('addModelSupportsImage');
+const addModelApiKeyHeader = document.getElementById('addModelApiKeyHeader');
+const addModelHeaderGroup = document.getElementById('addModelHeaderGroup');
+
+// Show/hide the custom API key header field based on provider selection
+if (addModelProvider && addModelHeaderGroup) {
+    addModelProvider.addEventListener('change', () => {
+        addModelHeaderGroup.style.display = addModelProvider.value === 'Custom' ? 'block' : 'none';
+    });
+}
 
 function openAddModelModal() {
     if (!addModelModal) return;
@@ -1295,6 +1323,8 @@ function openAddModelModal() {
     if (addModelApiKey) addModelApiKey.value = '';
     if (addModelBaseUrl) addModelBaseUrl.value = '';
     if (addModelSupportsImage) addModelSupportsImage.checked = false;
+    if (addModelApiKeyHeader) addModelApiKeyHeader.value = '';
+    if (addModelHeaderGroup) addModelHeaderGroup.style.display = 'none';
     addModelModal.classList.remove('hidden');
 }
 
@@ -1327,13 +1357,15 @@ if (addModelSubmitBtn) {
 
         // Create the custom model
         const supportsImage = addModelSupportsImage?.checked || false;
+        const apiKeyHeader = addModelApiKeyHeader?.value?.trim() || '';
         const newModel = {
             id: Date.now().toString(),
             name,
             provider,
             apiKey,
             baseUrl: baseUrl || '',
-            supportsImage
+            supportsImage,
+            apiKeyHeader: apiKeyHeader || undefined
         };
 
         if (!currentSettings.customModels) currentSettings.customModels = [];

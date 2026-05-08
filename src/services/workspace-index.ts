@@ -115,7 +115,7 @@ export class WorkspaceIndexService {
             'tf', 'hcl',                      // Terraform
             'proto',                           // Protobuf
             // Project files
-            'lock',                            // keep package-lock, etc for awareness
+            // 'lock' — intentionally excluded: lock files waste tokens with no useful AI context
             'gitignore', 'dockerignore', 'eslintrc', 'prettierrc',
         ]);
 
@@ -135,7 +135,7 @@ export class WorkspaceIndexService {
             'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
             'woff', 'woff2', 'ttf', 'otf', 'eot',
             'pyc', 'pyo', 'class', 'o', 'so', 'dll', 'dylib', 'exe',
-            'wasm', 'map',
+            'wasm', 'map', 'vsix',
             'min.js', 'min.css',
             'db', 'sqlite', 'sqlite3',
         ]);

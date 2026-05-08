@@ -73,7 +73,7 @@
             </nav>
 
             <div class="sidebar-footer">
-                <button id="saveBtn" class="primary-btn glass-btn">
+                <button id="saveBtn" class="primary-btn">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="20 6 9 17 4 12"></polyline>
@@ -89,39 +89,35 @@
             <!-- GENERAL TAB -->
             <section id="general" class="tab-view active">
                 <div class="view-header">
-                    <h1>General Parameters</h1>
-                    <p>Global parameters that apply to all interactions.</p>
+                    <h1>General</h1>
+                    <p>Core settings that apply across all chats and agents.</p>
                 </div>
 
                 <div class="glass-panel">
                     <div class="panel-section">
                         <h3>Agent Capabilities</h3>
-                        <p class="section-desc">Enable or disable agent features.</p>
+                        <p class="section-desc">Control what features are available to the AI agent during conversations.</p>
 
-                        <div class="field-row mt-4">
-                            <div class="form-group flex-1">
-                                <label for="enableTodoList" style="display: flex; align-items: center; justify-content: space-between;">
-                                    Task Tracking (To-Do List)
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="enableTodoList">
-                                        <span class="toggle-slider"></span>
-                                    </label>
-                                </label>
-                                <p class="section-desc" style="margin-top: 4px;">Allow the agent to create and manage a task checklist during multi-step work.</p>
+                        <div class="setting-item">
+                            <div class="setting-item-content">
+                                <div class="setting-item-label">Task Tracking</div>
+                                <p class="setting-item-desc">Allow the agent to create and manage a task checklist during multi-step work.</p>
                             </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="enableTodoList">
+                                <span class="toggle-slider"></span>
+                            </label>
                         </div>
 
-                        <div class="field-row mt-4">
-                            <div class="form-group flex-1">
-                                <label for="enableThinking" style="display: flex; align-items: center; justify-content: space-between;">
-                                    Thinking / Reasoning Output
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="enableThinking" checked>
-                                        <span class="toggle-slider"></span>
-                                    </label>
-                                </label>
-                                <p class="section-desc" style="margin-top: 4px;">Show the model's reasoning process in a collapsible block. Requires a model that supports reasoning tokens.</p>
+                        <div class="setting-item">
+                            <div class="setting-item-content">
+                                <div class="setting-item-label">Always Proceed</div>
+                                <p class="setting-item-desc">Skip all confirmation prompts for tool execution (file reads, writes, and commands). Use with caution.</p>
                             </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="alwaysProceed">
+                                <span class="toggle-slider"></span>
+                            </label>
                         </div>
                     </div>
                 </div>
@@ -131,9 +127,8 @@
             <section id="providers" class="tab-view">
                 <div class="view-header actions-header">
                     <div>
-                        <h1>Model Management</h1>
-                        <p>Add or manage available models. Built-in models use the default stable version. Configure an
-                            API to access other models.</p>
+                        <h1>Models</h1>
+                        <p>Manage your AI models. Built-in models use the provider's default endpoint. Add custom models for self-hosted or third-party APIs.</p>
                     </div>
                     <button class="secondary-btn accent-glow" id="btn-add-model">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -160,7 +155,7 @@
                 <input type="hidden" id="apiKeyInput" value="">
 
                 <!-- Model Table -->
-                <div class="glass-panel" style="padding: 0; overflow: hidden;">
+                <div class="glass-panel model-table-panel">
                     <!-- Table Header -->
                     <div class="model-table-header">
                         <span class="model-col-name">Model</span>
@@ -207,70 +202,71 @@
             <section id="appearance" class="tab-view">
                 <div class="view-header">
                     <h1>Appearance Settings</h1>
-                    <p>Hack the chat experience. Write custom CSS to override layout, fonts, and colors.</p>
+                    <p>Customize the chat experience with themes and CSS overrides.</p>
                 </div>
 
+                <!-- ── Theme Selection ── -->
                 <div class="glass-panel">
                     <div class="panel-section">
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                            <h3 style="margin: 0;">Custom CSS</h3>
-                            <button id="resetCssBtn" class="secondary-btn glass-btn"
-                                style="padding: 6px 12px; font-size: 0.8rem; width: auto; margin: 0;">Reset
-                                Default</button>
-                        </div>
-                        <p class="section-desc">Add global CSS overrides to style the chatbox natively. E.g.
-                            <code>:root { --app-bg: #1e1e1e; --font-ui: "Inter"; }</code>
-                        </p>
-
-                        <div class="field-row mt-4">
-                            <div class="form-group flex-1">
-                                <label>Theme Template <span
-                                        style="font-weight: normal; font-size: 0.8rem; margin-left: 6px; opacity: 0.7; font-style: italic;">(For
-                                        best results, select a theme that compliments your IDE theme)</span></label>
-                                <select id="themeTemplateSelect" class="styled-input" style="margin-bottom: 12px;">
-                                    <option value="custom">Custom (Manual)</option>
-                                    <option value="default">Default — Clean &amp; Minimal</option>
-                                    <option value="futuristic">Futuristic — Neon &amp; Glassmorphism</option>
-                                    <option value="retro">Retro — Warm &amp; Monospace</option>
-                                    <option value="classic">Classic — Elegant &amp; Serif</option>
-                                </select>
-                                <div style="display: flex; gap: 8px; margin-top: 8px;">
-                                    <button id="saveTemplateBtn" class="secondary-btn glass-btn"
-                                        style="padding: 6px 12px; font-size: 0.8rem; flex: 1;">
-                                        💾 Save as Template
-                                    </button>
-                                    <button id="deleteTemplateBtn" class="secondary-btn glass-btn"
-                                        style="padding: 6px 12px; font-size: 0.8rem; flex: 1; display: none;">
-                                        🗑️ Delete Template
-                                    </button>
-                                </div>
+                        <div class="appearance-section-header">
+                            <div>
+                                <h3>Theme</h3>
+                                <p class="section-desc">Select a preset or create your own. For best results, pick a theme that complements your IDE.</p>
                             </div>
                         </div>
 
-                        <!-- #67: AI Theme Generator -->
-                        <div class="field-row mt-4">
-                            <div class="form-group flex-1">
-                                <label>AI Theme Generator</label>
-                                <p class="section-desc">Describe the theme you want and let AI generate it for you.</p>
-                                <div class="theme-gen-row">
-                                    <input type="text" id="themePromptInput" class="styled-input theme-gen-input" 
-                                        placeholder="e.g. A dark purple cyberpunk theme with neon green accents">
-                                    <button id="generateThemeBtn" class="theme-gen-btn">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-                                        Generate
-                                    </button>
-                                </div>
-                            </div>
+                        <div class="appearance-field">
+                            <select id="themeTemplateSelect" class="styled-input">
+                                <option value="custom">Custom (Manual)</option>
+                                <option value="default">Default — Clean &amp; Minimal</option>
+                                <option value="futuristic">Futuristic — Neon &amp; Glassmorphism</option>
+                                <option value="retro">Retro — Warm &amp; Monospace</option>
+                                <option value="classic">Classic — Elegant &amp; Serif</option>
+                            </select>
                         </div>
 
-                        <div class="field-row">
-                            <div class="form-group flex-1">
-                                <textarea id="customCssInput" class="styled-input styled-textarea code-font" rows="22"
-                                    placeholder="/* --- Custom CSS Examples --- &#10;&#10;:root {&#10;  --font-ui: 'Segoe UI';&#10;  --font-editor: 'Fira Code';&#10;}&#10;&#10;body {&#10;  font-size: 15px !important;&#10;} */"
-                                    spellcheck="false"
-                                    style="width: 100%; box-sizing: border-box; resize: vertical; min-height: 450px; font-family: var(--font-editor, monospace);"></textarea>
+                        <div class="appearance-actions">
+                            <button id="saveTemplateBtn" class="secondary-btn small">
+                                💾 Save as Template
+                            </button>
+                            <button id="deleteTemplateBtn" class="secondary-btn small danger-ghost" style="display: none;">
+                                🗑️ Delete Template
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── AI Theme Generator ── -->
+                <div class="glass-panel">
+                    <div class="panel-section">
+                        <h3>AI Theme Generator</h3>
+                        <p class="section-desc">Describe the theme you want and let AI generate the CSS for you.</p>
+                        <div class="theme-gen-row">
+                            <input type="text" id="themePromptInput" class="styled-input theme-gen-input" 
+                                placeholder="e.g. A dark purple cyberpunk theme with neon green accents">
+                            <button id="generateThemeBtn" class="theme-gen-btn">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                                Generate
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── CSS Editor ── -->
+                <div class="glass-panel">
+                    <div class="panel-section">
+                        <div class="appearance-section-header">
+                            <div>
+                                <h3>Custom CSS</h3>
+                                <p class="section-desc">Override layout, fonts, and colors. Changes apply to the chat interface only.</p>
                             </div>
+                            <button id="resetCssBtn" class="secondary-btn small">Reset Default</button>
+                        </div>
+
+                        <div class="appearance-field">
+                            <textarea id="customCssInput" class="styled-input styled-textarea code-font" rows="22"
+                                placeholder="/* --- Custom CSS Examples --- &#10;&#10;:root {&#10;  --font-ui: 'Segoe UI';&#10;  --font-editor: 'Fira Code';&#10;}&#10;&#10;body {&#10;  font-size: 15px !important;&#10;} */"
+                                spellcheck="false"></textarea>
                         </div>
                     </div>
                 </div>
@@ -302,14 +298,14 @@
 
     <!-- Add Model Modal -->
     <div id="addModelModal" class="modal-overlay hidden">
-        <div class="modal-container" style="max-width: 460px;">
-            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="margin: 0;">Add Model</h3>
+        <div class="modal-container modal-wide">
+            <div class="modal-header modal-header-row">
+                <h3>Add Model</h3>
                 <button class="icon-btn-close" id="addModelCloseBtn" title="Close">&times;</button>
             </div>
-            <div class="modal-body" style="margin-top: 16px;">
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label><span style="color: var(--danger-color);">*</span> Provider</label>
+            <div class="modal-body modal-form">
+                <div class="form-group">
+                    <label><span class="required-mark">*</span> Provider</label>
                     <select id="addModelProvider" class="styled-input">
                         <option value="" disabled selected>Model Provider</option>
                         <option value="OpenAI">OpenAI</option>
@@ -317,36 +313,40 @@
                         <option value="Custom">Custom / Other</option>
                     </select>
                 </div>
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label><span style="color: var(--danger-color);">*</span> Model</label>
+                <div class="form-group">
+                    <label><span class="required-mark">*</span> Model</label>
                     <input type="text" id="addModelName" class="styled-input" placeholder="e.g. gpt-4o, llama-3.1-70b">
                 </div>
-                <div class="form-group" style="margin-bottom: 16px;">
-                    <label><span style="color: var(--danger-color);">*</span> API Key</label>
+                <div class="form-group">
+                    <label><span class="required-mark">*</span> API Key</label>
                     <input type="password" id="addModelApiKey" class="styled-input" placeholder="Fill API Key here">
                 </div>
-                <div class="form-group" style="margin-bottom: 24px;">
-                    <label>Custom Request URL <span class="hint-text" style="cursor: help;"
-                            title="Leave blank to use the default endpoint for the selected provider">ⓘ</span></label>
+                <div class="form-group">
+                    <label>Custom Request URL <span class="hint-text hint-icon" title="Leave blank to use the default endpoint for the selected provider">ⓘ</span></label>
                     <input type="text" id="addModelBaseUrl" class="styled-input default-ph"
                         placeholder="e.g., https://api.openai.com/v1/chat/completions">
                 </div>
-                <div class="form-group" style="margin-bottom: 8px;">
-                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div class="form-group" id="addModelHeaderGroup" style="display: none;">
+                    <label>API Key Header <span class="hint-text hint-icon" title="Custom header name for the API key. Leave blank for standard Authorization: Bearer header.">ⓘ</span></label>
+                    <input type="text" id="addModelApiKeyHeader" class="styled-input default-ph"
+                        placeholder="e.g., x-api-key">
+                    <p class="hint-text hint-block">Some providers use non-standard headers (e.g., <code>x-api-key</code>). Leave blank for standard <code>Authorization: Bearer</code>.</p>
+                </div>
+                <div class="form-group">
+                    <div class="modal-toggle-row">
                         <div>
-                            <label style="margin-bottom: 2px;">Image / Vision Support</label>
-                            <p class="hint-text" style="margin: 0; font-size: 0.75rem;">Enable if this model can process
-                                images</p>
+                            <div class="setting-item-label">Image / Vision Support</div>
+                            <p class="setting-item-desc">Enable if this model can process images</p>
                         </div>
-                        <label class="toggle-switch" style="margin: 0;">
+                        <label class="toggle-switch">
                             <input type="checkbox" id="addModelSupportsImage">
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
                 </div>
             </div>
-            <div class="modal-footer" style="flex-direction: column;">
-                <button id="addModelSubmitBtn" class="primary-btn">Add Model</button>
+            <div class="modal-footer">
+                <button id="addModelSubmitBtn" class="primary-btn modal-submit-btn">Add Model</button>
             </div>
         </div>
     </div>

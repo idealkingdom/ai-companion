@@ -167,8 +167,8 @@ body {
 }
 
 .hub-input:focus {
-  border-color: var(--hub-focus);
-  box-shadow: 0 0 0 2px rgba(0,122,204,0.25);
+  border-color: var(--hub-accent);
+  box-shadow: 0 0 0 2px rgba(79,172,254,0.25);
 }
 
 .hub-input::placeholder {
@@ -344,7 +344,9 @@ body {
 
 .source-card:hover {
   background: var(--hub-surface-hover);
-  border-color: rgba(255,255,255,0.12);
+  border-color: rgba(79,172,254,0.3);
+  box-shadow: 0 4px 16px rgba(79,172,254,0.08);
+  transform: translateY(-1px);
 }
 
 .source-type-badge {
@@ -736,7 +738,9 @@ body {
 }
 
 .agent-card:hover {
-  border-color: rgba(255,255,255,0.12);
+  border-color: rgba(79,172,254,0.3);
+  box-shadow: 0 4px 16px rgba(79,172,254,0.08);
+  transform: translateY(-1px);
 }
 
 .agent-card-top {
@@ -828,12 +832,12 @@ body {
 }
 
 .agent-toggle input:checked + .agent-toggle-slider {
-  background: rgba(79,172,254,0.3);
+  background: rgba(79,172,254,0.25);
 }
 
 .agent-toggle input:checked + .agent-toggle-slider::before {
   transform: translateX(16px);
-  background: var(--hub-accent);
+  background: linear-gradient(135deg, var(--hub-accent), var(--hub-accent-2));
 }
 
 .agent-prompt-area {
@@ -937,6 +941,12 @@ body {
 
 .linked-source-chip .chip-remove:hover {
   opacity: 1;
+}
+
+.linked-source-chip.rule-chip {
+  background: rgba(255, 183, 77, 0.08);
+  border-color: rgba(255, 183, 77, 0.2);
+  color: #ffb74d;
 }
 
 .no-linked-sources {
@@ -1127,34 +1137,37 @@ body {
 }
 
 .modal-btn {
-    padding: 10px 20px;
-    border-radius: 10px;
-    font-size: 0.9rem;
+    padding: 8px 18px;
+    border-radius: var(--hub-radius);
+    font-family: var(--hub-font);
+    font-size: 0.85rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all var(--hub-transition);
+    white-space: nowrap;
 }
 
 .modal-btn.primary {
-    background: var(--hub-accent);
-    color: white;
+    background: linear-gradient(135deg, var(--hub-accent), var(--hub-accent-2));
+    color: #0a0a0a;
     border: none;
 }
 
 .modal-btn.primary:hover {
-    filter: brightness(1.2);
+    filter: brightness(1.1);
     transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(79, 172, 254, 0.3);
 }
 
 .modal-btn.secondary {
-    background: transparent;
-    color: var(--hub-text-muted);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--hub-text);
     border: 1px solid var(--hub-border);
 }
 
 .modal-btn.secondary:hover {
-    background: color-mix(in srgb, var(--hub-text) 5%, transparent);
-    color: var(--hub-text);
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* #68: Rules scope dropdown — dark themed */

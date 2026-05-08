@@ -16,13 +16,13 @@ export interface PromptDef {
     isDefault?: boolean;
     isActive?: boolean;
     linkedSources?: string[];
+    linkedRules?: string[];
     [key: string]: any;
 }
 
 export interface AppSettings {
     general: {
         systemPrompt: string;
-        enableThinking: boolean;
         temperature: number;
         theme: string;
     };
@@ -44,6 +44,7 @@ export interface AppSettings {
         readFilesConfirmation: boolean;
         writeFilesConfirmation: boolean;
         runCommandsConfirmation: boolean;
+        alwaysProceed?: boolean;
     };
     ui: {
         sidebarPosition: 'left' | 'right';

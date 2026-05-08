@@ -200,15 +200,20 @@ export class ChatCoreService {
                 targetModel = fallbackTextModel;
             }
 
-            // Resolve API key and base URL from provider-specific settings
+            // #71: Resolve custom model config (apiKey, baseUrl, apiKeyHeader)
+            // Custom models store their own apiKey/baseUrl on the model object itself,
+            // NOT in providerSettings. We must check customModels[] first.
+            const customModel = (appSettings.customModels || []).find((cm: any) => cm.name === targetModel);
+
+            // Resolve API key and base URL — custom model's own config takes priority
             const activeProvider = appSettings.models.provider || 'OpenAI';
             const providerConfig = appSettings.models.providerSettings?.[activeProvider];
-            const apiBaseUrl = providerConfig?.baseUrl || '';
 
-            // #FIX: Fallback to global apiKey if provider-specific key is missing
-            const apiKey = providerConfig?.apiKey || appSettings.models.apiKey || '';
+            const apiKey = customModel?.apiKey || providerConfig?.apiKey || appSettings.models.apiKey || '';
+            const apiBaseUrl = customModel?.baseUrl || providerConfig?.baseUrl || '';
+            const apiKeyHeader = customModel?.apiKeyHeader || '';
 
-            outputChannel.appendLine(`[ChatCore] Provider=${activeProvider}, model=${targetModel}, hasApiKey=${!!apiKey}, keyLen=${apiKey.length}, baseUrl=${apiBaseUrl || '(default)'}`);
+            outputChannel.appendLine(`[ChatCore] Provider=${activeProvider}, model=${targetModel}, hasApiKey=${!!apiKey}, keyLen=${apiKey.length}, baseUrl=${apiBaseUrl || '(default)'}${apiKeyHeader ? `, apiKeyHeader=${apiKeyHeader}` : ''}${customModel ? ', source=customModel' : ''}`);
 
 
             // ─── DETERMINE MODE: AGENTIC vs STANDARD ────────────────────────
@@ -225,18 +230,22 @@ export class ChatCoreService {
                 const response = await this.processAgenticRequest(
                     data, finalContextMessages, finalCurrentMessage,
                     targetModel, apiKey || accessToken, temperature, apiBaseUrl,
-                    appSettings, onChunk, trackingOnAgentStep, abortController.signal
+                    appSettings, onChunk, trackingOnAgentStep, abortController.signal,
+                    apiKeyHeader,
+                    (usage) => { totalUsage = usage; }
                 );
                 aiResponseText = response.text;
-                totalUsage = response.usage;
+                if (!totalUsage) totalUsage = response.usage;
             } else {
                 const response = await this.processStandardRequest(
                     data, finalContextMessages, finalCurrentMessage,
                     targetModel, apiKey || accessToken, temperature, apiBaseUrl,
-                    appSettings, onChunk, abortController.signal
+                    appSettings, onChunk, abortController.signal,
+                    apiKeyHeader,
+                    (usage) => { totalUsage = usage; }
                 );
                 aiResponseText = response.text;
-                totalUsage = response.usage;
+                if (!totalUsage) totalUsage = response.usage;
             }
 
             // --- STEP E: SAVE AI RESPONSE ---
@@ -301,7 +310,8 @@ export class ChatCoreService {
     private async processStandardRequest(
         data: any, contextMessages: any[], currentMessage: any,
         model: string, apiKey: string, temperature: number, baseUrl: string,
-        settings: any, onChunk?: (text: string) => void, abortSignal?: AbortSignal
+        settings: any, onChunk?: (text: string) => void, abortSignal?: AbortSignal,
+        apiKeyHeader?: string, onUsageUpdate?: (usage: any) => void
     ): Promise<{ text: string, usage?: any }> {
 
         // #64: Default Chat uses ONLY the global system prompt — no extra system info
@@ -324,13 +334,18 @@ export class ChatCoreService {
 
             const apiPayload = [
                 { role: 'system', content: (step as any).content || step },
-                ...contextMessages,
+                ...this.compactMessages(contextMessages),
                 { role: 'user', content: pipelineContext }
             ];
 
             if (isLastStep && onChunk) {
                 const result = await aiStreamRequest(
-                    apiPayload, model, apiKey, requestTemperature, activeProvider, baseUrl, abortSignal
+                    apiPayload, model, apiKey, requestTemperature, activeProvider, baseUrl, abortSignal, apiKeyHeader,
+                    (event: any) => {
+                        const usage = event.usage || event.totalUsage;
+                        totalUsage = usage;
+                        if (onUsageUpdate) onUsageUpdate(usage);
+                    }
                 );
                 let fullText = '';
                 for await (const chunk of result.fullStream) {
@@ -350,7 +365,7 @@ export class ChatCoreService {
                 totalUsage = usage;
             } else {
                 const response = await aiRequest(
-                    apiPayload, model, apiKey, requestTemperature, activeProvider, baseUrl
+                    apiPayload, model, apiKey, requestTemperature, activeProvider, baseUrl, apiKeyHeader
                 );
                 pipelineContext = response.content;
                 aiResponseText = response.content;
@@ -368,7 +383,9 @@ export class ChatCoreService {
         model: string, apiKey: string, temperature: number, baseUrl: string,
         settings: any, onChunk?: (text: string) => void,
         onAgentStep?: (step: AgentStepEvent) => void,
-        abortSignal?: AbortSignal
+        abortSignal?: AbortSignal,
+        apiKeyHeader?: string,
+        onUsageUpdate?: (usage: any) => void
     ): Promise<{ text: string, usage?: any }> {
         // Note: We do NOT call ReviewManager.startTurn() here.
         // Pending edits are global and persist until the user accepts/reverts them.
@@ -426,6 +443,7 @@ WORKFLOW:
 5. Use search_workspace to find patterns across the codebase
 6. Use get_workspace_problems to verify if your changes introduced any lint or syntax errors
 7. Use run_command for builds, tests, git operations
+8. Use web_search to look up documentation, APIs, or current information online
 
 RULES:
 - NEVER read an entire large file. Use skeleton first, then line ranges.
@@ -434,19 +452,51 @@ RULES:
 - Edits are applied DIRECTLY to the file. The user can review changes inline and revert if needed.
 - Skip tool calls for files you already have context for (active editor files above).${todoInstruction}`;
 
+        // Resolve and inject rules (global + agent-linked)
+        const allRules: { name: string; content: string }[] = [];
+        const seenRuleIds = new Set<string>();
+
+        // 1. Global rules (scope === 'global')
+        for (const rule of (settings.rules || [])) {
+            if (rule.scope === 'global' && rule.content && !seenRuleIds.has(rule.id)) {
+                allRules.push(rule);
+                seenRuleIds.add(rule.id);
+            }
+        }
+
+        // 2. Agent-linked rules
+        if (agent?.linkedRules) {
+            for (const ruleId of agent.linkedRules) {
+                if (!seenRuleIds.has(ruleId)) {
+                    const rule = (settings.rules || []).find((r: any) => r.id === ruleId);
+                    if (rule?.content) {
+                        allRules.push(rule);
+                        seenRuleIds.add(ruleId);
+                    }
+                }
+            }
+        }
+
+        const rulesSection = allRules.length > 0
+            ? `\n\n--- APPLIED RULES ---\n${allRules.map(r => `[${r.name}]: ${r.content}`).join('\n')}\n`
+            : '';
+
+        const finalSystemPrompt = agenticSystemPrompt + rulesSection;
+
         // Build payload
         const messages = [
-            { role: 'system' as const, content: agenticSystemPrompt },
+            { role: 'system' as const, content: finalSystemPrompt },
             ...this.compactMessages(contextMessages),
             { role: 'user' as const, content: currentMessage }
         ];
 
-        // Create tool registry
+        // Apply alwaysProceed override — if enabled, skip all confirmation dialogs
+        const alwaysProceed = settings.permissions?.alwaysProceed === true;
         const tools = createToolRegistry(this.workspaceIndex, {
             abortSignal: abortSignal,
-            readFilesConfirmation: settings.permissions?.readFilesConfirmation ?? false,
-            writeFilesConfirmation: settings.permissions?.writeFilesConfirmation ?? true,
-            runCommandsConfirmation: settings.permissions?.runCommandsConfirmation ?? true,
+            readFilesConfirmation: alwaysProceed ? false : (settings.permissions?.readFilesConfirmation ?? false),
+            writeFilesConfirmation: alwaysProceed ? false : (settings.permissions?.writeFilesConfirmation ?? true),
+            runCommandsConfirmation: alwaysProceed ? false : (settings.permissions?.runCommandsConfirmation ?? true),
             onApprovalRequest: async (toolCallId, toolName, args, opts) => {
                 if (abortSignal?.aborted) {
                     return;
@@ -492,7 +542,12 @@ RULES:
                     maxSteps: 15,
                     baseUrl: baseUrl,
                     abortSignal: abortSignal,
-                    enableThinking: settings.general?.enableThinking !== false,
+                    enableThinking: true, // Always enabled — models that don't support it will simply ignore
+                    apiKeyHeader: apiKeyHeader,
+                    onFinish: (event: any) => {
+                        const usage = event.usage || event.totalUsage;
+                        if (onUsageUpdate && usage) onUsageUpdate(usage);
+                    },
                     // #44: Real-time reasoning streaming (for models like Gemini/DeepSeek)
                     onReasoningChunk: (text: string) => {
                         streamedReasoning = true;
@@ -627,7 +682,7 @@ RULES:
             // #44: After stream is consumed, extract reasoning from result.steps
             // This is the canonical AI SDK approach — works for ALL models.
             // result.steps is a promise that resolves after fullStream is consumed.
-            if (onAgentStep && settings.general?.enableThinking !== false) {
+            if (onAgentStep) {
                 try {
                     const steps = await result.steps;
                     let totalReasoningTokens = 0;
@@ -697,52 +752,97 @@ RULES:
     }
 
     /**
-     * Ephemeral Memory Compaction: Truncate large tool results from older messages.
+     * Tiered Sliding Window: Manages context size to prevent unbounded growth.
      * Also deduplicates system prompts (#47) to save context tokens.
      * 
-     * Token-saving strategy:
-     * - Remove duplicate system messages
-     * - Truncate tool outputs older than the last 4 messages
-     * - Compact very large assistant messages from older turns
+     * Tiers (counted from the END of the messages array):
+     *   HOT   (last 6 non-system msgs)  → Full content, untouched
+     *   WARM  (msgs 7–20)               → Truncated: assistant=600ch, user=400ch, tool=200ch
+     *   COLD  (msgs 21+)                → Dropped entirely
+     * 
+     * System messages are always kept (but deduplicated).
      */
     private compactMessages(messages: any[]): any[] {
+        const HOT_COUNT = 6;
+        const WARM_LIMIT = 20;
+
+        // --- Pass 1: Deduplicate system messages ---
         const seenSystemContents = new Set<string>();
-        return messages
-            .filter((msg) => {
-                // #47: Deduplicate system messages — keep only the first occurrence
-                if (msg.role === 'system') {
-                    const key = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-                    if (seenSystemContents.has(key)) {
-                        return false; // Remove duplicate system prompt
-                    }
-                    seenSystemContents.add(key);
+        const deduped = messages.filter((msg) => {
+            if (msg.role === 'system') {
+                const key = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
+                if (seenSystemContents.has(key)) {
+                    return false;
                 }
+                seenSystemContents.add(key);
+            }
+            return true;
+        });
+
+        // --- Pass 2: Assign tiers based on reverse non-system index ---
+        // Count non-system messages from the end to determine tier placement
+        const nonSystemIndices: number[] = [];
+        for (let i = 0; i < deduped.length; i++) {
+            if (deduped[i].role !== 'system') {
+                nonSystemIndices.push(i);
+            }
+        }
+
+        // Map each non-system message index to its reverse position (1 = newest)
+        const reverseRank = new Map<number, number>();
+        for (let r = 0; r < nonSystemIndices.length; r++) {
+            reverseRank.set(nonSystemIndices[r], nonSystemIndices.length - r);
+        }
+
+        // --- Pass 3: Filter and compact based on tier ---
+        const result = deduped
+            .filter((msg, idx) => {
+                // System messages always survive
+                if (msg.role === 'system') { return true; }
+
+                const rank = reverseRank.get(idx) || 999;
+
+                // COLD tier: drop entirely
+                if (rank > WARM_LIMIT) { return false; }
+
                 return true;
             })
-            .map((msg, idx, arr) => {
-                const isRecent = idx >= arr.length - 4; // Keep last 4 messages fresh
+            .map((msg, _idx, _arr) => {
+                // System messages pass through untouched
+                if (msg.role === 'system') { return msg; }
 
-                // Compact old tool results aggressively
-                if (!isRecent && msg.role === 'tool' && msg.content) {
+                // Find this message's original index in deduped to get its rank
+                const dedupedIdx = deduped.indexOf(msg);
+                const rank = reverseRank.get(dedupedIdx) || 999;
+
+                // HOT tier: full content
+                if (rank <= HOT_COUNT) { return msg; }
+
+                // WARM tier: truncate based on role
+                if (msg.role === 'tool' && msg.content) {
                     const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
                     if (content.length > 200) {
-                        return {
-                            ...msg,
-                            content: content.substring(0, 200) + '... [truncated, ' + content.length + ' chars]'
-                        };
+                        return { ...msg, content: content.substring(0, 200) + '... [truncated]' };
                     }
                 }
 
-                // Compact old assistant messages that are very long
-                if (!isRecent && msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.length > 1000) {
-                    return {
-                        ...msg,
-                        content: msg.content.substring(0, 600) + '\n... [earlier response truncated for token efficiency]'
-                    };
+                if (msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.length > 600) {
+                    return { ...msg, content: msg.content.substring(0, 600) + '\n... [truncated for context efficiency]' };
+                }
+
+                if (msg.role === 'user' && typeof msg.content === 'string' && msg.content.length > 400) {
+                    return { ...msg, content: msg.content.substring(0, 400) + '\n... [truncated for context efficiency]' };
                 }
 
                 return msg;
             });
+
+        const dropped = nonSystemIndices.length - result.filter(m => m.role !== 'system').length;
+        if (dropped > 0 || deduped.length !== messages.length) {
+            outputChannel.appendLine(`[Context] Sliding window: ${messages.length} msgs → ${result.length} sent (${dropped} cold-dropped, ${messages.length - deduped.length} system-deduped)`);
+        }
+
+        return result;
     }
 
     /**

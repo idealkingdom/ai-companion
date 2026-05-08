@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 // `createOpenAI` with a different `baseURL`.  Only Google Gemini uses a
 // completely different SDK (`@ai-sdk/google`).
 
-function resolveModel(provider: string, model: string, apiKey: string, baseUrl?: string) {
+function resolveModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string) {
     if (provider === 'Gemini') {
         const google = createGoogleGenerativeAI({ 
             apiKey,
@@ -19,14 +19,23 @@ function resolveModel(provider: string, model: string, apiKey: string, baseUrl?:
     }
 
     // All OpenAI-compatible providers (OpenAI, DeepSeek, Mistral, Custom, etc.)
-    const openai = createOpenAI({
-        apiKey,
+    const opts: any = {
         baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
-    });
+    };
+
+    // Custom header support: some providers use non-standard auth headers (e.g., x-api-key)
+    if (apiKeyHeader && apiKeyHeader.trim()) {
+        opts.apiKey = 'sk-placeholder'; // SDK requires a non-empty key
+        opts.headers = { [apiKeyHeader.trim()]: apiKey };
+    } else {
+        opts.apiKey = apiKey;
+    }
+
+    const openai = createOpenAI(opts);
     return openai(model);
 }
 
-function resolveAgenticModel(provider: string, model: string, apiKey: string, baseUrl?: string) {
+function resolveAgenticModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string) {
     if (provider === 'Gemini') {
         const google = createGoogleGenerativeAI({ 
             apiKey,
@@ -36,11 +45,19 @@ function resolveAgenticModel(provider: string, model: string, apiKey: string, ba
     }
 
     // OpenAI-compat with strict compatibility for tool calling
-    const openai = createOpenAI({
-        apiKey,
+    const opts: any = {
         baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
         compatibility: 'strict',
-    } as any);
+    };
+
+    if (apiKeyHeader && apiKeyHeader.trim()) {
+        opts.apiKey = 'sk-placeholder';
+        opts.headers = { [apiKeyHeader.trim()]: apiKey };
+    } else {
+        opts.apiKey = apiKey;
+    }
+
+    const openai = createOpenAI(opts);
     return openai(model);
 }
 
@@ -55,10 +72,11 @@ export async function aiRequest(
     accessToken: string,
     temperature: number,
     provider: string,
-    baseUrl?: string
+    baseUrl?: string,
+    apiKeyHeader?: string
 ): Promise<{ content: string }> {
 
-    const resolvedModel = resolveModel(provider, model, accessToken, baseUrl);
+    const resolvedModel = resolveModel(provider, model, accessToken, baseUrl, apiKeyHeader);
 
     try {
         const { text } = await generateText({
@@ -84,9 +102,11 @@ export async function aiStreamRequest(
     temperature: number,
     provider: string,
     baseUrl?: string,
-    abortSignal?: AbortSignal
+    abortSignal?: AbortSignal,
+    apiKeyHeader?: string,
+    onFinish?: (event: any) => void
 ) {
-    const resolvedModel = resolveModel(provider, model, accessToken, baseUrl);
+    const resolvedModel = resolveModel(provider, model, accessToken, baseUrl, apiKeyHeader);
 
     try {
         const result = await streamText({
@@ -94,6 +114,7 @@ export async function aiStreamRequest(
             messages: messages,
             temperature: temperature,
             abortSignal: abortSignal,
+            onFinish: onFinish,
         });
 
         return result;
@@ -123,9 +144,11 @@ export async function aiAgenticRequest(
         abortSignal?: AbortSignal;
         enableThinking?: boolean;
         onReasoningChunk?: (text: string) => void;
+        apiKeyHeader?: string;
+        onFinish?: (event: any) => void;
     } = {}
 ) {
-    const resolvedModel = resolveAgenticModel(provider, model, accessToken, options.baseUrl);
+    const resolvedModel = resolveAgenticModel(provider, model, accessToken, options.baseUrl, options.apiKeyHeader);
 
     outputChannel.appendLine(`[Agentic] Starting request: provider=${provider}, model=${model}, tools=${Object.keys(tools).join(',')}, maxSteps=${options.maxSteps || 15}`);
     outputChannel.appendLine(`[Agentic] API key present: ${!!accessToken && accessToken.length > 0}, key length: ${accessToken?.length || 0}`);
@@ -171,9 +194,10 @@ export async function aiAgenticRequest(
                 }
             },
             onFinish: (event: any) => {
+                if (options.onFinish) { options.onFinish(event); }
                 const reasoningLen = event.reasoningText?.length || 0;
                 const stepsWithReasoning = event.steps?.filter((s: any) => s.reasoningText).length || 0;
-                outputChannel.appendLine(`[Agentic] Finished. finishReason=${event.finishReason}, totalUsage=${JSON.stringify(event.totalUsage)}, reasoningTextLen=${reasoningLen}, stepsWithReasoning=${stepsWithReasoning}`);
+                outputChannel.appendLine(`[Agentic] Finished. finishReason=${event.finishReason}, totalUsage=${JSON.stringify(event.usage || event.totalUsage)}, reasoningTextLen=${reasoningLen}, stepsWithReasoning=${stepsWithReasoning}`);
             }
         };
 
@@ -212,8 +236,8 @@ export const openAIRequest = (
 ) => aiRequest(messages, model, accessToken, temperature, 'OpenAI', baseUrl);
 
 export const openAIStreamRequest = (
-    messages: any[], model: string, accessToken: string, temperature: number, baseUrl?: string, abortSignal?: AbortSignal
-) => aiStreamRequest(messages, model, accessToken, temperature, 'OpenAI', baseUrl, abortSignal);
+    messages: any[], model: string, accessToken: string, temperature: number, baseUrl?: string, abortSignal?: AbortSignal, onFinish?: (event: any) => void
+) => aiStreamRequest(messages, model, accessToken, temperature, 'OpenAI', baseUrl, abortSignal, undefined, onFinish);
 
 export const openAIAgenticRequest = (
     messages: any[], model: string, accessToken: string, temperature: number,

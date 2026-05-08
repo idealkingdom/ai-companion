@@ -10,6 +10,7 @@
     let sources = [];
     let agents = [];
     let rules = [];
+    let _smartGenTimeouts = {};
 
     // ─── DOM REFS ────────────────────────────────────────────────────────
     const urlInput = document.getElementById('url-input');
@@ -50,32 +51,56 @@
     const modalConfirmBtn = document.getElementById('modalConfirmBtn');
 
     // ─── MODAL CONTROLLER ────────────────────────────────────────────────
-    function showModal(title, text) {
+    // Track active modal abort controller to prevent stale listener accumulation
+    let _modalAbort = null;
+    let _modalPendingResolve = null; // resolve(false) any prior modal that gets displaced
+
+    function showModal(title, text, isAlert = false) {
         return new Promise((resolve) => {
             if (!customModal) return resolve(false);
             
+            // Abort any previous modal listeners and resolve its promise as cancelled
+            if (_modalAbort) { _modalAbort.abort(); }
+            if (_modalPendingResolve) { _modalPendingResolve(false); }
+
+            _modalAbort = new AbortController();
+            _modalPendingResolve = resolve;
+            const signal = _modalAbort.signal;
+
             modalTitle.textContent = title;
             modalText.textContent = text;
-            customModal.classList.remove('hidden');
-
-            const onConfirm = () => {
-                cleanup();
-                resolve(true);
-            };
             
-            const onCancel = () => {
-                cleanup();
-                resolve(false);
-            };
+            if (isAlert) {
+                modalCancelBtn.style.display = 'none';
+                modalConfirmBtn.textContent = 'OK';
+            } else {
+                modalCancelBtn.style.display = 'inline-block';
+                modalConfirmBtn.textContent = 'Confirm';
+            }
+
+            // Use rAF to prevent the modal from flashing when buttons are
+            // clicked during a DOM re-render (e.g. tab switch / list rebuild)
+            requestAnimationFrame(() => {
+                if (signal.aborted) return;
+                customModal.classList.remove('hidden');
+            });
 
             const cleanup = () => {
                 customModal.classList.add('hidden');
-                modalConfirmBtn.removeEventListener('click', onConfirm);
-                modalCancelBtn.removeEventListener('click', onCancel);
+                _modalAbort?.abort();
+                _modalAbort = null;
+                _modalPendingResolve = null;
             };
 
-            modalConfirmBtn.addEventListener('click', onConfirm);
-            modalCancelBtn.addEventListener('click', onCancel);
+            modalConfirmBtn.addEventListener('click', () => {
+                cleanup();
+                resolve(true);
+            }, { signal });
+            
+            modalCancelBtn.addEventListener('click', () => {
+                cleanup();
+                resolve(false);
+            }, { signal });
         });
     }
 
@@ -205,6 +230,10 @@
     // SMART GENERATE RESULT
     // ═══════════════════════════════════════════════════════════════════════
     function applyGeneratedPrompt(agentId, generatedPrompt) {
+        if (_smartGenTimeouts[agentId]) {
+            clearTimeout(_smartGenTimeouts[agentId]);
+            delete _smartGenTimeouts[agentId];
+        }
         if (!generatedPrompt) return;
         // Find the textarea for this agent and update it
         const ta = agentsList?.querySelector(`textarea[data-agent-id="${agentId}"]`);
@@ -309,7 +338,14 @@
             const linkedChips = linkedIds.map(sid => {
                 const src = sources.find(s => s.id === sid);
                 const name = src ? src.title : 'Unknown';
-                return `<span class="linked-source-chip">${escHtml(name)}<span class="chip-remove" onclick="hubUnlinkSource('${agent.id}','${sid}')">&times;</span></span>`;
+                return `<span class="linked-source-chip"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/></svg> ${escHtml(name)}<span class="chip-remove" onclick="hubUnlinkSource('${agent.id}','${sid}')">&times;</span></span>`;
+            }).join('');
+
+            const linkedRuleIds = agent.linkedRules || [];
+            const linkedRuleChips = linkedRuleIds.map(rid => {
+                const rule = rules.find(r => r.id === rid);
+                const name = rule ? rule.name : 'Unknown';
+                return `<span class="linked-source-chip rule-chip"><svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> ${escHtml(name)}<span class="chip-remove" onclick="hubUnlinkRule('${agent.id}','${rid}')">&times;</span></span>`;
             }).join('');
 
             const hasLinkedSources = linkedIds.length > 0;
@@ -355,6 +391,19 @@
                     </div>
                     <div class="linked-sources-list">
                         ${linkedChips || '<span class="no-linked-sources">No linked sources</span>'}
+                    </div>
+                </div>
+
+                <div class="agent-sources-section">
+                    <div class="agent-sources-header">
+                        <span class="agent-sources-title">Linked Rules</span>
+                        <div class="link-source-dropdown">
+                            <button class="hub-btn ghost small" onclick="hubToggleRuleLinkDropdown('${agent.id}')">+ Link</button>
+                            <div class="link-dropdown-menu hidden" id="rule-link-dropdown-${agent.id}"></div>
+                        </div>
+                    </div>
+                    <div class="linked-sources-list">
+                        ${linkedRuleChips || '<span class="no-linked-sources">No linked rules</span>'}
                     </div>
                 </div>
             </div>`;
@@ -493,8 +542,18 @@
         const btn = agentsList?.querySelector(`.smart-gen-btn[data-agent-id="${agentId}"]`);
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<span class="status-spinner"></span> Generating...';
+            btn.innerHTML = '<span class="status-spinner"></span> Generating (up to 2m)...';
         }
+        
+        if (_smartGenTimeouts[agentId]) clearTimeout(_smartGenTimeouts[agentId]);
+        _smartGenTimeouts[agentId] = setTimeout(() => {
+            if (btn && btn.disabled) {
+                btn.disabled = false;
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> Generate`;
+                showModal('Generation Timeout', 'Agent generation took too long. Please try again.', true);
+            }
+        }, 120000);
+        
         vscode.postMessage({ command: 'smartGenerate', data: { agentId } });
     };
 
@@ -530,6 +589,44 @@
         vscode.postMessage({ command: 'linkSource', data: { agentId, sourceId } });
         const menu = document.getElementById('link-dropdown-' + agentId);
         if (menu) menu.classList.add('hidden');
+    };
+
+    window.hubToggleRuleLinkDropdown = function (agentId) {
+        const menu = document.getElementById('rule-link-dropdown-' + agentId);
+        if (!menu) return;
+
+        document.querySelectorAll('.link-dropdown-menu').forEach(m => {
+            if (m.id !== 'rule-link-dropdown-' + agentId) m.classList.add('hidden');
+        });
+
+        const isHidden = menu.classList.contains('hidden');
+        if (isHidden) {
+            const agent = agents.find(a => a.id === agentId);
+            const linkedIds = (agent && agent.linkedRules) || [];
+            const availableRules = rules.filter(r => r.scope === 'assignable' || r.scope === 'global');
+
+            if (availableRules.length === 0) {
+                menu.innerHTML = '<div class="link-dropdown-empty">No rules available. Create rules in the Rules tab.</div>';
+            } else {
+                menu.innerHTML = availableRules.map(r => {
+                    const isLinked = linkedIds.includes(r.id);
+                    return `<button class="link-dropdown-item ${isLinked ? 'linked' : ''}" onclick="hubLinkRule('${agentId}','${r.id}')">${escHtml(r.name)}${isLinked ? ' ✓' : ''}</button>`;
+                }).join('');
+            }
+            menu.classList.remove('hidden');
+        } else {
+            menu.classList.add('hidden');
+        }
+    };
+
+    window.hubLinkRule = function (agentId, ruleId) {
+        vscode.postMessage({ command: 'linkRule', data: { agentId, ruleId } });
+        const menu = document.getElementById('rule-link-dropdown-' + agentId);
+        if (menu) menu.classList.add('hidden');
+    };
+
+    window.hubUnlinkRule = function (agentId, ruleId) {
+        vscode.postMessage({ command: 'unlinkRule', data: { agentId, ruleId } });
     };
 
     document.addEventListener('click', (e) => {
@@ -634,12 +731,26 @@
         const btn = rulesList?.querySelector(`.smart-gen-btn[data-rule-id="${ruleId}"]`);
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<span class="status-spinner"></span> Generating...';
+            btn.innerHTML = '<span class="status-spinner"></span> Generating (up to 2m)...';
         }
+
+        if (_smartGenTimeouts[ruleId]) clearTimeout(_smartGenTimeouts[ruleId]);
+        _smartGenTimeouts[ruleId] = setTimeout(() => {
+            if (btn && btn.disabled) {
+                btn.disabled = false;
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg> Generate`;
+                showModal('Generation Timeout', 'Rule generation took too long. Please try again.', true);
+            }
+        }, 120000);
+
         vscode.postMessage({ command: 'smartGenerateRule', data: { ruleId } });
     };
 
     function applyGeneratedRule(ruleId, generatedContent) {
+        if (_smartGenTimeouts[ruleId]) {
+            clearTimeout(_smartGenTimeouts[ruleId]);
+            delete _smartGenTimeouts[ruleId];
+        }
         if (!generatedContent) return;
         const ta = rulesList?.querySelector(`textarea[data-rule-id="${ruleId}"]`);
         if (ta) {

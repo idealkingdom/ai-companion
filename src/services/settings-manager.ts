@@ -29,7 +29,6 @@ export const DEFAULT_SETTINGS: AppSettings = (() => {
     return {
         general: {
             systemPrompt: "You are an expert AI assistant.",
-            enableThinking: true,
             temperature: 0.7,
             theme: 'dark'
         },
@@ -45,7 +44,8 @@ export const DEFAULT_SETTINGS: AppSettings = (() => {
         permissions: {
             readFilesConfirmation: true,
             writeFilesConfirmation: true,
-            runCommandsConfirmation: true
+            runCommandsConfirmation: true,
+            alwaysProceed: false
         },
         ui: {
             sidebarPosition: 'right',

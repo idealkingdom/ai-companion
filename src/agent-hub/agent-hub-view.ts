@@ -395,7 +395,8 @@ export class AgentHubView {
                     systemPrompt: 'You are an AI assistant.',
                     isActive: true,
                     order: settings.prompts.length + 1,
-                    linkedSources: []
+                    linkedSources: [],
+                    linkedRules: []
                 };
                 settings.prompts.push(newAgent);
                 await this.settingsManager.updateSettings({ prompts: settings.prompts });
@@ -470,6 +471,35 @@ export class AgentHubView {
 
                 agent4.linkedSources = agent4.linkedSources.filter((id: string) => id !== sId);
                 await this.settingsManager.updateSettings({ prompts: settings4.prompts });
+                this.sendAgents();
+                return;
+            }
+
+            case 'linkRule': {
+                const { agentId: aIdLR, ruleId: rIdLR } = message.data;
+                const settingsLR = this.settingsManager.getSettings();
+                settingsLR.prompts = settingsLR.prompts || [];
+                const agentLR = settingsLR.prompts.find((p: PromptDef) => p.id === aIdLR);
+                if (!agentLR) { return; }
+
+                if (!agentLR.linkedRules) { agentLR.linkedRules = []; }
+                if (!agentLR.linkedRules.includes(rIdLR)) {
+                    agentLR.linkedRules.push(rIdLR);
+                    await this.settingsManager.updateSettings({ prompts: settingsLR.prompts });
+                }
+                this.sendAgents();
+                return;
+            }
+
+            case 'unlinkRule': {
+                const { agentId: aIdUR, ruleId: rIdUR } = message.data;
+                const settingsUR = this.settingsManager.getSettings();
+                settingsUR.prompts = settingsUR.prompts || [];
+                const agentUR = settingsUR.prompts.find((p: PromptDef) => p.id === aIdUR);
+                if (!agentUR || !agentUR.linkedRules) { return; }
+
+                agentUR.linkedRules = agentUR.linkedRules.filter((id: string) => id !== rIdUR);
+                await this.settingsManager.updateSettings({ prompts: settingsUR.prompts });
                 this.sendAgents();
                 return;
             }
