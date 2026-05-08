@@ -4,7 +4,7 @@ const vscode = acquireVsCodeApi();
 
 // --- STATE ---
 let currentSettings = {
-    general: { enableTodoList: false, systemPrompt: '' },
+    general: { enableTodoList: false, aggressiveAgentic: false, systemPrompt: '' },
     models: {
         textModel: 'gpt-4o', imageModel: 'gpt-4o-mini', baseUrl: '', apiKey: '', provider: 'OpenAI',
         providerSettings: {}
@@ -126,6 +126,7 @@ const baseUrlInput = document.getElementById('baseUrlInput');
 const textModelInput = document.getElementById('textModelInput');
 const imageModelInput = document.getElementById('imageModelInput');
 const enableTodoListInput = document.getElementById('enableTodoList');
+const aggressiveAgenticInput = document.getElementById('aggressiveAgentic');
 const customCssInput = document.getElementById('customCssInput');
 const resetCssBtn = document.getElementById('resetCssBtn');
 const themeTemplateSelect = document.getElementById('themeTemplateSelect');
@@ -752,6 +753,9 @@ function populateForm() {
     if (enableTodoListInput) {
         enableTodoListInput.checked = general.enableTodoList || false;
     }
+    if (aggressiveAgenticInput) {
+        aggressiveAgenticInput.checked = general.aggressiveAgentic || false;
+    }
 
 
     // UI
@@ -815,6 +819,9 @@ function updateDeleteButtonVisibility() {
 function collectSettings() {
     if (enableTodoListInput) {
         currentSettings.general.enableTodoList = enableTodoListInput.checked;
+    }
+    if (aggressiveAgenticInput) {
+        currentSettings.general.aggressiveAgentic = aggressiveAgenticInput.checked;
     }
 
     
@@ -1079,7 +1086,7 @@ function renderModelTable() {
     const activeImageModel = currentSettings.models.imageModel;
 
     // Helper: build a model row with radio + edit + optional delete
-    function buildRow(modelName, providerKey, providerName, isCustom, customId, supportsImage, modelSupportsReasoning) {
+    function buildRow(modelName, providerKey, providerName, isCustom, customId, supportsImage, modelSupportsReasoning, modelTier) {
         let isActive = true;
         if (isCustom) {
             const cm = (currentSettings.customModels || []).find(m => m.id === customId);
@@ -1096,6 +1103,7 @@ function renderModelTable() {
 
         // Get existing config for this model
         let apiKey = '', baseUrl = '', apiKeyHeaderVal = '', supportsReasoning = modelSupportsReasoning;
+        let tier = modelTier || 'mid';
         if (isCustom) {
             const cm = (currentSettings.customModels || []).find(m => m.id === customId);
             if (cm) { 
@@ -1103,6 +1111,7 @@ function renderModelTable() {
                 baseUrl = cm.baseUrl || ''; 
                 apiKeyHeaderVal = cm.apiKeyHeader || ''; 
                 supportsReasoning = cm.supportsReasoning || false;
+                tier = cm.tier || 'mid';
             }
         } else {
             const ps = (currentSettings.models.providerSettings || {})[providerKey];
@@ -1130,6 +1139,10 @@ function renderModelTable() {
         const activeToggleId = `active-toggle-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
         const reasonToggleId = `reason-toggle-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
 
+        const tierLabel = tier === 'frontier' ? 'Pro' : tier === 'mid' ? 'Mid' : 'Lite';
+        const tierClickable = isCustom ? ' clickable' : '';
+        const tierOnClick = isCustom ? ` onclick="cycleModelTier('${customId}')"` : '';
+
         return `
             <div class="model-row">
                 <span class="model-row-name">${getProviderIcon(providerKey)} ${escapeHtml(modelName)}${configDot}</span>
@@ -1139,6 +1152,9 @@ function renderModelTable() {
                         <input id="${activeToggleId}" type="checkbox" ${isActive ? 'checked' : ''} onchange="toggleModelActive('${isCustom ? 'true' : 'false'}', '${customId || ''}', '${escapeHtml(modelName)}', this.checked)">
                         <span class="toggle-slider"></span>
                     </label>
+                </span>
+                <span class="model-col-tier">
+                    <span class="tier-badge ${tier}${tierClickable}" title="${isCustom ? 'Click to change tier' : tier}"${tierOnClick}>${tierLabel}</span>
                 </span>
                 <span class="model-col-reasoning">
                     <label class="toggle-switch" title="Supports Reasoning">
@@ -1182,10 +1198,12 @@ function renderModelTable() {
         const allModels = [...new Set([...source.text, ...(source.image || [])])];
         const imageModels = source.image || [];
         const reasoningModels = providerData.supportsReasoning || [];
+        const tiers = providerData.tiers || {};
         for (const modelName of allModels) {
             const canImage = imageModels.includes(modelName);
             const canReason = reasoningModels.includes(modelName);
-            builtinHtml += buildRow(modelName, providerKey, providerData.name || providerKey, false, null, canImage, canReason);
+            const modelTier = tiers[modelName] || 'mid';
+            builtinHtml += buildRow(modelName, providerKey, providerData.name || providerKey, false, null, canImage, canReason, modelTier);
         }
     }
     builtinBody.innerHTML = builtinHtml;
@@ -1202,7 +1220,7 @@ function renderModelTable() {
         if (customEmpty) customEmpty.style.display = 'none';
         let customHtml = '';
         for (const cm of customModels) {
-            customHtml += buildRow(cm.name, cm.provider, cm.provider, true, cm.id, !!cm.supportsImage, !!cm.supportsReasoning);
+            customHtml += buildRow(cm.name, cm.provider, cm.provider, true, cm.id, !!cm.supportsImage, !!cm.supportsReasoning, cm.tier || 'mid');
         }
         customBody.innerHTML = customHtml;
     }
@@ -1237,6 +1255,17 @@ window.toggleModelReasoning = function (customId, supportsReasoning) {
             persistSettings();
         }
     }
+};
+
+window.cycleModelTier = function (customId) {
+    const cm = (currentSettings.customModels || []).find(m => m.id === customId);
+    if (!cm) return;
+    const order = ['frontier', 'mid', 'small'];
+    const current = cm.tier || 'mid';
+    const idx = order.indexOf(current);
+    cm.tier = order[(idx + 1) % order.length];
+    persistSettings();
+    populateModelTable();
 };
 
 // Section toggle

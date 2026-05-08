@@ -497,7 +497,15 @@ RULES:
         const activeProvider = settings.models?.provider || 'OpenAI';
 
         // Resolve model tier for adaptive behavior
-        const modelTier = getModelTier(activeProvider, model);
+        let modelTier = getModelTier(activeProvider, model);
+        
+        // Override tier from custom model settings if set
+        if (settings.customModels) {
+            const customModel = settings.customModels.find((m: any) => m.name === model && m.provider === activeProvider);
+            if (customModel?.tier) {
+                modelTier = customModel.tier;
+            }
+        }
         outputChannel.appendLine(`[Agentic] Model tier: ${modelTier} (${activeProvider}/${model})`);
 
         // Apply alwaysProceed override — if enabled, skip all confirmation dialogs
@@ -563,12 +571,17 @@ RULES:
                 supportsReasoning = true;
             }
         }
+        // Aggressive mode doubles maxSteps for persistent task completion
+        const isAggressive = settings.general?.aggressiveAgentic === true;
+        const baseSteps = modelTier === 'small' ? 10 : modelTier === 'mid' ? 20 : 25;
+        const maxSteps = isAggressive ? baseSteps * 2 : baseSteps;
+        outputChannel.appendLine(`[Agentic] maxSteps=${maxSteps}${isAggressive ? ' (aggressive)' : ''}`);
 
         try {
             const result = await aiAgenticRequest(
                 messages, model, apiKey, agentTemp, activeProvider, tools,
                 {
-                    maxSteps: modelTier === 'small' ? 10 : modelTier === 'mid' ? 20 : 25,
+                    maxSteps: maxSteps,
                     baseUrl: baseUrl,
                     abortSignal: abortSignal,
                     enableThinking: supportsReasoning,

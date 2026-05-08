@@ -1094,7 +1094,7 @@ input:focus + .toggle-slider {
 
 .model-table-header {
     display: grid;
-    grid-template-columns: 1fr 120px 80px 95px 100px 90px;
+    grid-template-columns: 1fr 110px 70px 60px 80px 90px 80px;
     gap: 16px;
     padding: 10px 24px;
     font-size: 0.8rem;
@@ -1145,7 +1145,7 @@ input:focus + .toggle-slider {
 
 .model-row {
     display: grid;
-    grid-template-columns: 1fr 120px 80px 95px 100px 90px;
+    grid-template-columns: 1fr 110px 70px 60px 80px 90px 80px;
     gap: 16px;
     align-items: center;
     padding: 10px 24px;
@@ -1267,8 +1267,44 @@ input:focus + .toggle-slider {
 }
 
 /* Image model radio */
-.model-col-image, .model-col-reasoning {
+.model-col-image, .model-col-reasoning, .model-col-tier {
     text-align: center;
+}
+
+/* Tier badges */
+.tier-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    cursor: default;
+    line-height: 1.4;
+}
+.tier-badge.frontier {
+    background: linear-gradient(135deg, rgba(147, 51, 234, 0.2), rgba(79, 70, 229, 0.2));
+    color: #c084fc;
+    border: 1px solid rgba(147, 51, 234, 0.3);
+}
+.tier-badge.mid {
+    background: rgba(234, 179, 8, 0.12);
+    color: #fbbf24;
+    border: 1px solid rgba(234, 179, 8, 0.25);
+}
+.tier-badge.small {
+    background: rgba(156, 163, 175, 0.12);
+    color: #9ca3af;
+    border: 1px solid rgba(156, 163, 175, 0.25);
+}
+.tier-badge.clickable {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.tier-badge.clickable:hover {
+    transform: scale(1.08);
+    filter: brightness(1.2);
 }
 
 .model-image-radio {
