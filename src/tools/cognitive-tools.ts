@@ -86,5 +86,31 @@ export function createCognitiveTools(tier: ModelTier) {
         }
     } as any);
 
+    // ─── UPDATE_TASK_PROGRESS — All tiers ─────────────────────────────
+    tools.update_task_progress = tool({
+        description: 'Report progress on the current task. Call this after completing each major step to keep the user informed. Shows a checklist in the chat.',
+        inputSchema: z.object({
+            tasks: z.array(z.object({
+                description: z.string().describe('What this step is'),
+                status: z.enum(['pending', 'in_progress', 'done', 'skipped']).describe('Current status of this step')
+            })).describe('Full task list with current statuses')
+        }),
+        execute: async (params: { tasks: { description: string; status: string }[] }) => {
+            const icons: Record<string, string> = { pending: '⬜', in_progress: '🔄', done: '✅', skipped: '⏭️' };
+            const summary = params.tasks.map(t => `${icons[t.status] || '⬜'} ${t.description}`).join('\n');
+            const done = params.tasks.filter(t => t.status === 'done').length;
+            const total = params.tasks.length;
+
+            outputChannel.appendLine(`[Cognitive] Progress: ${done}/${total} tasks done`);
+
+            return {
+                progress_recorded: true,
+                completed: done,
+                total: total,
+                checklist: summary
+            };
+        }
+    } as any);
+
     return tools;
 }

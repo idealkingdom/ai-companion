@@ -2633,7 +2633,13 @@ window.addEventListener('message', event => {
                 window.VS_CONSTANTS.AGENTS = message.agents;
             }
             renderAgentDropdown(message.agents);
-            // If the active agent was removed or disabled, updateActiveAgentUI will handle the fallback
+            // On first load, auto-select the first active agent instead of "Chat"
+            if (activeAgentId === 'default' && message.agents && message.agents.length > 0) {
+                const firstActive = message.agents.find(a => a.isActive);
+                if (firstActive) {
+                    activeAgentId = firstActive.id;
+                }
+            }
             updateActiveAgentUI(activeAgentId, message.agents);
             break;
 

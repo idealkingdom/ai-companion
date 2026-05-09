@@ -1162,14 +1162,14 @@ function renderModelTable() {
             <div class="model-row" ${dataAttr}>
                 <span class="model-row-name">${getProviderIcon(providerKey)} ${escapeHtml(modelName)}${configDot}</span>
                 <span class="model-row-provider">${escapeHtml(providerName)}</span>
+                <span class="model-col-tier">
+                    <span class="tier-badge ${tier}${tierClickable}" title="${isCustom ? 'Click to change tier' : tier}"${tierOnClick}>${tierLabel}</span>
+                </span>
                 <span class="model-row-status">
                     <label class="toggle-switch" title="Toggle active status">
                         <input id="${activeToggleId}" type="checkbox" ${isActive ? 'checked' : ''} onchange="toggleModelActive('${isCustom ? 'true' : 'false'}', '${customId || ''}', '${escapeHtml(modelName)}', this.checked)">
                         <span class="toggle-slider"></span>
                     </label>
-                </span>
-                <span class="model-col-tier">
-                    <span class="tier-badge ${tier}${tierClickable}" title="${isCustom ? 'Click to change tier' : tier}"${tierOnClick}>${tierLabel}</span>
                 </span>
                 <span class="model-col-reasoning">
                     <label class="toggle-switch" title="Supports Reasoning">

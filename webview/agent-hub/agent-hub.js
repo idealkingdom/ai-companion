@@ -409,25 +409,24 @@
             </div>`;
         }).join('');
 
-        // Attach input listeners with debounce to avoid hammering the backend
-        let _agentSaveTimers = {};
-        function debouncedAgentUpdate(agentId, field, value) {
-            const key = agentId + ':' + field;
-            clearTimeout(_agentSaveTimers[key]);
-            _agentSaveTimers[key] = setTimeout(() => {
-                vscode.postMessage({ command: 'updateAgent', data: { id: agentId, field, value } });
-            }, 500);
-        }
-
+        // Save on blur (focus-out) — no flicker, saves only when user moves to next field
         agentsList.querySelectorAll('.agent-name-input').forEach(input => {
-            input.addEventListener('input', (e) => {
-                debouncedAgentUpdate(e.target.dataset.agentId, 'name', e.target.value);
+            input.addEventListener('blur', (e) => {
+                const agent = agents.find(a => a.id === e.target.dataset.agentId);
+                if (agent && agent.name !== e.target.value) {
+                    agent.name = e.target.value;
+                    vscode.postMessage({ command: 'updateAgent', data: { id: e.target.dataset.agentId, field: 'name', value: e.target.value } });
+                }
             });
         });
 
         agentsList.querySelectorAll('.agent-prompt-textarea').forEach(ta => {
-            ta.addEventListener('input', (e) => {
-                debouncedAgentUpdate(e.target.dataset.agentId, 'content', e.target.value);
+            ta.addEventListener('blur', (e) => {
+                const agent = agents.find(a => a.id === e.target.dataset.agentId);
+                if (agent && agent.content !== e.target.value) {
+                    agent.content = e.target.value;
+                    vscode.postMessage({ command: 'updateAgent', data: { id: e.target.dataset.agentId, field: 'content', value: e.target.value } });
+                }
             });
         });
 
@@ -704,16 +703,24 @@
             </div>`;
         }).join('');
 
-        // Attach input listeners for rules
+        // Save on blur — consistent with agent inputs
         rulesList.querySelectorAll('.rule-name-input').forEach(input => {
-            input.addEventListener('input', (e) => {
-                vscode.postMessage({ command: 'updateRule', data: { id: e.target.dataset.ruleId, field: 'name', value: e.target.value } });
+            input.addEventListener('blur', (e) => {
+                const rule = rules.find(r => r.id === e.target.dataset.ruleId);
+                if (rule && rule.name !== e.target.value) {
+                    rule.name = e.target.value;
+                    vscode.postMessage({ command: 'updateRule', data: { id: e.target.dataset.ruleId, field: 'name', value: e.target.value } });
+                }
             });
         });
 
         rulesList.querySelectorAll('.rule-content-textarea').forEach(ta => {
-            ta.addEventListener('input', (e) => {
-                vscode.postMessage({ command: 'updateRule', data: { id: e.target.dataset.ruleId, field: 'content', value: e.target.value } });
+            ta.addEventListener('blur', (e) => {
+                const rule = rules.find(r => r.id === e.target.dataset.ruleId);
+                if (rule && rule.content !== e.target.value) {
+                    rule.content = e.target.value;
+                    vscode.postMessage({ command: 'updateRule', data: { id: e.target.dataset.ruleId, field: 'content', value: e.target.value } });
+                }
             });
         });
 
