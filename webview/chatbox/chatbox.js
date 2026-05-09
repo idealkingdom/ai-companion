@@ -1094,8 +1094,11 @@ function appendUserMessage(message, images = [], files = []) {
         requestAnimationFrame(() => {
             updateDynamicPadding();
             if (newMessageElement) {
-                // Position the user message at the top of the scroll viewport
-                chatLog.scrollTop = newMessageElement.offsetTop;
+                // Use getBoundingClientRect for accurate positioning regardless of DOM nesting
+                const containerRect = chatLog.getBoundingClientRect();
+                const messageRect = newMessageElement.getBoundingClientRect();
+                const offset = messageRect.top - containerRect.top + chatLog.scrollTop;
+                chatLog.scrollTop = offset;
             }
         });
     });
@@ -1895,7 +1898,10 @@ function retryLastMessage(btn) {
     const startIdx = userMsgEl ? allMessages.indexOf(userMsgEl) + 1 : allMessages.length - 1;
     if (startIdx <= 0 || startIdx > allMessages.length) { return; }
 
-    const removedCount = allMessages.length - startIdx;
+    // Count system-messages (AI responses) after this user message
+    const messagesAfter = allMessages.length - startIdx;
+    // Minimum count is 2: the user message itself + at least 1 bot response (even if empty/error)
+    const removedCount = Math.max(2, messagesAfter + 1);
     
     // Blast away all DOM nodes that come after userMsgEl
     if (userMsgEl) {
@@ -1914,8 +1920,7 @@ function retryLastMessage(btn) {
 
     showLoadingIndicator();
     toggleSendButton('disabled');
-    // removedCount messages removed, plus the user message itself needs to be re-sent = +1
-    sendMessage(CHAT_COMMANDS.CHAT_RETRY, { chat_id: chatLog.dataset.chatId, count: removedCount + 1, agentId: activeAgentId });
+    sendMessage(CHAT_COMMANDS.CHAT_RETRY, { chat_id: chatLog.dataset.chatId, count: removedCount, agentId: activeAgentId });
 }
 
 /**
