@@ -1085,14 +1085,18 @@ function appendUserMessage(message, images = [], files = []) {
     }
 
     _isUserScrolledUp = false;
-    updateDynamicPadding();
-    
-    // Jump the new message to the top of the viewport natively
-    setTimeout(() => {
-        if (newMessageElement) {
-            newMessageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-    }, 50);
+
+    // Scroll user message to the top of the viewport.
+    // Double-rAF ensures layout is fully computed before we measure.
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            updateDynamicPadding();
+            if (newMessageElement) {
+                // Position the user message at the top of the scroll viewport
+                chatLog.scrollTop = newMessageElement.offsetTop;
+            }
+        });
+    });
 }
 
 function getOrCreateAgentStepsGroup() {
@@ -1207,6 +1211,7 @@ function renderAgentStep(step) {
             thinkingBlock.open = true; // auto-open during streaming
             thinkingBlock.dataset.tokens = '0';
             thinkingBlock.dataset.stepCount = '0';
+            thinkingBlock.dataset.thinkStart = String(Date.now());
 
             const summary = document.createElement('summary');
             summary.className = 'thinking-summary';
@@ -1220,6 +1225,16 @@ function renderAgentStep(step) {
             const content = document.createElement('div');
             content.className = 'thinking-content';
             thinkingBlock.appendChild(content);
+
+            // Live elapsed time timer
+            const timerId = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - parseInt(thinkingBlock.dataset.thinkStart)) / 1000);
+                const label = thinkingBlock.querySelector('.thinking-label');
+                if (label && !thinkingBlock.dataset.finalized) {
+                    label.textContent = `Thinking for ${elapsed}s`;
+                }
+            }, 1000);
+            thinkingBlock.dataset.thinkTimer = String(timerId);
 
             getOrCreateAgentStepsGroup().appendChild(thinkingBlock);
         }
@@ -1245,22 +1260,25 @@ function renderAgentStep(step) {
         openThinking.dataset.finalized = 'true';
         openThinking.classList.remove('streaming');
         openThinking.open = false; // auto-collapse when done
-        
+
+        // Stop the elapsed time timer
+        if (openThinking.dataset.thinkTimer) {
+            clearInterval(parseInt(openThinking.dataset.thinkTimer));
+        }
+
         const label = openThinking.querySelector('.thinking-label');
         const tokens = parseInt(openThinking.dataset.tokens || '0', 10);
+        const startTime = parseInt(openThinking.dataset.thinkStart || '0', 10);
+        const elapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
         const contentEl = openThinking.querySelector('.thinking-content');
         const hasText = contentEl && contentEl.textContent.trim();
-        
+
         if (label) {
-            if (hasText && tokens > 0) {
-                label.textContent = `Thought for ${tokens} tokens`;
-            } else if (hasText) {
-                label.textContent = 'Thought process';
-            } else if (tokens > 0) {
-                label.textContent = `Thought for ${tokens} tokens`;
-            } else {
-                label.textContent = 'Thought process';
+            let labelText = elapsed > 0 ? `Thought for ${elapsed}s` : 'Thought process';
+            if (tokens > 0) {
+                labelText += ` · ${tokens} tokens`;
             }
+            label.textContent = labelText;
         }
     }
 
@@ -2479,11 +2497,24 @@ window.addEventListener('message', event => {
             document.querySelectorAll('.agent-thinking-block:not([data-finalized="true"])').forEach(thinkingBlock => {
                 thinkingBlock.dataset.finalized = 'true';
                 thinkingBlock.classList.remove('streaming');
-                thinkingBlock.open = false; // auto-collapse when done
-                
+                thinkingBlock.open = false;
+
+                // Stop elapsed timer
+                if (thinkingBlock.dataset.thinkTimer) {
+                    clearInterval(parseInt(thinkingBlock.dataset.thinkTimer));
+                }
+
                 const label = thinkingBlock.querySelector('.thinking-label');
-                if (label && !label.textContent.includes('Thought for')) {
-                    label.textContent = 'Thought process';
+                const tokens = parseInt(thinkingBlock.dataset.tokens || '0', 10);
+                const startTime = parseInt(thinkingBlock.dataset.thinkStart || '0', 10);
+                const elapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+
+                if (label) {
+                    let labelText = elapsed > 0 ? `Thought for ${elapsed}s` : 'Thought process';
+                    if (tokens > 0) {
+                        labelText += ` · ${tokens} tokens`;
+                    }
+                    label.textContent = labelText;
                 }
             });
 
