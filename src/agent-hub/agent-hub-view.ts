@@ -391,8 +391,8 @@ export class AgentHubView {
                 const newAgent: PromptDef = {
                     id: Date.now().toString(),
                     name: 'New Agent',
+                    content: 'You are an AI assistant.',
                     description: 'A new custom agent profile.',
-                    systemPrompt: 'You are an AI assistant.',
                     isActive: true,
                     order: settings.prompts.length + 1,
                     linkedSources: [],

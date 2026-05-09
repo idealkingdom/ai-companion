@@ -11,10 +11,12 @@ export enum MODEL_PROVIDER {
 export interface PromptDef {
     id: string;
     name: string;
-    description: string;
-    systemPrompt: string;
+    content: string;
+    description?: string;
+    systemPrompt?: string;
     isDefault?: boolean;
     isActive?: boolean;
+    order?: number;
     linkedSources?: string[];
     linkedRules?: string[];
     [key: string]: any;
