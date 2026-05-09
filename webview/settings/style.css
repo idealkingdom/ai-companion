@@ -279,7 +279,11 @@ body {
     margin-bottom: 24px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     position: relative;
-    overflow: hidden;
+}
+
+.glass-panel.model-table-panel {
+    padding: 0;
+    overflow: visible;
 }
 
 .hover-glow {
@@ -1122,24 +1126,9 @@ input:focus + .toggle-slider {
     box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
-.model-table-panel {
-    overflow-x: auto;
-}
-
-.model-table-header {
-    display: grid;
-    grid-template-columns: 1fr 100px 60px 60px 70px 80px 70px;
-    gap: 10px;
-    padding: 10px 16px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-bottom: 1px solid var(--panel-border);
-    background: color-mix(in srgb, var(--text-main) 2%, transparent);
-    min-width: 580px;
-}
+/* ═══════════════════════════════════════════════════════════════════════
+   MODEL MANAGEMENT — CARD LAYOUT
+   ═══════════════════════════════════════════════════════════════════════ */
 
 .model-section-header {
     display: flex;
@@ -1154,6 +1143,10 @@ input:focus + .toggle-slider {
     border-bottom: 1px solid var(--panel-border);
     background: color-mix(in srgb, var(--text-main) 3%, transparent);
     transition: background 0.2s;
+}
+
+.model-section-header:first-child {
+    border-radius: 16px 16px 0 0;
 }
 
 .model-section-header:hover {
@@ -1178,36 +1171,110 @@ input:focus + .toggle-slider {
     max-height: 0 !important;
 }
 
-.model-row {
-    display: grid;
-    grid-template-columns: 1fr 100px 60px 60px 70px 80px 70px;
-    gap: 10px;
-    align-items: center;
-    padding: 10px 16px;
-    font-size: 0.85rem;
+/* ── Model Card Row ───────────────────────────────────────────────── */
+.model-card {
     border-bottom: 1px solid color-mix(in srgb, var(--text-main) 4%, transparent);
     transition: background 0.15s;
-    min-width: 580px;
 }
 
-.model-row:last-child {
+.model-card:last-child {
     border-bottom: none;
 }
 
-.model-row:hover {
+.model-card:hover {
     background: color-mix(in srgb, var(--text-main) 3%, transparent);
 }
 
-.model-row-name {
+.model-card-main {
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: space-between;
+    padding: 10px 16px;
+    gap: 12px;
+    min-height: 44px;
+}
+
+.model-card-identity {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+}
+
+.model-card-name-block {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.model-card-name {
+    font-size: 0.88rem;
     font-weight: 500;
-    padding-left: 12px;
+    color: var(--text-main);
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
+.model-card-provider {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.model-card-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.model-ctrl-image {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.model-ctrl-image.disabled {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.model-ctrl-image input[type="radio"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+.model-card-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.model-card-actions .icon-btn {
+    background: transparent;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: var(--text-muted);
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.model-card-actions .icon-btn:hover {
+    background: color-mix(in srgb, var(--text-main) 8%, transparent);
+    color: var(--text-main);
+}
+
+.model-card-actions .icon-btn.danger:hover {
+    background: rgba(241, 76, 76, 0.12);
+    color: var(--danger-color);
+}
+
+/* ── Model Icon ───────────────────────────────────────────────────── */
 .model-icon {
     width: 20px;
     height: 20px;
@@ -1231,50 +1298,9 @@ input:focus + .toggle-slider {
     color: var(--text-muted);
 }
 
-.model-row-provider {
-    color: var(--text-muted);
-    font-size: 0.85rem;
-}
-
-.model-row-actions {
-    display: flex;
-    gap: 6px;
-    justify-content: center;
-}
-
-.model-row-actions .icon-btn {
-    background: transparent;
-    border: none;
-    padding: 4px;
-    cursor: pointer;
-    color: var(--text-muted);
-    border-radius: 4px;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.model-row-actions .icon-btn:hover {
-    background: color-mix(in srgb, var(--text-main) 8%, transparent);
-    color: var(--text-main);
-}
-
-.model-row-actions .icon-btn.danger:hover {
-    background: rgba(241, 76, 76, 0.12);
-    color: var(--danger-color);
-}
-
-.model-row.active-model {
-    background: rgba(79, 172, 254, 0.06);
-}
-
-.model-row.active-model .model-row-name {
-    color: var(--accent-color);
-}
-
+/* ── Empty & Config ───────────────────────────────────────────────── */
 .model-empty-custom {
-    padding: 20px 24px;
+    padding: 20px 16px;
     color: var(--text-muted);
     font-size: 0.85rem;
     font-style: italic;
@@ -1284,6 +1310,16 @@ input:focus + .toggle-slider {
     color: var(--accent-color);
     text-decoration: underline;
     cursor: pointer;
+}
+
+/* Responsive: hide reasoning toggle label on tiny widths */
+@media (max-width: 480px) {
+    .model-card-controls {
+        gap: 6px;
+    }
+    .model-ctrl-reasoning {
+        display: none;
+    }
 }
 
 /* Close button for modals */

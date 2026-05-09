@@ -1159,29 +1159,32 @@ function renderModelTable() {
         const tierOnClick = isCustom ? ` onclick="cycleModelTier('${customId}')"` : '';
 
         return `
-            <div class="model-row" ${dataAttr}>
-                <span class="model-row-name">${getProviderIcon(providerKey)} ${escapeHtml(modelName)}${configDot}</span>
-                <span class="model-row-provider">${escapeHtml(providerName)}</span>
-                <span class="model-col-tier">
-                    <span class="tier-badge ${tier}${tierClickable}" title="${isCustom ? 'Click to change tier' : tier}"${tierOnClick}>${tierLabel}</span>
-                </span>
-                <span class="model-row-status">
-                    <label class="toggle-switch" title="Toggle active status">
-                        <input id="${activeToggleId}" type="checkbox" ${isActive ? 'checked' : ''} onchange="toggleModelActive('${isCustom ? 'true' : 'false'}', '${customId || ''}', '${escapeHtml(modelName)}', this.checked)">
-                        <span class="toggle-slider"></span>
-                    </label>
-                </span>
-                <span class="model-col-reasoning">
-                    <label class="toggle-switch" title="Supports Reasoning">
-                        <input id="${reasonToggleId}" type="checkbox" ${supportsReasoning ? 'checked' : ''} ${!isCustom ? 'disabled' : ''} onchange="toggleModelReasoning('${customId || ''}', this.checked)">
-                        <span class="toggle-slider"></span>
-                    </label>
-                </span>
-                <span class="model-image-radio${radioClass}">
-                    <input type="radio" name="imageModelRadio" value="${escapeHtml(modelName)}" ${isImageModel ? 'checked' : ''} ${radioDisabled} ${dataAttr}
-                        onchange="setImageModel('${escapeHtml(modelName)}')">
-                </span>
-                <span class="model-row-actions">${actionsHtml}</span>
+            <div class="model-card" ${dataAttr}>
+                <div class="model-card-main">
+                    <div class="model-card-identity">
+                        ${getProviderIcon(providerKey)}
+                        <div class="model-card-name-block">
+                            <span class="model-card-name">${escapeHtml(modelName)}${configDot}</span>
+                            <span class="model-card-provider">${escapeHtml(providerName)}</span>
+                        </div>
+                    </div>
+                    <div class="model-card-controls">
+                        <span class="tier-badge ${tier}${tierClickable}" title="${isCustom ? 'Click to change tier' : tier}"${tierOnClick}>${tierLabel}</span>
+                        <label class="toggle-switch" title="Active">
+                            <input id="${activeToggleId}" type="checkbox" ${isActive ? 'checked' : ''} onchange="toggleModelActive('${isCustom ? 'true' : 'false'}', '${customId || ''}', '${escapeHtml(modelName)}', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <label class="toggle-switch model-ctrl-reasoning" title="Reasoning">
+                            <input id="${reasonToggleId}" type="checkbox" ${supportsReasoning ? 'checked' : ''} ${!isCustom ? 'disabled' : ''} onchange="toggleModelReasoning('${customId || ''}', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <label class="model-ctrl-image${radioClass}" title="Image model">
+                            <input type="radio" name="imageModelRadio" value="${escapeHtml(modelName)}" ${isImageModel ? 'checked' : ''} ${radioDisabled} ${dataAttr}
+                                onchange="setImageModel('${escapeHtml(modelName)}')">
+                        </label>
+                        <span class="model-card-actions">${actionsHtml}</span>
+                    </div>
+                </div>
             </div>
             <div class="model-config-panel" id="${configId}" style="display:none;" ${dataAttr}>
                 <div class="config-field">
