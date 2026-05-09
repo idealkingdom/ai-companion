@@ -154,79 +154,113 @@ export async function aiAgenticRequest(
     outputChannel.appendLine(`[Agentic] API key present: ${!!accessToken && accessToken.length > 0}, key length: ${accessToken?.length || 0}`);
     outputChannel.appendLine(`[Agentic] Message count: ${messages.length}, baseUrl: ${options.baseUrl || '(default)'}`);
 
-    try {
-        const streamOptions: any = {
-            model: resolvedModel,
-            messages: messages,
-            tools: tools,
-            stopWhen: stepCountIs(options.maxSteps || 15),
-            temperature: temperature,
-            abortSignal: options.abortSignal,
-            onStepFinish: (event: any) => {
-                outputChannel.appendLine(`[Agentic] Step finished. finishReason=${event.finishReason}, text length=${event.text?.length || 0}`);
-                if (options.onStepFinish) {
-                    options.onStepFinish(event);
-                }
-            },
-            // #44: Capture reasoning chunks in real-time (for models that stream them)
-            onChunk: ({ chunk }: any) => {
-                if (chunk.type === 'reasoning-delta' || chunk.type === 'reasoning') {
-                    const text = chunk.delta || chunk.text || '';
-                    if (text && options.onReasoningChunk) {
-                        options.onReasoningChunk(text);
+    const MAX_RETRIES = 3;
+    const RETRY_DELAYS_MS = [1000, 2000, 4000]; // exponential backoff
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            const streamOptions: any = {
+                model: resolvedModel,
+                messages: messages,
+                tools: tools,
+                stopWhen: stepCountIs(options.maxSteps || 15),
+                temperature: temperature,
+                abortSignal: options.abortSignal,
+                maxRetries: 0, // disable SDK instant retries — we handle retries ourselves
+                onStepFinish: (event: any) => {
+                    outputChannel.appendLine(`[Agentic] Step finished. finishReason=${event.finishReason}, text length=${event.text?.length || 0}`);
+                    if (options.onStepFinish) {
+                        options.onStepFinish(event);
                     }
+                },
+                // #44: Capture reasoning chunks in real-time (for models that stream them)
+                onChunk: ({ chunk }: any) => {
+                    if (chunk.type === 'reasoning-delta' || chunk.type === 'reasoning') {
+                        const text = chunk.delta || chunk.text || '';
+                        if (text && options.onReasoningChunk) {
+                            options.onReasoningChunk(text);
+                        }
+                    }
+                },
+                onError: (event: any) => {
+                    const errObj = event?.error;
+                    const errMsgs = [
+                        errObj?.message,
+                        errObj?.cause?.message,
+                        typeof errObj === 'string' ? errObj : JSON.stringify(errObj)
+                    ].filter(Boolean).join(' | ');
+
+                    outputChannel.appendLine(`[Agentic] Stream error: ${errMsgs}`);
+
+                    // Notification for quota or billing issues
+                    const lowerMsg = errMsgs.toLowerCase();
+                    if (lowerMsg.includes('quota') || lowerMsg.includes('429') || lowerMsg.includes('insufficient_quota') || lowerMsg.includes('billing')) {
+                        vscode.window.showErrorMessage('AI API Error: You may have exceeded your quota or rate limit. Please check your API billing details.');
+                    }
+                },
+                onFinish: (event: any) => {
+                    if (options.onFinish) { options.onFinish(event); }
+                    const reasoningLen = event.reasoningText?.length || 0;
+                    const stepsWithReasoning = event.steps?.filter((s: any) => s.reasoningText).length || 0;
+                    outputChannel.appendLine(`[Agentic] Finished. finishReason=${event.finishReason}, totalUsage=${JSON.stringify(event.usage || event.totalUsage)}, reasoningTextLen=${reasoningLen}, stepsWithReasoning=${stepsWithReasoning}`);
                 }
-            },
-            onError: (event: any) => {
-                const errObj = event?.error;
-                const errMsgs = [
-                    errObj?.message,
-                    errObj?.cause?.message,
-                    typeof errObj === 'string' ? errObj : JSON.stringify(errObj)
-                ].filter(Boolean).join(' | ');
+            };
 
-                outputChannel.appendLine(`[Agentic] Stream error: ${errMsgs}`);
-
-                // Notification for quota or billing issues
-                const lowerMsg = errMsgs.toLowerCase();
-                if (lowerMsg.includes('quota') || lowerMsg.includes('429') || lowerMsg.includes('insufficient_quota') || lowerMsg.includes('billing')) {
-                    vscode.window.showErrorMessage('AI API Error: You may have exceeded your quota or rate limit. Please check your API billing details.');
+            // #44: Enable reasoning/thinking tokens when supported
+            if (options.enableThinking) {
+                if (provider === 'Gemini') {
+                    // Google Gemini: thinkingBudget -1 = dynamic/auto (model decides)
+                    // 0 would DISABLE thinking entirely. -1 lets the model use its own judgment.
+                    streamOptions.providerOptions = {
+                        google: { thinkingConfig: { thinkingBudget: -1 } }
+                    };
+                } else {
+                    // OpenAI-compatible providers
+                    streamOptions.providerOptions = {
+                        openai: { reasoningEffort: 'medium', reasoningSummary: 'detailed' }
+                    };
                 }
-            },
-            onFinish: (event: any) => {
-                if (options.onFinish) { options.onFinish(event); }
-                const reasoningLen = event.reasoningText?.length || 0;
-                const stepsWithReasoning = event.steps?.filter((s: any) => s.reasoningText).length || 0;
-                outputChannel.appendLine(`[Agentic] Finished. finishReason=${event.finishReason}, totalUsage=${JSON.stringify(event.usage || event.totalUsage)}, reasoningTextLen=${reasoningLen}, stepsWithReasoning=${stepsWithReasoning}`);
-            }
-        };
-
-        // #44: Enable reasoning/thinking tokens when supported
-        if (options.enableThinking) {
-            if (provider === 'Gemini') {
-                // Google Gemini: thinkingBudget -1 = dynamic/auto (model decides)
-                // 0 would DISABLE thinking entirely. -1 lets the model use its own judgment.
-                streamOptions.providerOptions = {
-                    google: { thinkingConfig: { thinkingBudget: -1 } }
-                };
+                outputChannel.appendLine(`[Agentic] Thinking/reasoning enabled for provider=${provider}, model=${model}`);
             } else {
-                // OpenAI-compatible providers
-                streamOptions.providerOptions = {
-                    openai: { reasoningEffort: 'medium', reasoningSummary: 'detailed' }
-                };
+                outputChannel.appendLine(`[Agentic] Thinking/reasoning DISABLED for model=${model}`);
             }
-            outputChannel.appendLine(`[Agentic] Thinking/reasoning enabled for provider=${provider}, model=${model}`);
-        } else {
-            outputChannel.appendLine(`[Agentic] Thinking/reasoning DISABLED for model=${model}`);
+
+            const result = streamText(streamOptions);
+            return result;
+
+        } catch (error: any) {
+            // Don't retry if aborted by user
+            if (options.abortSignal?.aborted) {
+                throw error;
+            }
+
+            const isLastAttempt = attempt >= MAX_RETRIES;
+            const errorMsg = error?.message || String(error);
+            outputChannel.appendLine(`[Agentic] Attempt ${attempt}/${MAX_RETRIES} failed: ${errorMsg}`);
+
+            if (isLastAttempt) {
+                outputChannel.appendLine(`[Agentic] All ${MAX_RETRIES} attempts exhausted.`);
+                throw error;
+            }
+
+            // Only retry on transient server errors (5xx) or rate limits (429)
+            const isTransient = error?.statusCode >= 500 || error?.statusCode === 429
+                || errorMsg.includes('500') || errorMsg.includes('503') || errorMsg.includes('429')
+                || errorMsg.includes('Internal error') || errorMsg.includes('overloaded');
+
+            if (!isTransient) {
+                outputChannel.appendLine(`[Agentic] Non-retryable error (${error?.statusCode || 'unknown status'}), giving up.`);
+                throw error;
+            }
+
+            const delayMs = RETRY_DELAYS_MS[attempt - 1];
+            outputChannel.appendLine(`[Agentic] Retrying in ${delayMs}ms (attempt ${attempt + 1}/${MAX_RETRIES})...`);
+            await new Promise(r => setTimeout(r, delayMs));
         }
-
-        const result = streamText(streamOptions);
-
-        return result;
-    } catch (error) {
-        outputChannel.appendLine("Error during Agentic Request: " + error);
-        throw error;
     }
+
+    // Should never reach here
+    throw new Error('Unexpected: retry loop exited without result or error');
 }
 
 // ─── BACKWARD-COMPAT ALIASES ────────────────────────────────────────────────
