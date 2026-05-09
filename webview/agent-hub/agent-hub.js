@@ -409,16 +409,25 @@
             </div>`;
         }).join('');
 
-        // Attach input listeners
+        // Attach input listeners with debounce to avoid hammering the backend
+        let _agentSaveTimers = {};
+        function debouncedAgentUpdate(agentId, field, value) {
+            const key = agentId + ':' + field;
+            clearTimeout(_agentSaveTimers[key]);
+            _agentSaveTimers[key] = setTimeout(() => {
+                vscode.postMessage({ command: 'updateAgent', data: { id: agentId, field, value } });
+            }, 500);
+        }
+
         agentsList.querySelectorAll('.agent-name-input').forEach(input => {
             input.addEventListener('input', (e) => {
-                vscode.postMessage({ command: 'updateAgent', data: { id: e.target.dataset.agentId, field: 'name', value: e.target.value } });
+                debouncedAgentUpdate(e.target.dataset.agentId, 'name', e.target.value);
             });
         });
 
         agentsList.querySelectorAll('.agent-prompt-textarea').forEach(ta => {
             ta.addEventListener('input', (e) => {
-                vscode.postMessage({ command: 'updateAgent', data: { id: e.target.dataset.agentId, field: 'content', value: e.target.value } });
+                debouncedAgentUpdate(e.target.dataset.agentId, 'content', e.target.value);
             });
         });
 

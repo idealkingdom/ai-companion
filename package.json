@@ -108,6 +108,11 @@
         "category": "Spes AI Companion",
         "title": "Agent Hub",
         "icon": "$(database)"
+      },
+      {
+        "command": "ai-companion.resetAllData",
+        "category": "Spes AI Companion",
+        "title": "Reset All Data (Dev)"
       }
     ],
     "viewsContainers": {

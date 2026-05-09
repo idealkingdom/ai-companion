@@ -407,14 +407,12 @@ export class ChatCoreService {
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || 'unknown';
         const systemInfo = getSystemInfo();
 
-        // #50: Task tracking prompt (when enabled)
-        const todoInstruction = settings.general?.enableTodoList
-            ? `\n\nTASK TRACKING:
+        // #50: Task tracking prompt — always enabled
+        const todoInstruction = `\n\nTASK TRACKING:
 When handling complex multi-step requests, create a task checklist at the start.
 Format each item as: ⬜ [task description]
 As you complete each task, update it to: ✅ [task description]
-Show the updated checklist after each step so the user can track progress.`
-            : '';
+Show the updated checklist after each step so the user can track progress.`;
 
         // #51: Include workspace file tree in context (compact mode to save tokens)
         await this.workspaceIndex.refresh();

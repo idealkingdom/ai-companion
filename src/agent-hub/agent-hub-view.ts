@@ -417,7 +417,8 @@ export class AgentHubView {
                 else if (field === 'isActive') { agent.isActive = !!value; }
 
                 await this.settingsManager.updateSettings({ prompts: settings.prompts });
-                this.sendAgents();
+                // Don't call sendAgents() here — it causes full DOM rebuild and input flicker.
+                // The frontend already has the updated value in the input field.
                 return;
             }
 

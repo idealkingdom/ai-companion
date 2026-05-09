@@ -1159,7 +1159,7 @@ function renderModelTable() {
         const tierOnClick = isCustom ? ` onclick="cycleModelTier('${customId}')"` : '';
 
         return `
-            <div class="model-row">
+            <div class="model-row" ${dataAttr}>
                 <span class="model-row-name">${getProviderIcon(providerKey)} ${escapeHtml(modelName)}${configDot}</span>
                 <span class="model-row-provider">${escapeHtml(providerName)}</span>
                 <span class="model-row-status">
@@ -1276,11 +1276,23 @@ window.cycleModelTier = function (customId) {
     const cm = (currentSettings.customModels || []).find(m => m.id === customId);
     if (!cm) return;
     const order = ['frontier', 'mid', 'small'];
+    const labels = { frontier: 'Pro', mid: 'Mid', small: 'Lite' };
     const current = cm.tier || 'mid';
     const idx = order.indexOf(current);
-    cm.tier = order[(idx + 1) % order.length];
+    const newTier = order[(idx + 1) % order.length];
+    cm.tier = newTier;
+
+    // Update badge DOM directly for instant feedback (no full table re-render)
+    const row = document.querySelector(`[data-custom-id="${customId}"]`);
+    if (row) {
+        const badge = row.querySelector('.tier-badge');
+        if (badge) {
+            badge.className = `tier-badge ${newTier} clickable`;
+            badge.textContent = labels[newTier] || newTier;
+        }
+    }
+
     persistSettings();
-    populateModelTable();
 };
 
 // Section toggle
