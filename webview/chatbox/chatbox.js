@@ -677,8 +677,9 @@ chatLog.addEventListener('scroll', () => {
     _isUserScrolledUp = distanceToBottom > 60;
 });
 
-// Dynamic padding: only adds bottom space when content overflows the viewport
-// and we need to push the last user message into view. Does nothing for short chats.
+// Dynamic padding: adds bottom space so the user message can scroll to the top.
+// IMPORTANT: Only called when auto-scrolling or on explicit user action (sending a message).
+// Never called while user is scrolled up — that would shift content and cause glitches.
 function updateDynamicPadding() {
     const viewportHeight = chatLog.clientHeight;
 
@@ -695,15 +696,16 @@ function updateDynamicPadding() {
     const contentBottom = lastChild ? (lastChild.offsetTop + lastChild.offsetHeight) : userMsgBottom;
     const contentBelowUser = contentBottom - userMsgBottom;
 
-    // We need enough padding so that: when scrolled to user message top,
-    // the viewport can still show all content below, with the user msg at top.
     // padding = viewport height - user message height - content below user
     const neededPadding = Math.max(0, viewportHeight - lastUserMsg.offsetHeight - contentBelowUser);
     chatbox.style.paddingBottom = `${neededPadding}px`;
 }
 
 chatbox.addEventListener('toggle', (e) => {
-    updateDynamicPadding();
+    // Only recalculate padding on toggle if user is near the bottom
+    if (!_isUserScrolledUp) {
+        updateDynamicPadding();
+    }
 }, true);
 
 function scrollToBottom(force = false) {
