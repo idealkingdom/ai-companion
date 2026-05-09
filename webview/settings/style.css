@@ -1130,6 +1130,39 @@ input:focus + .toggle-slider {
    MODEL MANAGEMENT — CARD LAYOUT
    ═══════════════════════════════════════════════════════════════════════ */
 
+.model-table-legend {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) auto;
+    align-items: center;
+    padding: 8px 16px;
+    gap: 16px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--panel-border);
+    background: color-mix(in srgb, var(--text-main) 2%, transparent);
+    border-radius: 16px 16px 0 0;
+}
+
+.model-table-legend .legend-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.model-table-legend .legend-right span {
+    text-align: center;
+}
+
+/* Match legend widths to control widths */
+.model-table-legend .legend-right span:nth-child(1) { width: 40px; } /* Tier badge */
+.model-table-legend .legend-right span:nth-child(2) { width: 50px; } /* Active toggle */
+.model-table-legend .legend-right span:nth-child(3) { width: 50px; } /* Reasoning toggle */
+.model-table-legend .legend-right span:nth-child(4) { width: 16px; } /* Image radio */
+.model-table-legend .legend-right span:nth-child(5) { width: 22px; } /* Actions */
+
 .model-section-header {
     display: flex;
     align-items: center;
@@ -1143,10 +1176,6 @@ input:focus + .toggle-slider {
     border-bottom: 1px solid var(--panel-border);
     background: color-mix(in srgb, var(--text-main) 3%, transparent);
     transition: background 0.2s;
-}
-
-.model-section-header:first-child {
-    border-radius: 16px 16px 0 0;
 }
 
 .model-section-header:hover {
@@ -1186,11 +1215,11 @@ input:focus + .toggle-slider {
 }
 
 .model-card-main {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) auto;
     align-items: center;
-    justify-content: space-between;
-    padding: 10px 16px;
-    gap: 12px;
+    padding: 8px 16px;
+    gap: 16px;
     min-height: 44px;
 }
 
@@ -1199,7 +1228,6 @@ input:focus + .toggle-slider {
     align-items: center;
     gap: 10px;
     min-width: 0;
-    flex: 1;
 }
 
 .model-card-name-block {
@@ -1226,7 +1254,7 @@ input:focus + .toggle-slider {
 .model-card-controls {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     flex-shrink: 0;
 }
 
@@ -1356,6 +1384,8 @@ input:focus + .toggle-slider {
     letter-spacing: 0.3px;
     cursor: default;
     line-height: 1.4;
+    min-width: 30px;
+    text-align: center;
 }
 .tier-badge.frontier {
     background: linear-gradient(135deg, rgba(147, 51, 234, 0.2), rgba(79, 70, 229, 0.2));
