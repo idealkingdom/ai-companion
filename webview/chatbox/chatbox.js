@@ -71,7 +71,13 @@ const modeDropdown = document.getElementById('modeDropdown');
 const modeSelected = document.getElementById('modeSelected');
 const modeOptions = document.getElementById('modeOptions');
 
-let activeAgentId = 'default';
+// Restore persisted agent selection, or default to first active agent
+const _savedState = vscode.getState() || {};
+let activeAgentId = _savedState.activeAgentId || 'default';
+
+function persistAgentSelection() {
+    vscode.setState({ ...(vscode.getState() || {}), activeAgentId });
+}
 
 function renderAgentDropdown(agents) {
     if (!modeDropdown || !modeOptions) { return; }
@@ -90,8 +96,16 @@ function renderAgentDropdown(agents) {
     });
 }
 
-// Initial render
+// Initial render — auto-select first active agent if no saved/explicit selection
 renderAgentDropdown(AGENTS);
+if (activeAgentId === 'default' && AGENTS && AGENTS.length > 0) {
+    const firstActive = AGENTS.find(a => a.isActive);
+    if (firstActive) {
+        activeAgentId = firstActive.id;
+        persistAgentSelection();
+    }
+}
+updateActiveAgentUI(activeAgentId, AGENTS);
 
 // Dropdown Interactions
 if (modeDropdown) {
@@ -108,6 +122,7 @@ if (modeDropdown) {
         if (!option) { return; }
 
         updateActiveAgentUI(option.dataset.value);
+        persistAgentSelection();
 
         // Hide
         modeOptions.classList.add('hidden');
@@ -2638,6 +2653,7 @@ window.addEventListener('message', event => {
                 const firstActive = message.agents.find(a => a.isActive);
                 if (firstActive) {
                     activeAgentId = firstActive.id;
+                    persistAgentSelection();
                 }
             }
             updateActiveAgentUI(activeAgentId, message.agents);
