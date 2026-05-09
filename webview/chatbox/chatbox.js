@@ -677,37 +677,6 @@ chatLog.addEventListener('scroll', () => {
     _isUserScrolledUp = distanceToBottom > 60;
 });
 
-// Dynamic padding: adds bottom space so the user message can scroll to the top.
-// IMPORTANT: Only called when auto-scrolling or on explicit user action (sending a message).
-// Never called while user is scrolled up — that would shift content and cause glitches.
-function updateDynamicPadding() {
-    const viewportHeight = chatLog.clientHeight;
-
-    // Find last user message — this is the anchor we want to scroll to the top
-    const lastUserMsg = chatbox.querySelector('.user-message:last-of-type');
-    if (!lastUserMsg) {
-        chatbox.style.paddingBottom = '0px';
-        return;
-    }
-
-    // Calculate how much content exists below the user message
-    const lastChild = chatbox.lastElementChild;
-    const userMsgBottom = lastUserMsg.offsetTop + lastUserMsg.offsetHeight;
-    const contentBottom = lastChild ? (lastChild.offsetTop + lastChild.offsetHeight) : userMsgBottom;
-    const contentBelowUser = contentBottom - userMsgBottom;
-
-    // padding = viewport height - user message height - content below user
-    const neededPadding = Math.max(0, viewportHeight - lastUserMsg.offsetHeight - contentBelowUser);
-    chatbox.style.paddingBottom = `${neededPadding}px`;
-}
-
-chatbox.addEventListener('toggle', (e) => {
-    // Only recalculate padding on toggle if user is near the bottom
-    if (!_isUserScrolledUp) {
-        updateDynamicPadding();
-    }
-}, true);
-
 function scrollToBottom(force = false) {
     if (!force && _isUserScrolledUp) {
         return; 
@@ -716,7 +685,6 @@ function scrollToBottom(force = false) {
     if (_scrollTimeout) return;
     _scrollTimeout = requestAnimationFrame(() => {
         _scrollTimeout = null;
-        updateDynamicPadding();
         chatLog.scrollTop = chatLog.scrollHeight;
     });
 }
@@ -1087,21 +1055,7 @@ function appendUserMessage(message, images = [], files = []) {
     }
 
     _isUserScrolledUp = false;
-
-    // Scroll user message to the top of the viewport.
-    // Double-rAF ensures layout is fully computed before we measure.
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            updateDynamicPadding();
-            if (newMessageElement) {
-                // Use getBoundingClientRect for accurate positioning regardless of DOM nesting
-                const containerRect = chatLog.getBoundingClientRect();
-                const messageRect = newMessageElement.getBoundingClientRect();
-                const offset = messageRect.top - containerRect.top + chatLog.scrollTop;
-                chatLog.scrollTop = offset;
-            }
-        });
-    });
+    scrollToBottom(true);
 }
 
 function getOrCreateAgentStepsGroup() {
@@ -1249,6 +1203,8 @@ function renderAgentStep(step) {
             const contentEl = thinkingBlock.querySelector('.thinking-content');
             if (contentEl) {
                 contentEl.textContent += step.text;
+                // Auto-scroll thinking content to show latest text
+                contentEl.scrollTop = contentEl.scrollHeight;
             }
             // Update label to show it's working
             const label = thinkingBlock.querySelector('.thinking-label');

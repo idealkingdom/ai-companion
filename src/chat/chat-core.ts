@@ -790,9 +790,19 @@ RULES:
                 outputChannel.appendLine(`[Agentic] Hit step limit (${stepCount}/${maxSteps}) — model still had pending tool calls`);
             }
 
-            // If model returned empty text, provide a fallback
+            // If model returned empty text, provide a context-aware fallback
             if (!fullText || fullText.trim() === '') {
-                fullText = hitStepLimit ? 'Reached step limit. There may be more work to do.' : 'Task completed.';
+                if (hitStepLimit) {
+                    fullText = 'Reached step limit. There may be more work to do.';
+                } else if (stepCount <= 1) {
+                    // Model stopped almost immediately — likely couldn't handle the request
+                    fullText = 'The model was unable to complete this request. Try rephrasing or using a different model.';
+                } else if (!lastStepHadToolCalls && stepCount < maxSteps) {
+                    // Model stopped on its own without tool calls — it may have gotten stuck
+                    fullText = 'Task completed.';
+                } else {
+                    fullText = 'Task completed.';
+                }
                 if (onChunk) { onChunk(fullText); }
             }
 
