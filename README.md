@@ -36,6 +36,12 @@ Your workflow, your rules. We believe in absolute flexibility, whether you're ha
 ### 🔍 Deep Workspace Intelligence
 kdAina automatically builds a searchable index of your project, parses file skeletons, and understands your active context to provide highly relevant assistance.
 
+### 💎 What Makes It Unique?
+Most AI assistants lock you into their way of working. kdAina is built for hackers who want control:
+*   **Detachable Pop-Out Interface**: Don't let your AI get cramped in the sidebar. Pop kdAina out into a dedicated editor tab or a separate monitor, with perfectly synchronized state.
+*   **Terminal-Style Brutalist UI**: We ditched the standard "chat bubbles." The interface acts like a high-density terminal log, showing you collapsible tool executions and thought processes without the fluff.
+*   **Real-Time CSS & Theming**: Don't like the default colors? Inject your own Custom CSS directly in the settings panel and watch the UI update instantly. Save your setups as custom templates!
+
 ---
 
 ## 🚀 Getting Started
