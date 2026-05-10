@@ -29,10 +29,9 @@ Say goodbye to copy-pasting.
 *   Accept edits instantly just by hitting save.
 
 ### 🧠 Bring Your Own Provider
-We believe in flexibility. Connect your own API keys for:
-*   **OpenAI** (o1, GPT-4o)
-*   **Google Gemini** (Gemini Flash & Pro)
-*   **Mistral** & **DeepSeek** (Full support for reasoning models!)
+We believe in absolute flexibility, whether you're hacking on a personal project or working securely in an enterprise environment.
+*   **Native Integrations**: Connect your own API keys for OpenAI (o1, GPT-4o), Google Gemini (Flash & Pro), Mistral, and DeepSeek.
+*   **Custom Models & Base URLs**: Easily override the base URL to route traffic through your own enterprise gateways, local proxies, or self-hosted custom models.
 
 ### 🔍 Deep Workspace Intelligence
 kdAina automatically builds a searchable index of your project, parses file skeletons, and understands your active context to provide highly relevant assistance.
