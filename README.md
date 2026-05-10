@@ -12,35 +12,34 @@ My goal was to create something that feels less like a chatbot and more like a c
 
 ### 🤖 True Agentic Chat
 kdAina doesn't just talk; it acts.
-*   **Fully Autonomous**: Give kdAina a high-level task, and it will independently plan, execute, and verify the changes.
-*   **Persistent & Flexible**: Features real-time streaming, reloadable session history, and a pop-out detach mode so your companion can sit on your second monitor.
+*   **Fully Autonomous**: Hand off a high-level task, and watch kdAina independently plan, execute, and verify the work for you.
+*   **Always Connected**: Your conversations stay synced and can easily be moved to a second monitor so your workflow is never interrupted.
 
-### 🛠️ 12 Built-in Tools
-kdAina comes equipped with a suite of tools to actually get the job done:
-*   **Project Navigation**: Reads files, explores project structures, and finds specific elements.
-*   **System Execution**: Runs terminal commands and actively monitors IDE error diagnostics.
-*   **Web Intelligence**: Performs web searches and scrapes documentation to learn new APIs on the fly.
-*   **Cognitive Workflow**: Plans tasks step-by-step and verifies its own work before finishing.
+### 🛠️ Real World Capabilities
+kdAina comes equipped with everything it needs to actually get the job done:
+*   **Deep Navigation**: It reads your project like a human would, finding exactly what it needs to write great code.
+*   **System Execution**: It can run terminal commands and automatically catch errors without you having to lift a finger.
+*   **Web Intelligence**: If it doesn't know an API, it simply searches the web and reads the documentation for you.
 
-### ✏️ Direct In-File Editing
-Say goodbye to copy-pasting.
-*   Code changes are written directly into your files.
-*   Review proposed changes natively using VS Code's inline CodeLens diffs.
-*   Accept edits instantly just by hitting save.
+### ✏️ Zero-Friction Editing
+Say goodbye to copy-pasting code blocks.
+*   **Magic Edits**: kdAina writes code directly into your files. 
+*   **Clear Reviews**: See exactly what changed in a clean, visual format before you decide to keep it.
+*   **One-Click Approvals**: Love the changes? Just save the file to accept them instantly.
 
 ### 🧠 Bring Your Own Provider
 Your workflow, your rules. We believe in absolute flexibility, whether you're hacking on a personal weekend project or working securely within a strict enterprise environment.
-*   **Plug and Play**: Bring your own API keys for leading foundation models like OpenAI and Google Gemini.
+*   **Plug and Play**: Bring your own API keys for leading foundation models like OpenAI, Google Gemini, and others.
 *   **Custom Infrastructure**: Need to route through an enterprise gateway, local proxy, or a self-hosted model? Just override the base URL in the settings and you're good to go.
 
 ### 🔍 Deep Workspace Intelligence
-kdAina automatically builds a searchable index of your project, parses file skeletons, and understands your active context to provide highly relevant assistance.
+It doesn't just guess. kdAina studies your codebase, understands how your files connect, and uses your existing architecture to provide perfectly tailored assistance.
 
 ### 💎 What Makes It Unique?
-Most AI assistants lock you into their way of working. kdAina is built for hackers who want control:
-*   **Detachable Pop-Out Interface**: Don't let your AI get cramped in the sidebar. Pop kdAina out into a dedicated editor tab or a separate monitor, with perfectly synchronized state.
-*   **Terminal-Style Brutalist UI**: We ditched the standard "chat bubbles." The interface acts like a high-density terminal log, showing you collapsible tool executions and thought processes without the fluff.
-*   **Real-Time CSS & Theming**: Don't like the default colors? Inject your own Custom CSS directly in the settings panel and watch the UI update instantly. Save your setups as custom templates!
+Most assistants lock you into a rigid box. kdAina is built for hackers who want total control:
+*   **Unchain Your UI**: Don't let your AI get cramped in a tiny sidebar. Pop it out into a beautiful, dedicated window.
+*   **Terminal-Style Brutalism**: We ditched the cartoon chat bubbles. The interface acts like a high-density engineer's log—showing you exactly what it's thinking without the fluff.
+*   **Design It Yourself**: Don't like the colors? Write your own CSS right in the settings panel and watch the UI morph instantly.
 
 ---
 
