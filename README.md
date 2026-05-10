@@ -1,10 +1,12 @@
 # <img src="resources/logo.png" width="36" height="36" align="center" style="border-radius: 6px; mix-blend-mode: screen;" /> kdAina for VS Code
 
-> **A thoughtful, autonomous AI companion for builders.**
+> **A passion-driven, autonomous AI companion for builders.**
 
-Hi there! Welcome to **kdAina**. I built this VS Code extension to be a genuinely helpful coding companion that lives right inside your editor. Instead of just answering questions with isolated code snippets, kdAina is designed to act as an autonomous pair programmer—it explores your workspace, plans out features, executes terminal commands, and edits your files directly. 
+**A little radical honesty:** We are late to the party. There are massively funded agentic extensions out there that are leagues ahead of us right now. 
 
-My goal was to create something that feels less like a chatbot and more like a capable teammate, allowing you to focus on the big ideas while it handles the heavy lifting.
+kdAina didn't start as a venture-backed startup; it started as my own personal niche, a portfolio project born purely out of curiosity. I didn't have funding or a massive team—just a love for the craft, a passion for solving hard challenges, and the thrill of creating something on my own (with a little help from AI, of course).
+
+What kdAina might lack in corporate backing, it makes up for in heart. It’s an autonomous coding companion built with genuine love by a developer, for developers. It explores your workspace, executes commands, and writes code directly into your files. It might not be the biggest extension on the marketplace, but it's built to be a truly capable, transparent teammate.
 
 ---
 
