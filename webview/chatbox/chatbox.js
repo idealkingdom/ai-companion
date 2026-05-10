@@ -673,7 +673,7 @@ function escapeHtml(unsafe) {
 function getCurrentDate() {
     const now = new Date();
     const options = {
-        month: 'short',
+        month: '2-digit',
         day: '2-digit',
         year: 'numeric',
         hour: '2-digit',
@@ -924,6 +924,15 @@ window.handleUrlScrape = function(pill) {
     const url = pill.dataset.url;
     if (!url) return;
 
+    // If already scraped, just show the content
+    if (pill.classList.contains('scraped')) {
+        const fileId = pill.dataset.fileId;
+        if (fileId) {
+            requestOpenFile(fileId);
+            return;
+        }
+    }
+
     // Visual feedback
     pill.style.opacity = '0.6';
     pill.textContent = '⏳ Scraping...';
@@ -1004,8 +1013,13 @@ function appendUserMessage(message, images = [], files = []) {
         files.forEach(file => {
             const id = "file-pill-hist-" + Date.now() + Math.floor(Math.random() * 1000);
             window.inlineFilesMap[id] = file;
-            const marker = `[📄 ${escapeHtml(file.name)}]`;
-            const pillHTML = `<span class="inline-attachment-pill file-pill" contenteditable="false" data-file-id="${id}" onclick="requestOpenFile(this.dataset.fileId)" title="Attached file: ${escapeHtml(file.name)}">${marker}</span>`;
+            
+            // #46: Match the marker with the pill text. URL pills use 🔗, local files use [📄 ]
+            const isUrl = file.path && (file.path.startsWith('http://') || file.path.startsWith('https://'));
+            const marker = isUrl ? `🔗 ${escapeHtml(file.name)}` : `[📄 ${escapeHtml(file.name)}]`;
+            
+            const pillHTML = `<span class="inline-attachment-pill file-pill ${isUrl ? 'url-pill scraped' : ''}" contenteditable="false" data-file-id="${id}" onclick="requestOpenFile(this.dataset.fileId)" title="Attached file: ${escapeHtml(file.name)}">${marker}</span>`;
+            
             if (finalHTML.includes(marker)) {
                 finalHTML = finalHTML.replace(marker, pillHTML);
             } else {
@@ -1030,11 +1044,9 @@ function appendUserMessage(message, images = [], files = []) {
     }
 
     const userResponseHTML = `<div class="user-message" data-raw-text="${encodeURIComponent(message)}">
-          <div class="message-content">
-            <span class="message-text">${finalHTML}</span>
-            <div class="message-footer">
-              <div class="message-time">${getCurrentDate()}</div>
-              <div class="user-message-actions">
+          <div class="user-prompt-header">
+            <span class="user-prompt-date">${getCurrentDate()}</span>
+            <div class="user-message-actions" style="margin-left: auto;">
                 <button class="msg-action-btn retry-btn" title="Retry" onclick="retryLastMessage(this)">
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
                   Retry
@@ -1043,8 +1055,10 @@ function appendUserMessage(message, images = [], files = []) {
                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   Edit
                 </button>
-              </div>
             </div>
+          </div>
+          <div class="message-content">
+            <span class="message-text">${finalHTML}</span>
           </div>
         </div>`;
 
@@ -1389,7 +1403,43 @@ document.addEventListener('DOMContentLoaded', () => {
     if (stagingDiscardBtn) {
         stagingDiscardBtn.onclick = () => sendMessage('chatToolApproval', { approved: false });
     }
+
+    // Initialize Generate Button
+    initGenerateButton();
 });
+
+function initGenerateButton() {
+    const generateBtn = document.getElementById('generateButton');
+    if (generateBtn) {
+        generateBtn.onclick = () => {
+            console.log('Generate button clicked');
+            const input = document.getElementById('messageInput');
+            if (!input) {
+                console.error('messageInput not found');
+                return;
+            }
+            const prompt = input.innerText.trim();
+            if (!prompt) {
+                console.warn('Empty prompt, ignoring generate click');
+                return;
+            }
+
+            console.log('Sending improvePrompt request...');
+            generateBtn.classList.add('loading');
+            sendMessage('improvePrompt', { prompt });
+
+            // Safety timeout to reset loading state if backend fails/takes too long
+            setTimeout(() => {
+                if (generateBtn.classList.contains('loading')) {
+                    console.warn('Generate prompt timed out, resetting button state');
+                    generateBtn.classList.remove('loading');
+                }
+            }, 15000);
+        };
+    } else {
+        console.warn('generateButton not found in DOM during init');
+    }
+}
 
 
 window.approveTool = (toolCallId, approved) => {
@@ -1432,21 +1482,17 @@ window.reviewDiff = (toolCallId, toolName) => {
 };
 
 // ─── HUNK REVIEW PANEL ───────────────────────────────────────────────
-let hunkReviewState = null; // { files: [...], undoStack: [] }
+let hunkReviewState = null; // { files: [...], undoStack: [], currentNavIndex: 0 }
 
 function openHunkReviewPanel(filesData) {
-    if (!filesData || filesData.length === 0) {
-        closeHunkReviewPanel();
-        return;
-    }
-
-    // Initialize state
+    // Initialize state (allow empty filesData for forced open)
     hunkReviewState = {
-        files: filesData.map(f => ({
+        files: (filesData || []).map(f => ({
             ...f,
-            hunks: f.hunks.map(h => ({ ...h, accepted: true }))
+            hunks: (f.hunks || []).map(h => ({ ...h, accepted: true }))
         })),
-        undoStack: [] // Stack of { fileIdx, hunkIdx, prevState }
+        undoStack: [], // Stack of { fileIdx, hunkIdx, prevState }
+        currentNavIndex: 0
     };
 
     renderHunkReviewPanel();
@@ -1463,39 +1509,41 @@ function renderHunkReviewPanel() {
 
     // Remove existing if present
     let overlay = document.getElementById('hunk-review-overlay');
+    const wasOpen = !!overlay;
+    const scrollPos = wasOpen ? overlay.querySelector('.hunk-review-body').scrollTop : 0;
+
     if (overlay) { overlay.remove(); }
 
     overlay = document.createElement('div');
     overlay.id = 'hunk-review-overlay';
     overlay.className = 'hunk-review-overlay';
 
-    // Compute summary
-    let totalHunks = 0;
-    let acceptedHunks = 0;
-    hunkReviewState.files.forEach(f => {
-        f.hunks.forEach(h => {
-            totalHunks++;
-            if (h.accepted) { acceptedHunks++; }
-        });
-    });
+    const bodyContent = hunkReviewState.files.length === 0
+        ? `<div class="hunk-empty-state" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; opacity:0.6; padding-top: 40px;">
+             <div class="empty-icon" style="font-size: 48px; margin-bottom: 16px;">✓</div>
+             <div class="empty-text" style="font-size: 1.1rem; font-weight: 600;">No pending changes</div>
+             <div class="empty-subtext" style="font-size: 0.85rem;">All changes have been accepted or reverted.</div>
+           </div>`
+        : hunkReviewState.files.map((file, fileIdx) => renderFileSection(file, fileIdx)).join('');
 
     overlay.innerHTML = `
         <div class="hunk-review-header">
             <button class="back-btn" onclick="closeHunkReviewPanel()" title="Back to Chat">←</button>
-            <h2>Review Changes (${hunkReviewState.files.length} file${hunkReviewState.files.length > 1 ? 's' : ''})</h2>
+            <h2>Review Changes (${hunkReviewState.files.length} file${hunkReviewState.files.length !== 1 ? 's' : ''})</h2>
+            ${hunkReviewState.files.length > 0 ? renderNavigator() : ''}
         </div>
         <div class="hunk-review-body" id="hunk-review-body">
-            ${hunkReviewState.files.map((file, fileIdx) => renderFileSection(file, fileIdx)).join('')}
+            ${bodyContent}
         </div>
         <div class="hunk-review-actions">
             <div class="hunk-action-info">
                 ${hunkReviewState.files.length} file(s) with pending changes
             </div>
             <div class="hunk-action-buttons">
-                <button class="hunk-action-btn discard" onclick="discardAllHunks()">
+                <button class="hunk-action-btn discard" onclick="discardAllHunks()" ${hunkReviewState.files.length === 0 ? 'disabled' : ''}>
                     ✕ Reject All Files
                 </button>
-                <button class="hunk-action-btn commit" onclick="commitSelectedHunks()">
+                <button class="hunk-action-btn commit" onclick="commitSelectedHunks()" ${hunkReviewState.files.length === 0 ? 'disabled' : ''}>
                     ✓ Accept All Files
                 </button>
             </div>
@@ -1503,25 +1551,79 @@ function renderHunkReviewPanel() {
     `;
 
     document.body.appendChild(overlay);
+    if (wasOpen) {
+        overlay.querySelector('.hunk-review-body').scrollTop = scrollPos;
+    }
+}
+
+function renderNavigator() {
+    const total = hunkReviewState.files.length;
+    const current = hunkReviewState.currentNavIndex || 0;
+    
+    return `
+        <div class="hunk-navigator" style="display:flex; align-items:center; gap:10px; background: rgba(255,255,255,0.06); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
+            <button class="nav-btn" onclick="navigateHunk(-1)" ${current <= 0 ? 'disabled' : ''} style="background:none; border:none; color:inherit; cursor:pointer; font-size:11px; opacity:${current <= 0 ? '0.3' : '1'};">
+                ↑ Prev
+            </button>
+            <span class="nav-counter" style="font-size:11px; font-weight:600; font-family:var(--font-mono); opacity:0.8;">${current + 1} / ${total}</span>
+            <button class="nav-btn" onclick="navigateHunk(1)" ${current >= total - 1 ? 'disabled' : ''} style="background:none; border:none; color:inherit; cursor:pointer; font-size:11px; opacity:${current >= total - 1 ? '0.3' : '1'};">
+                ↓ Next
+            </button>
+        </div>
+    `;
+}
+
+function navigateHunk(direction) {
+    if (!hunkReviewState) return;
+    const total = hunkReviewState.files.length;
+    let idx = (hunkReviewState.currentNavIndex || 0) + direction;
+    idx = Math.max(0, Math.min(idx, total - 1));
+    hunkReviewState.currentNavIndex = idx;
+
+    const section = document.querySelector(`.hunk-file-section[data-file-idx="${idx}"]`);
+    if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    // Update counter & button states in-place (no full re-render = no flicker)
+    const counter = document.querySelector('.nav-counter');
+    if (counter) { counter.textContent = `${idx + 1} / ${total}`; }
+    const prevBtn = document.querySelector('.nav-btn[onclick="navigateHunk(-1)"]');
+    const nextBtn = document.querySelector('.nav-btn[onclick="navigateHunk(1)"]');
+    if (prevBtn) { prevBtn.disabled = idx <= 0; prevBtn.style.opacity = idx <= 0 ? '0.3' : '1'; }
+    if (nextBtn) { nextBtn.disabled = idx >= total - 1; nextBtn.style.opacity = idx >= total - 1 ? '0.3' : '1'; }
+
+    // Update current section highlights
+    document.querySelectorAll('.hunk-file-section').forEach((s, i) => {
+        const isCurrent = i === idx;
+        s.style.borderColor = isCurrent ? 'rgba(79, 172, 254, 0.4)' : 'rgba(255, 255, 255, 0.06)';
+        s.querySelector('.hunk-file-header').style.background = isCurrent ? 'rgba(79, 172, 254, 0.05)' : 'rgba(255, 255, 255, 0.03)';
+    });
 }
 
 function renderFileSection(file, fileIdx) {
     const badge = file.isNewFile
         ? '<span class="hunk-file-badge new-file">NEW</span>'
         : '<span class="hunk-file-badge modified">MODIFIED</span>';
+    
+    const isCurrent = hunkReviewState.currentNavIndex === fileIdx;
 
     return `
-        <div class="hunk-file-section" data-file-idx="${fileIdx}">
-            <div class="hunk-file-header" style="cursor: default;">
-                <div class="hunk-file-name" onclick="sendMessage('chatOpenFile', { uri: '${file.uri}' })" style="cursor: pointer; text-decoration: underline;" title="Open File for Direct Review">
+        <div class="hunk-file-section ${isCurrent ? 'current' : ''}" data-file-idx="${fileIdx}" style="margin-bottom:16px; border:1px solid ${isCurrent ? 'rgba(79, 172, 254, 0.4)' : 'rgba(255, 255, 255, 0.06)'}; border-radius:8px; overflow:hidden;">
+            <div class="hunk-file-header" style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background: ${isCurrent ? 'rgba(79, 172, 254, 0.05)' : 'rgba(255, 255, 255, 0.03)'};">
+                <div class="hunk-file-name" onclick="sendMessage('chatOpenFile', { uri: '${file.uri}' })" style="cursor: pointer; display:flex; align-items:center; gap:8px; font-family:var(--font-editor); font-size:0.82rem; font-weight:600;" title="Open File for Direct Review">
                     ${badge}
-                    ${escapeHtml(file.fileName)}
-                    <span style="opacity:0.4; font-weight:400; text-decoration: none;">(${file.hunks.length} hunk${file.hunks.length > 1 ? 's' : ''})</span>
+                    <span style="text-decoration: underline;">${escapeHtml(file.fileName)}</span>
+                    <span style="opacity:0.4; font-weight:400; text-decoration: none;">(${file.hunks.length} hunk${file.hunks.length !== 1 ? 's' : ''})</span>
+                    ${file.savedByUser ? '<span style="font-size: 0.65rem; color: #4CAF50; font-weight: 500; background: rgba(76, 175, 80, 0.1); padding: 1px 6px; border-radius: 4px;">SAVED</span>' : ''}
                 </div>
                 <div style="display:flex; gap:8px; align-items:center;">
-                    <button class="hunk-toggle-btn" style="border:none; padding:4px 8px; font-size:0.75rem; background: rgba(76, 175, 80, 0.2); color: #4CAF50; cursor: pointer; border-radius: 4px;" onclick="sendMessage('acceptFile', { uri: '${file.uri}' })" title="Accept all changes in this file">✓ Accept All</button>
-                    <button class="hunk-toggle-btn" style="border:none; padding:4px 8px; font-size:0.75rem; background: rgba(244, 67, 54, 0.2); color: #f44336; cursor: pointer; border-radius: 4px;" onclick="sendMessage('rejectFile', { uri: '${file.uri}' })" title="Reject all changes in this file">✕ Reject All</button>
+                    <button class="hunk-toggle-btn" style="border:none; padding:4px 10px; font-size:0.75rem; background: rgba(76, 175, 80, 0.2); color: #66bb6a; cursor: pointer; border-radius: 4px; font-weight:600;" onclick="sendMessage('acceptFile', { uri: '${file.uri}' })" title="Accept all changes in this file">✓ Accept All</button>
+                    <button class="hunk-toggle-btn" style="border:none; padding:4px 10px; font-size:0.75rem; background: rgba(244, 67, 54, 0.2); color: #ef5350; cursor: pointer; border-radius: 4px; font-weight:600;" onclick="sendMessage('rejectFile', { uri: '${file.uri}' })" title="Reject all changes in this file">✕ Reject All</button>
                 </div>
+            </div>
+            <div class="hunk-file-content" style="padding: 10px;">
+                ${(file.hunks || []).map((hunk, hunkIdx) => renderHunkCard(hunk, fileIdx, hunkIdx)).join('')}
             </div>
         </div>
     `;
@@ -1620,6 +1722,7 @@ function discardAllHunks() {
     sendMessage('commitSelectedHunks', { selections: [], action: 'discard' });
     closeHunkReviewPanel();
 }
+
 
 // Keyboard shortcuts for hunk review panel
 document.addEventListener('keydown', (e) => {
@@ -1769,9 +1872,10 @@ function appendAIMessage(response) {
     const parsedResponse = marked.parse(response);
     const systemResponseHTML = `<div class="system-message">
             <div class="message-content">
-                <div class="message-header"><span class="ai-icon">${aiIconBtnHTML}</span> Companion</div>
                 <span class="message-text">${parsedResponse}</span>
-                <div class="message-time">${getCurrentDate()}</div>
+                <div class="message-footer">
+                    <div class="message-time">${getCurrentDate()}</div>
+                </div>
             </div>
             </div>`;
 
@@ -2114,6 +2218,7 @@ function processMessageContent(rawText) {
 
 window.addEventListener('DOMContentLoaded', () => {
     sendMessage("ChatWebviewReady");
+    initGenerateButton();
 
     const input = document.getElementById("messageInput");
 
@@ -2210,7 +2315,12 @@ window.addEventListener('DOMContentLoaded', () => {
             const url = text.trim();
             const urlId = 'url-' + Date.now();
             const pill = `<span class="inline-attachment-pill url-pill" contenteditable="false" data-url="${url}" data-url-id="${urlId}" title="Click to scrape: ${url}" onclick="handleUrlScrape(this)">🔗 ${new URL(url).hostname}${new URL(url).pathname.substring(0, 30)}</span>&nbsp;`;
-            document.execCommand('insertHTML', false, pill);
+            
+            // Wrap in setTimeout to avoid "execCommand() ... called recursively" error
+            setTimeout(() => {
+                document.execCommand('insertHTML', false, pill);
+                // URL stays as a clickable pill — user can click to scrape manually
+            }, 0);
             return;
         }
 
@@ -2323,9 +2433,15 @@ function requestOpenImage(dateUrlOrPath) {
 function requestOpenFile(fileId) {
     const fileData = window.inlineFilesMap && window.inlineFilesMap[fileId];
     if (fileData) {
-        if (fileData.path) {
+        const isUrl = fileData.path && (fileData.path.startsWith('http://') || fileData.path.startsWith('https://'));
+        if (fileData.path && !isUrl) {
+            // Local file — open directly
             sendMessage('openFile', { path: fileData.path });
+        } else if (isUrl && !fileData.content) {
+            // URL without content (old history) — open URL externally
+            sendMessage('openExternal', { url: fileData.path });
         } else {
+            // URL with content or virtual file — show in editor
             sendMessage('openVirtualFile', {
                 name: fileData.name,
                 text: fileData.content,
@@ -2387,7 +2503,12 @@ window.addEventListener('message', event => {
                             const secs = Math.floor(ms / 1000);
                             const summaryText = group.querySelector('.summary-text');
                             if (summaryText) {
-                                summaryText.textContent = `Worked for ${secs}s`;
+                                // If loaded from history, secs will be 0 because it renders instantly
+                                if (secs === 0) {
+                                    summaryText.textContent = `Completed steps`;
+                                } else {
+                                    summaryText.textContent = `Worked for ${secs}s`;
+                                }
                             }
                             group.open = false;
                         }
@@ -2463,7 +2584,11 @@ window.addEventListener('message', event => {
                         const secs = Math.floor(ms / 1000);
                         const summaryText = group.querySelector('.summary-text');
                         if (summaryText) {
-                            summaryText.textContent = `Worked for ${secs}s`;
+                            if (secs === 0) {
+                                summaryText.textContent = `Completed steps`;
+                            } else {
+                                summaryText.textContent = `Worked for ${secs}s`;
+                            }
                         }
                         group.open = false; // Close it to keep UI clean
                     }
@@ -2614,11 +2739,52 @@ window.addEventListener('message', event => {
             break;
 
         case 'reviewHunksData':
-            openHunkReviewPanel(message.content);
+            if (hunkReviewState) {
+                // Update state in place for real-time refresh
+                hunkReviewState.files = (message.content || []).map(f => ({
+                    ...f,
+                    hunks: (f.hunks || []).map(h => ({ ...h, accepted: true }))
+                }));
+                renderHunkReviewPanel();
+            } else if (message.openPanel && message.content && message.content.length > 0) {
+                // Explicit user request to open the panel (e.g. "Review Changes" button)
+                openHunkReviewPanel(message.content);
+            }
+            // Don't auto-open the panel — user opens it manually via "Review Changes"
             break;
 
         case 'uiSettingsUpdate':
             applyUISettings(message.ui);
+            break;
+
+        case 'improvedPrompt':
+            {
+                const generateBtn = document.getElementById('generateButton');
+                if (generateBtn) generateBtn.classList.remove('loading');
+                
+                const input = document.getElementById('messageInput');
+                if (input && message.content) {
+                    input.innerText = message.content;
+                    input.focus();
+                    // Move cursor to end
+                    const range = document.createRange();
+                    const sel = window.getSelection();
+                    range.selectNodeContents(input);
+                    range.collapse(false);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+            }
+            break;
+
+        case 'fileSaveStatus':
+            if (hunkReviewState && message.content) {
+                const file = hunkReviewState.files.find(f => f.uri === message.content.uri);
+                if (file) {
+                    file.savedByUser = true;
+                    renderHunkReviewPanel();
+                }
+            }
             break;
 
         case 'indexUpdate':

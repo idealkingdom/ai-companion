@@ -50,10 +50,42 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             });
         });
 
-        ReviewManager.getInstance().onDidUpdateStaging((count: number) => {
+        ReviewManager.getInstance().onDidUpdateStaging(async (count: number) => {
+            const reviewManager = ReviewManager.getInstance();
+            const uris = reviewManager.getStagedUris();
+            const filesData = uris.map(uri => {
+                const edits = reviewManager.getPendingEdits(uri.toString()) || [];
+                return {
+                    fileName: path.basename(uri.fsPath),
+                    uri: uri.toString(),
+                    isNewFile: false,
+                    hunks: edits.map(e => {
+                        const oldLines = e.originalContent.split('\n');
+                        const newLines = e.newContent.split('\n');
+                        const lines: string[] = [];
+                        for (const line of oldLines) { lines.push('-' + line); }
+                        for (const line of newLines) { lines.push('+' + line); }
+                        return {
+                            accepted: true,
+                            oldStart: e.startLine + 1,
+                            oldLines: oldLines.length,
+                            newStart: e.startLine + 1,
+                            newLines: newLines.length,
+                            lines
+                        };
+                    })
+                };
+            });
+
             this.postMessage({
                 command: 'chatStagingUpdate',
                 content: { stagedFilesCount: count }
+            });
+
+            // Push fresh data so the review panel updates in real-time
+            this.postMessage({
+                command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
+                content: filesData
             });
         });
 
@@ -66,6 +98,22 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 customModels: updated.customModels,
                 availableModels: getModelProviderOptions()
             });
+        });
+
+        // #9: File save status listener
+        vscode.workspace.onDidSaveTextDocument(async (doc) => {
+            const reviewManager = ReviewManager.getInstance();
+            if (reviewManager.isSaving) return; // Skip AI-triggered saves
+            
+            const uriStr = doc.uri.toString();
+            const pending = reviewManager.getPendingEdits(uriStr);
+            if (pending.length > 0) {
+                // File with pending changes was saved by user
+                this.postMessage({
+                    command: 'fileSaveStatus',
+                    content: { uri: uriStr, saved: true }
+                });
+            }
         });
     }
 

@@ -175,8 +175,13 @@ export async function aiAgenticRequest(
                 },
                 // #44: Capture reasoning chunks in real-time (for models that stream them)
                 onChunk: ({ chunk }: any) => {
+                    // Diagnostic: log chunk types for debugging
+                    if (chunk.type !== 'text-delta' && chunk.type !== 'raw') {
+                        outputChannel.appendLine(`[AI:onChunk] chunk.type=${chunk.type}`);
+                    }
                     if (chunk.type === 'reasoning-delta' || chunk.type === 'reasoning') {
                         const text = chunk.delta || chunk.text || '';
+                        outputChannel.appendLine(`[AI:onChunk] Reasoning text: "${(text || '').substring(0, 40)}"`);
                         if (text && options.onReasoningChunk) {
                             options.onReasoningChunk(text);
                         }
@@ -209,20 +214,34 @@ export async function aiAgenticRequest(
             // #44: Enable reasoning/thinking tokens when supported
             if (options.enableThinking) {
                 if (provider === 'Gemini') {
-                    // Google Gemini: thinkingBudget -1 = dynamic/auto (model decides)
-                    // 0 would DISABLE thinking entirely. -1 lets the model use its own judgment.
-                    streamOptions.providerOptions = {
-                        google: { thinkingConfig: { thinkingBudget: -1 } }
-                    };
+                    // Detect Gemini model generation for correct thinking config
+                    const isGemini3x = model.includes('gemini-3');
+                    outputChannel.appendLine(`[Agentic] Gemini model detection: model="${model}", isGemini3x=${isGemini3x}`);
+                    
+                    if (isGemini3x) {
+                        // Gemini 3.x: just enable thought visibility, let the model decide depth
+                        streamOptions.providerOptions = {
+                            google: { 
+                                thinkingConfig: { 
+                                    includeThoughts: true
+                                } 
+                            }
+                        };
+                    } else {
+                        // Gemini 2.5 and earlier: thinkingBudget -1 = dynamic/auto
+                        streamOptions.providerOptions = {
+                            google: { thinkingConfig: { thinkingBudget: -1 } }
+                        };
+                    }
                 } else {
                     // OpenAI-compatible providers
                     streamOptions.providerOptions = {
                         openai: { reasoningEffort: 'medium', reasoningSummary: 'detailed' }
                     };
                 }
-                outputChannel.appendLine(`[Agentic] Thinking/reasoning enabled for provider=${provider}, model=${model}`);
+                outputChannel.appendLine(`[Agentic] Thinking ENABLED: provider=${provider}, model=${model}, providerOptions=${JSON.stringify(streamOptions.providerOptions)}`);
             } else {
-                outputChannel.appendLine(`[Agentic] Thinking/reasoning DISABLED for model=${model}`);
+                outputChannel.appendLine(`[Agentic] Thinking DISABLED for model=${model}`);
             }
 
             const result = streamText(streamOptions);

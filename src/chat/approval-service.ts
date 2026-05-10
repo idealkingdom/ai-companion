@@ -53,4 +53,16 @@ export class ApprovalService {
         }
         this.resolvers.clear();
     }
+
+    /**
+     * Resolves all pending approval requests as approved.
+     * Used when user enables "Always Proceed" mid-conversation.
+     */
+    public approveAll() {
+        for (const [toolCallId, resolve] of this.resolvers.entries()) {
+            resolve(true);
+            this._onDidResolveApproval.fire({ toolCallId, approved: true });
+        }
+        this.resolvers.clear();
+    }
 }

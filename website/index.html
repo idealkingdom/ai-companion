@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>kdAina — The Autonomous AI Companion for Builders</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;700&family=Outfit:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dark">
+    <!-- Initial Loader -->
+    <div class="loading-state">
+        <img src="images/logo.png" alt="Loading" class="loading-logo" />
+    </div>
+
+    <!-- QuantumFusion Style Background Grid -->
+    <div class="bg-grid">
+        <div class="grid-line"></div>
+        <div class="grid-line"></div>
+        <div class="grid-line"></div>
+        <div class="grid-line"></div>
+    </div>
+    
+    <!-- Navbar -->
+    <header class="navbar">
+        <div class="nav-brand">
+            <img src="images/logo.png" alt="kdAina Logo" class="brand-logo" />
+            <span>kdAina</span>
+        </div>
+        <nav class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#how-it-works">How It Works</a>
+            <a href="#agent-hub">Agent Hub</a>
+        </nav>
+        <div class="nav-cta">
+            <a href="https://github.com/idealkingdom/ai-companion" target="_blank" class="btn btn-outline"><span>GitHub</span></a>
+            <button class="btn btn-primary" onclick="copyInstallCmd()"><span>ext install kdAina</span></button>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero" id="home">
+        <div class="hero-content">
+            <div class="hero-text">
+                <h1 class="reveal-text">YOUR AUTONOMOUS<br>AI COMPANION<br>FOR BUILDERS.</h1>
+                <p class="subtitle reveal-text">Multi-provider agentic workflows with direct in-file editing, custom profiles, and deep workspace intelligence.</p>
+                <div class="hero-actions reveal-block">
+                    <button class="btn btn-primary btn-large" onclick="copyInstallCmd()"><span>ext install kdAina</span></button>
+                    <a href="https://github.com/idealkingdom/ai-companion" target="_blank" class="btn btn-outline btn-large"><span>View on GitHub</span></a>
+                </div>
+            </div>
+            <div class="hero-visual reveal-block">
+                <img src="images/hero.png" alt="kdAiNa UI Mockup" class="mockup-img" />
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="section-header reveal-block">
+            <h2>01 / FEATURES</h2>
+            <p>Everything you need for autonomous coding.</p>
+        </div>
+        
+        <div class="feature-grid">
+            <div class="feature-card reveal-block">
+                <div class="card-icon">🤖</div>
+                <h3>Agentic Chat</h3>
+                <p>Persistent chat panel supporting real-time streaming, reloadable session history, and full popup/detach mode for standalone viewing.</p>
+            </div>
+            
+            <div class="feature-card reveal-block">
+                <div class="card-icon">🧠</div>
+                <h3>Multi-Provider AI</h3>
+                <p>Connect your keys for OpenAI, Gemini, Mistral, or DeepSeek. Full support for "Thinking Mode" and reasoning-capable models.</p>
+            </div>
+            
+            <div class="feature-card reveal-block">
+                <div class="card-icon">✏️</div>
+                <h3>Direct In-File Editing</h3>
+                <p>Changes are written directly into files with CodeLens review buttons. Auto-accept edits simply by hitting save.</p>
+            </div>
+
+            <div class="feature-card reveal-block">
+                <div class="card-icon">🔍</div>
+                <h3>Workspace Intelligence</h3>
+                <p>Builds a searchable index of your project. Automatically parses file skeletons and actively monitors IDE diagnostics.</p>
+            </div>
+
+            <div class="feature-card feature-card-wide reveal-block">
+                <div class="card-icon">🛠️</div>
+                <h3>12 Built-in Tools</h3>
+                <div class="tools-list">
+                    <div>
+                        <strong>Project Navigation</strong>
+                        <span>Project Navigator, Code Reader, File Editor, Find Elements</span>
+                    </div>
+                    <div>
+                        <strong>System & Verification</strong>
+                        <span>Run Commands, Search Files, Error Detector</span>
+                    </div>
+                    <div>
+                        <strong>Web Intelligence</strong>
+                        <span>DuckDuckGo Web Search, Content Scraper</span>
+                    </div>
+                    <div>
+                        <strong>Cognitive Workflow</strong>
+                        <span>Task Planner, Step-by-Step Reasoner, Self-Verification</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="how-it-works" id="how-it-works">
+        <div class="section-header reveal-block">
+            <h2>02 / HOW IT WORKS</h2>
+            <p>Built for speed and precision.</p>
+        </div>
+
+        <div class="steps-container">
+            <div class="step-row reveal-block">
+                <div class="step-num">01</div>
+                <div class="step-content">
+                    <h3>Configure Your Agent</h3>
+                    <p>Select your preferred model (OpenAI, Gemini, Mistral, DeepSeek), set your custom prompt rules, and inject workspace knowledge.</p>
+                </div>
+            </div>
+            <div class="step-row reveal-block">
+                <div class="step-num">02</div>
+                <div class="step-content">
+                    <h3>Assign The Task</h3>
+                    <p>Ask a question or give a command. The agent uses its tools to explore the workspace, execute commands, and plan changes.</p>
+                </div>
+            </div>
+            <div class="step-row reveal-block">
+                <div class="step-num">03</div>
+                <div class="step-content">
+                    <h3>Review & Accept</h3>
+                    <p>Code changes appear directly inline. Review them with CodeLens diffs and accept them instantly.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Agent Hub Section -->
+    <section class="agent-hub" id="agent-hub">
+        <div class="section-header reveal-block">
+            <h2>03 / AGENT HUB</h2>
+            <p>Give your AI a permanent memory.</p>
+        </div>
+        
+        <div class="hub-content">
+            <div class="hub-visual reveal-block">
+                <img src="images/hub.png" alt="Agent Hub UI Mockup" class="mockup-img" />
+            </div>
+            <div class="hub-text reveal-block">
+                <ul class="hub-features">
+                    <li>
+                        <h4>Custom Profiles</h4>
+                        <p>Create named agents with distinct system prompts and behavioral rules.</p>
+                    </li>
+                    <li>
+                        <h4>Knowledge Sources</h4>
+                        <p>Upload PDFs, CSVs, or provide URLs. kdAina will scrape, chunk, and index them as permanent memory.</p>
+                    </li>
+                    <li>
+                        <h4>Smart Generate</h4>
+                        <p>Let AI auto-write the best system prompts for your specific use-cases based on your linked knowledge.</p>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-grid">
+            <div class="footer-brand">
+                <span class="logo-text">kdAina</span>
+                <p>Start where freedom is engineered.</p>
+            </div>
+            <div class="footer-links">
+                <a href="https://github.com/idealkingdom/ai-companion" target="_blank">GitHub Repository</a>
+                <a href="#features">Features</a>
+                <a href="#agent-hub">Agent Hub</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 kdAina / IdealKingdom. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="https://unpkg.com/@studio-freight/lenis@1.0.34/dist/lenis.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>

@@ -4,7 +4,7 @@ const vscode = acquireVsCodeApi();
 
 // --- STATE ---
 let currentSettings = {
-    general: { enableTodoList: false, aggressiveAgentic: false, systemPrompt: '' },
+    general: { aggressiveAgentic: false, systemPrompt: '' },
     models: {
         textModel: 'gpt-4o', imageModel: 'gpt-4o-mini', baseUrl: '', apiKey: '', provider: 'OpenAI',
         providerSettings: {}
@@ -125,7 +125,7 @@ const apiKeyInput = document.getElementById('apiKeyInput');
 const baseUrlInput = document.getElementById('baseUrlInput');
 const textModelInput = document.getElementById('textModelInput');
 const imageModelInput = document.getElementById('imageModelInput');
-const enableTodoListInput = document.getElementById('enableTodoList');
+
 const aggressiveAgenticInput = document.getElementById('aggressiveAgentic');
 const customCssInput = document.getElementById('customCssInput');
 const resetCssBtn = document.getElementById('resetCssBtn');
@@ -544,13 +544,22 @@ modelInputs.forEach(input => {
         // Update specific field
         if (input === apiKeyInput) { currentSettings.models.providerSettings[provider].apiKey = input.value; }
         if (input === baseUrlInput) { currentSettings.models.providerSettings[provider].baseUrl = input.value; }
-        if (input === textModelInput) { currentSettings.models.providerSettings[provider].textModel = input.value; }
+        if (input === textModelInput) {
+            currentSettings.models.providerSettings[provider].textModel = input.value;
+            // Auto-sync image model with text model
+            currentSettings.models.providerSettings[provider].imageModel = input.value;
+        }
         if (input === imageModelInput) { currentSettings.models.providerSettings[provider].imageModel = input.value; }
 
         // Also update the top-level active key for backward compatibility/immediate use
         if (input === apiKeyInput) { currentSettings.models.apiKey = input.value; }
         if (input === baseUrlInput) { currentSettings.models.baseUrl = input.value; }
-        if (input === textModelInput) { currentSettings.models.textModel = input.value; }
+        if (input === textModelInput) {
+            currentSettings.models.textModel = input.value;
+            // Auto-sync image model with text model
+            currentSettings.models.imageModel = input.value;
+            imageModelInput.value = input.value;
+        }
         if (input === imageModelInput) { currentSettings.models.imageModel = input.value; }
     });
 });
@@ -759,9 +768,7 @@ function populateForm() {
     imageModelInput.value = models.imageModel;
 
     // General
-    if (enableTodoListInput) {
-        enableTodoListInput.checked = general.enableTodoList || false;
-    }
+
     if (aggressiveAgenticInput) {
         aggressiveAgenticInput.checked = general.aggressiveAgentic || false;
     }
@@ -826,9 +833,6 @@ function updateDeleteButtonVisibility() {
 }
 
 function collectSettings() {
-    if (enableTodoListInput) {
-        currentSettings.general.enableTodoList = enableTodoListInput.checked;
-    }
     if (aggressiveAgenticInput) {
         currentSettings.general.aggressiveAgentic = aggressiveAgenticInput.checked;
     }
@@ -1148,11 +1152,10 @@ function renderModelTable() {
         }
 
         const dataAttr = isCustom ? `data-custom-id="${customId}"` : `data-provider="${providerKey}"`;
-        const radioDisabled = !supportsImage ? 'disabled title="This model does not support image/vision"' : '';
-        const radioClass = !supportsImage ? ' disabled' : '';
 
         const activeToggleId = `active-toggle-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
         const reasonToggleId = `reason-toggle-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const imageToggleId = `image-toggle-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
 
         const tierLabel = tier === 'frontier' ? 'Pro' : tier === 'mid' ? 'Mid' : 'Lite';
         const tierClickable = isCustom ? ' clickable' : '';
@@ -1178,9 +1181,9 @@ function renderModelTable() {
                             <input id="${reasonToggleId}" type="checkbox" ${supportsReasoning ? 'checked' : ''} ${!isCustom ? 'disabled' : ''} onchange="toggleModelReasoning('${customId || ''}', this.checked)">
                             <span class="toggle-slider"></span>
                         </label>
-                        <label class="model-ctrl-image${radioClass}" title="Image model">
-                            <input type="radio" name="imageModelRadio" value="${escapeHtml(modelName)}" ${isImageModel ? 'checked' : ''} ${radioDisabled} ${dataAttr}
-                                onchange="setImageModel('${escapeHtml(modelName)}')">
+                        <label class="toggle-switch model-ctrl-image" title="Image Support">
+                            <input id="${imageToggleId}" type="checkbox" ${supportsImage ? 'checked' : ''} ${!isCustom ? 'disabled' : ''} onchange="toggleModelImage('${customId || ''}', this.checked)">
+                            <span class="toggle-slider"></span>
                         </label>
                         <span class="model-card-actions">${actionsHtml}</span>
                     </div>
@@ -1367,10 +1370,15 @@ window.saveModelConfig = function(configId, customId, providerKey) {
     renderModelTable(); // Refresh to show config dot
 };
 
-// Set image model via radio
-window.setImageModel = function(modelName) {
-    currentSettings.models.imageModel = modelName;
-    if (imageModelInput) imageModelInput.value = modelName;
+// Toggle image support for a custom model
+window.toggleModelImage = function(customId, supportsImage) {
+    if (customId) {
+        const cm = (currentSettings.customModels || []).find(m => m.id === customId);
+        if (cm) {
+            cm.supportsImage = supportsImage;
+            persistSettings();
+        }
+    }
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1385,8 +1393,6 @@ const addModelProvider = document.getElementById('addModelProvider');
 const addModelName = document.getElementById('addModelName');
 const addModelApiKey = document.getElementById('addModelApiKey');
 const addModelBaseUrl = document.getElementById('addModelBaseUrl');
-const addModelSupportsImage = document.getElementById('addModelSupportsImage');
-const addModelSupportsReasoning = document.getElementById('addModelSupportsReasoning');
 const addModelApiKeyHeader = document.getElementById('addModelApiKeyHeader');
 const addModelHeaderGroup = document.getElementById('addModelHeaderGroup');
 
@@ -1404,8 +1410,6 @@ function openAddModelModal() {
     if (addModelName) addModelName.value = '';
     if (addModelApiKey) addModelApiKey.value = '';
     if (addModelBaseUrl) addModelBaseUrl.value = '';
-    if (addModelSupportsImage) addModelSupportsImage.checked = false;
-    if (addModelSupportsReasoning) addModelSupportsReasoning.checked = false;
     if (addModelApiKeyHeader) addModelApiKeyHeader.value = '';
     if (addModelHeaderGroup) addModelHeaderGroup.style.display = 'none';
     addModelModal.classList.remove('hidden');
@@ -1439,9 +1443,12 @@ if (addModelSubmitBtn) {
             return;
         }
 
-        // Create the custom model
-        const supportsImage = addModelSupportsImage?.checked || false;
-        const supportsReasoning = addModelSupportsReasoning?.checked || false;
+        // Create the custom model — image/reasoning toggleable from the model table
+        // Auto-detect known reasoning models
+        const lowerName = name.toLowerCase();
+        const isKnownReasoningModel = lowerName.includes('gemini') || lowerName.includes('gpt-5') || lowerName.includes('o1') || lowerName.includes('o3') || lowerName.includes('thinking');
+        const supportsImage = lowerName.includes('gemini') || lowerName.includes('gpt-5') || lowerName.includes('vision');
+        const supportsReasoning = isKnownReasoningModel;
         const apiKeyHeader = addModelApiKeyHeader?.value?.trim() || '';
         const newModel = {
             id: Date.now().toString(),

@@ -82,6 +82,7 @@ export interface StoredMessage {
   timestamp: string;
   images?: string[];
   imageDescriptions?: string[]; // Cached descriptions for fallback/memory
+  files?: any[]; // Lightweight file metadata (name, path) without large content
   agentSteps?: any[]; // Metadata/tool calls/thinking steps associated with this message
 }
 

@@ -369,7 +369,7 @@ body {
    ═══════════════════════════════════════════════════════════════════════ */
 
 .modal-wide {
-    max-width: 460px;
+    max-width: 420px;
 }
 
 .modal-header-row {
@@ -383,15 +383,18 @@ body {
 }
 
 .modal-form {
-    margin-top: 8px;
+    margin-top: 4px;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 4px;
 }
 
 .modal-form .form-group {
-    margin-bottom: 16px;
+    margin-bottom: 10px;
 }
 
 .modal-form .form-group:last-child {
-    margin-bottom: 8px;
+    margin-bottom: 4px;
 }
 
 .modal-toggle-row {
@@ -436,9 +439,9 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 500;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     color: #e0e0e0;
 }
 
@@ -470,10 +473,10 @@ body {
     background: var(--input-bg);
     border: 1px solid var(--input-border);
     color: var(--input-fg);
-    padding: 10px 14px;
+    padding: 8px 12px;
     border-radius: 8px;
     font-family: var(--font-ui);
-    font-size: 0.9rem;
+    font-size: 0.82rem;
     outline: none;
     transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -694,13 +697,15 @@ body {
 .modal-container {
     background: var(--panel-bg);
     border: 1px solid var(--panel-border);
-    border-radius: 20px;
+    border-radius: 16px;
     width: 90%;
     max-width: 400px;
-    padding: 28px;
+    max-height: 85vh;
+    padding: 22px;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
     transform: scale(0.9);
     transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    overflow-y: auto;
 }
 
 .modal-overlay:not(.hidden) .modal-container {
@@ -708,16 +713,16 @@ body {
 }
 
 .modal-header h3 {
-    margin: 0 0 16px 0;
-    font-size: 1.25rem;
+    margin: 0 0 12px 0;
+    font-size: 1.05rem;
     font-weight: 700;
     color: var(--text-main);
 }
 
 .modal-body p {
-    margin: 0 0 28px 0;
-    font-size: 0.95rem;
-    line-height: 1.6;
+    margin: 0 0 16px 0;
+    font-size: 0.85rem;
+    line-height: 1.5;
     color: var(--text-muted);
 }
 
@@ -1132,10 +1137,10 @@ input:focus + .toggle-slider {
 
 .model-table-legend {
     display: grid;
-    grid-template-columns: minmax(120px, 1fr) auto;
+    grid-template-columns: 1fr auto;
     align-items: center;
     padding: 8px 16px;
-    gap: 16px;
+    gap: 12px;
     font-size: 0.7rem;
     font-weight: 600;
     color: var(--text-muted);
@@ -1160,7 +1165,7 @@ input:focus + .toggle-slider {
 .model-table-legend .legend-right span:nth-child(1) { width: 40px; } /* Tier badge */
 .model-table-legend .legend-right span:nth-child(2) { width: 50px; } /* Active toggle */
 .model-table-legend .legend-right span:nth-child(3) { width: 50px; } /* Reasoning toggle */
-.model-table-legend .legend-right span:nth-child(4) { width: 16px; } /* Image radio */
+.model-table-legend .legend-right span:nth-child(4) { width: 50px; } /* Image toggle */
 .model-table-legend .legend-right span:nth-child(5) { width: 22px; } /* Actions */
 
 .model-section-header {
@@ -1216,10 +1221,10 @@ input:focus + .toggle-slider {
 
 .model-card-main {
     display: grid;
-    grid-template-columns: minmax(120px, 1fr) auto;
+    grid-template-columns: 1fr auto;
     align-items: center;
     padding: 8px 16px;
-    gap: 16px;
+    gap: 12px;
     min-height: 44px;
 }
 
@@ -1258,21 +1263,8 @@ input:focus + .toggle-slider {
     flex-shrink: 0;
 }
 
-.model-ctrl-image {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-}
+/* model-ctrl-image now uses .toggle-switch — no extra styles needed */
 
-.model-ctrl-image.disabled {
-    opacity: 0.3;
-    pointer-events: none;
-}
-
-.model-ctrl-image input[type="radio"] {
-    margin: 0;
-    cursor: pointer;
-}
 
 .model-card-actions {
     display: flex;
@@ -1340,12 +1332,13 @@ input:focus + .toggle-slider {
     cursor: pointer;
 }
 
-/* Responsive: hide reasoning toggle label on tiny widths */
+/* Responsive: hide reasoning/image toggles on tiny widths */
 @media (max-width: 480px) {
     .model-card-controls {
         gap: 6px;
     }
-    .model-ctrl-reasoning {
+    .model-ctrl-reasoning,
+    .model-ctrl-image {
         display: none;
     }
 }
@@ -1368,7 +1361,7 @@ input:focus + .toggle-slider {
     background: color-mix(in srgb, var(--text-main) 8%, transparent);
 }
 
-/* Image model radio */
+/* Image support toggle / reasoning / tier alignment */
 .model-col-image, .model-col-reasoning, .model-col-tier {
     text-align: center;
 }

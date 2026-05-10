@@ -119,7 +119,7 @@ export function createWebTools() {
          * No API key required. Returns titles, snippets, and URLs.
          */
         web_search: tool({
-            description: 'Search the web for current information, documentation, or answers. Returns top results with titles, snippets, and URLs. Use this when you need up-to-date information, package docs, or to research an unfamiliar topic. Follow up with scrape_url on relevant results for deeper content.',
+            description: 'Search the web for current information. ALWAYS use this when: (1) the user asks about something you\'re unsure about, (2) the user mentions a library/API/tool you don\'t have docs for, (3) the user asks "what is" or "how to" questions about unfamiliar topics, (4) you need up-to-date information (versions, changelogs, latest docs). Returns top results with titles, snippets, and URLs. Follow up with scrape_url for deeper content.',
             inputSchema: z.object({
                 query: z.string().describe('The search query string'),
                 numResults: z.number().optional().describe('Number of results to return (default: 5, max: 10)')

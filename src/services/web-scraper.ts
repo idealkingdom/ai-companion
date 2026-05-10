@@ -48,6 +48,8 @@ export class WebScraperService {
     private static readonly MAX_CONTENT_SIZE = 5 * 1024 * 1024; // 5MB
     private static readonly REQUEST_TIMEOUT = 15000; // 15 seconds
     private static readonly MAX_RETRIES = 2;
+    // Realistic browser User-Agent to avoid Cloudflare blocks
+    private static readonly USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
 
     /**
      * Scrape a URL and return extracted text content.
@@ -66,6 +68,9 @@ export class WebScraperService {
             };
         }
 
+        // Resolve Google redirect URLs to the actual destination
+        targetUrl = this.resolveGoogleRedirect(targetUrl);
+
         await this.rateLimiter.wait();
         outputChannel.appendLine(`[WebScraper] Fetching: ${targetUrl}`);
 
@@ -73,9 +78,28 @@ export class WebScraperService {
         for (let attempt = 0; attempt <= WebScraperService.MAX_RETRIES; attempt++) {
             try {
                 const html = await this.fetchUrl(targetUrl);
+
+                // Detect Cloudflare challenge/block pages
+                if (this.isCloudflareChallenge(html)) {
+                    return {
+                        success: false,
+                        title: '',
+                        content: '',
+                        contentType: '',
+                        sizeBytes: 0,
+                        wordCount: 0,
+                        error: 'Page is protected by Cloudflare. Cannot scrape this URL — try a different source.'
+                    };
+                }
+
                 const title = this.extractTitle(html);
                 const content = this.extractTextContent(html);
                 const wordCount = content.split(/\s+/).filter(w => w.length > 0).length;
+
+                // If content is very short, it might be a block page
+                if (wordCount < 10 && html.length > 1000) {
+                    outputChannel.appendLine(`[WebScraper] Warning: Very little text extracted (${wordCount} words) — page may be dynamic/protected`);
+                }
 
                 outputChannel.appendLine(`[WebScraper] Success: ${targetUrl} — ${wordCount} words`);
 
@@ -130,10 +154,15 @@ export class WebScraperService {
             const req = client.get(targetUrl, {
                 timeout: WebScraperService.REQUEST_TIMEOUT,
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (compatible; AI-Companion/1.0; +https://github.com/ai-companion)',
-                    'Accept': 'text/html,application/xhtml+xml,text/plain,*/*',
+                    'User-Agent': WebScraperService.USER_AGENT,
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
                     'Accept-Language': 'en-US,en;q=0.9',
-                    'Accept-Encoding': 'identity' // No compression for simplicity
+                    'Accept-Encoding': 'identity', // No compression for simplicity
+                    'Cache-Control': 'no-cache',
+                    'Sec-Fetch-Dest': 'document',
+                    'Sec-Fetch-Mode': 'navigate',
+                    'Sec-Fetch-Site': 'none',
+                    'Upgrade-Insecure-Requests': '1'
                 }
             }, (res) => {
                 // Handle redirects
@@ -235,5 +264,41 @@ export class WebScraperService {
             .replace(/&nbsp;/g, ' ')
             .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(parseInt(num, 10)))
             .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+    }
+
+    /**
+     * Detect Cloudflare challenge/block pages.
+     */
+    private isCloudflareChallenge(html: string): boolean {
+        const cfSignals = [
+            'cf-browser-verification',
+            'cf_chl_opt',
+            'Checking your browser',
+            'challenge-platform',
+            'cf-turnstile',
+            'Just a moment...',
+            '_cf_chl_tk'
+        ];
+        return cfSignals.some(signal => html.includes(signal));
+    }
+
+    /**
+     * Resolve Google redirect URLs to the actual destination.
+     * Google search results wrap URLs like: https://www.google.com/url?q=ACTUAL_URL&...
+     */
+    private resolveGoogleRedirect(targetUrl: string): string {
+        try {
+            const parsed = new URL(targetUrl);
+            if (parsed.hostname.includes('google.com') && parsed.pathname === '/url') {
+                const actualUrl = parsed.searchParams.get('q') || parsed.searchParams.get('url');
+                if (actualUrl && (actualUrl.startsWith('http://') || actualUrl.startsWith('https://'))) {
+                    outputChannel.appendLine(`[WebScraper] Resolved Google redirect: ${actualUrl}`);
+                    return actualUrl;
+                }
+            }
+        } catch {
+            // Not a valid URL, return as-is
+        }
+        return targetUrl;
     }
 }

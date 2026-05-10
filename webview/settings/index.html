@@ -98,16 +98,7 @@
                         <h3>Agent Capabilities</h3>
                         <p class="section-desc">Control what features are available to the AI agent during conversations.</p>
 
-                        <div class="setting-item">
-                            <div class="setting-item-content">
-                                <div class="setting-item-label">Task Tracking</div>
-                                <p class="setting-item-desc">Allow the agent to create and manage a task checklist during multi-step work.</p>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="enableTodoList">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
+
 
                         <div class="setting-item">
                             <div class="setting-item-content">
@@ -334,31 +325,6 @@
                     <input type="text" id="addModelApiKeyHeader" class="styled-input default-ph"
                         placeholder="e.g., x-api-key">
                     <p class="hint-text hint-block">Some providers use non-standard headers (e.g., <code>x-api-key</code>). Leave blank for standard <code>Authorization: Bearer</code>.</p>
-                </div>
-                <div class="form-group">
-                    <div class="modal-toggle-row">
-                        <div>
-                            <div class="setting-item-label">Image / Vision Support</div>
-                            <p class="setting-item-desc">Enable if this model can process images</p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="addModelSupportsImage">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>
-                <div class="form-group" style="margin-top: -10px;">
-                    <div class="modal-toggle-row">
-                        <div>
-                            <div class="setting-item-label">Supports Reasoning / Thinking</div>
-                            <p class="setting-item-desc">Enable if the model supports native reasoning (e.g., DeepSeek R1, GPT-o1/o3)</p>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="addModelSupportsReasoning">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>
             </div>
             <div class="modal-footer">
                 <button id="addModelSubmitBtn" class="primary-btn modal-submit-btn">Add Model</button>

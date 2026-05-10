@@ -33,18 +33,11 @@
       <main id="chatLog" data-chat-id="" class="chat-log">
         <div id="chatWelcomeMessage" class="chat-message-welcome">
           <span class="logo">
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="url(#spesGradWelcome)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="ai-premium-logo">
-              <defs>
-                <linearGradient id="spesGradWelcome" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#00f2fe" />
-                  <stop offset="100%" stop-color="#4facfe" />
-                </linearGradient>
-              </defs>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ai-premium-logo" style="opacity: 0.5;">
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
             </svg>
           </span>
-          <h1 class="welcome-title">AI Companion</h1>
-          <p class="welcome-subtitle">Ask anything about your code, or start a new task.</p>
+          <p class="welcome-subtitle" style="font-size: 0.85rem; font-family: var(--font-editor); margin-top: 8px;">Ready to execute tasks.</p>
         </div>
         <!-- #48: Sticky notification when agent asks a question -->
         <div id="agent-question-banner" class="agent-question-banner hidden">
@@ -94,10 +87,16 @@
                 </div>
               </div>
             </div>
+            <div class="staging-right">
+              <button id="generateButton" type="button" class="toolbar-btn-pill generate-btn" title="Improve Current Prompt (AI)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                <span>Generate</span>
+              </button>
+            </div>
           </div>
 
-          <span data-placeholder="Ask AI Companion..." role="textbox" contenteditable class="textarea" id="messageInput"
-            tabindex="0" aria-label="Ask AI Companion...">
+          <span data-placeholder="Describe your task..." role="textbox" contenteditable class="textarea" id="messageInput"
+            tabindex="0" aria-label="Describe your task...">
           </span>
 
           <div id="autocomplete-menu" class="autocomplete-menu hidden"></div>

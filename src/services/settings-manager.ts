@@ -131,7 +131,29 @@ COMMUNICATION
         ],
         customTemplates: [],
         customModels: [],
-        rules: []
+        rules: [
+            {
+                id: 'rule-code-quality',
+                name: 'Code Quality Standards',
+                scope: 'global',
+                content: `Follow the project's existing code style, naming conventions, and architecture patterns. Never introduce new dependencies without explicit approval. Keep changes minimal and focused — avoid refactoring unrelated code. Always verify changes compile and pass linting before marking a step complete.`,
+                isDefault: true
+            },
+            {
+                id: 'rule-safety',
+                name: 'Change Safety',
+                scope: 'global',
+                content: `Preserve all existing comments, documentation, and tests unless explicitly asked to modify them. Never delete or overwrite files without reading them first. Always create backups of significant changes by showing the original content. Verify that edits do not break imports, exports, or dependent modules.`,
+                isDefault: true
+            },
+            {
+                id: 'rule-communication',
+                name: 'Concise Communication',
+                scope: 'global',
+                content: `Be direct and concise. Don't explain what you plan to do — just do it. After completing work, provide a brief summary of what changed and any caveats. If you encounter ambiguity, make the most reasonable assumption and note it rather than blocking on a question.`,
+                isDefault: true
+            }
+        ]
     };
 })();
 
@@ -161,7 +183,7 @@ export class SettingsManager {
             prompts: finalPrompts,
             customTemplates: stored.customTemplates || [],
             customModels: stored.customModels || [],
-            rules: stored.rules || []
+            rules: (stored.rules && stored.rules.length > 0) ? stored.rules : [...(DEFAULT_SETTINGS.rules || [])]
         };
 
         if (!merged.models.providerSettings) {

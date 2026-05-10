@@ -17,12 +17,54 @@ import * as crypto from 'crypto';
 import { SettingsManager } from '../services/settings-manager';
 import { ApprovalService } from "./approval-service";
 
-import { ReviewManager } from "./review-manager";
+import { ReviewManager, PendingEdit } from "./review-manager";
 import { PopupManager } from "./popup-manager";
 
 // For Handshake/Syncing
 const chunkAcks = new Map<string, (val: any) => void>();
 let nextSeq = 0;
+
+/**
+ * Convert a PendingEdit to a hunk object with diff lines for the Review panel.
+ */
+function pendingEditToHunk(edit: PendingEdit) {
+    const oldLines = edit.originalContent.split('\n');
+    const newLines = edit.newContent.split('\n');
+    const lines: string[] = [];
+
+    for (const line of oldLines) {
+        lines.push('-' + line);
+    }
+    for (const line of newLines) {
+        lines.push('+' + line);
+    }
+
+    return {
+        accepted: true,
+        oldStart: edit.startLine + 1,
+        oldLines: oldLines.length,
+        newStart: edit.startLine + 1,
+        newLines: newLines.length,
+        lines
+    };
+}
+
+/**
+ * Build filesData for the Review panel from the ReviewManager state.
+ */
+function buildReviewFilesData(): any[] {
+    const reviewManager = ReviewManager.getInstance();
+    const uris = reviewManager.getStagedUris();
+    return uris.map(uri => {
+        const edits = reviewManager.getPendingEdits(uri.toString()) || [];
+        return {
+            fileName: path.basename(uri.fsPath),
+            uri: uri.toString(),
+            isNewFile: false,
+            hunks: edits.map(e => pendingEditToHunk(e))
+        };
+    });
+}
 
 // message sent from client js
 export async function chatMessageListener(message: any) {
@@ -134,6 +176,12 @@ export async function chatMessageListener(message: any) {
             if (currentSettings[category as keyof typeof currentSettings]) {
                 (currentSettings[category as keyof typeof currentSettings] as any)[key] = value;
                 await settingsManager.updateSettings({ [category]: currentSettings[category as keyof typeof currentSettings] });
+            }
+
+            // #1: When alwaysProceed is toggled ON, auto-approve all pending tool requests
+            if (category === 'permissions' && key === 'alwaysProceed' && value === true) {
+                const approvalService = ApprovalService.getInstance();
+                approvalService.approveAll();
             }
             break;
         }
@@ -483,6 +531,7 @@ export async function chatMessageListener(message: any) {
                             command: CHAT_COMMANDS.CHAT_REQUEST,
                             content: msg.message,
                             images: displayImages,
+                            files: msg.files, // <--- Send files to restore URL/file pills
                             role: msg.role === ROLE.USER ? ROLE.USER : ROLE.BOT,
                             isHistory: true, // TODO flag to avoid saving again
                             agentSteps: msg.agentSteps // <--- Restore agent steps
@@ -572,6 +621,15 @@ export async function chatMessageListener(message: any) {
                 }).then(doc => {
                     vscode.window.showTextDocument(doc, { preview: true });
                 });
+                break;
+            }
+
+        case 'openExternal':
+            {
+                const url = message.data.url;
+                if (url) {
+                    vscode.env.openExternal(vscode.Uri.parse(url));
+                }
                 break;
             }
         case 'addFileByPath':
@@ -858,37 +916,32 @@ export async function chatMessageListener(message: any) {
 
         case 'chatReviewDiff':
             {
-                const { toolCallId, toolName, args } = message.data;
-                outputChannel.appendLine(`Received chatReviewDiff for tool: ${toolName}`);
-                // Re-reveal the existing review
-                await handleInlineReview(toolCallId, toolName, args);
+                const { toolCallId, toolName, args, isGlobalReview } = message.data;
+                
+                if (isGlobalReview) {
+                    // Global review — send all staged data to open review panel
+                    const filesData = buildReviewFilesData();
+                    await ChatViewProvider.getInstance().postMessage({
+                        command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
+                        content: filesData,
+                        openPanel: true // Signal frontend to open the panel
+                    });
+                } else {
+                    outputChannel.appendLine(`Received chatReviewDiff for tool: ${toolName}`);
+                    // Re-reveal the existing review
+                    await handleInlineReview(toolCallId, toolName, args);
+                }
                 break;
             }
 
         case CHAT_COMMANDS.CHAT_REVIEW_HUNKS:
             {
-                const reviewManager = ReviewManager.getInstance();
-                const count = reviewManager.getTotalPendingCount();
-                
-                if (count === 0) {
-                    vscode.window.showInformationMessage('No pending changes to review.');
-                } else {
-                    const uris = reviewManager.getStagedUris();
-                    const filesData = uris.map(uri => {
-                        const edits = reviewManager.getPendingEdits(uri.toString()) || [];
-                        return {
-                            fileName: path.basename(uri.fsPath),
-                            uri: uri.toString(),
-                            isNewFile: false,
-                            hunks: edits.map(e => ({ accepted: true })) // Dummy hunks just for the count
-                        };
-                    });
+                const filesData = buildReviewFilesData();
 
-                    await ChatViewProvider.getInstance().postMessage({
-                        command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
-                        content: filesData
-                    });
-                }
+                await ChatViewProvider.getInstance().postMessage({
+                    command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
+                    content: filesData
+                });
                 break;
             }
 
@@ -926,13 +979,7 @@ export async function chatMessageListener(message: any) {
                 if (count === 0) {
                     await ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: [] });
                 } else {
-                    const uris = reviewManager.getStagedUris();
-                    const filesData = uris.map(u => ({
-                        fileName: path.basename(u.fsPath),
-                        uri: u.toString(),
-                        isNewFile: false,
-                        hunks: (reviewManager.getPendingEdits(u.toString()) || []).map(e => ({ accepted: true }))
-                    }));
+                    const filesData = buildReviewFilesData();
                     await ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: filesData });
                 }
                 break;
@@ -951,13 +998,7 @@ export async function chatMessageListener(message: any) {
                 if (count === 0) {
                     await ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: [] });
                 } else {
-                    const uris = reviewManager.getStagedUris();
-                    const filesData = uris.map(u => ({
-                        fileName: path.basename(u.fsPath),
-                        uri: u.toString(),
-                        isNewFile: false,
-                        hunks: (reviewManager.getPendingEdits(u.toString()) || []).map(e => ({ accepted: true }))
-                    }));
+                    const filesData = buildReviewFilesData();
                     await ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: filesData });
                 }
                 break;
@@ -1031,6 +1072,44 @@ export async function chatMessageListener(message: any) {
                     content: { fileCount, lastUpdated: new Date().toISOString(), fileList, showViewer: true }
                 });
                 wsIndex.dispose();
+                break;
+            }
+
+        case 'improvePrompt':
+            {
+                const userDraft = message.data.prompt;
+                const { WorkspaceIndexService } = require('../services/workspace-index');
+                const wsIndex = new WorkspaceIndexService();
+                await wsIndex.refresh();
+                const fileTree = wsIndex.getCompactTreeString().substring(0, 3000);
+                wsIndex.dispose();
+
+                const { aiRequest } = require('../api/ai');
+                const appSettings = settingsManager.getSettings();
+                const provider = appSettings.models.provider;
+                const pConfig = appSettings.models.providerSettings?.[provider] || {};
+                const apiKey = pConfig.apiKey || appSettings.models.apiKey || '';
+                const model = appSettings.models.textModel;
+
+                outputChannel.appendLine(`[ImprovePrompt] Optimizing draft: "${userDraft.substring(0, 50)}..."`);
+
+                try {
+                    const result = await aiRequest([
+                        { role: 'system', content: `You are a prompt optimizer. Given a user's draft prompt and their project file tree, rewrite it to be clearer, more specific, and actionable for an AI coding assistant. Output ONLY the improved prompt text, nothing else. Do not use quotes around the output.` },
+                        { role: 'user', content: `Draft prompt: "${userDraft}"\n\nProject files:\n${fileTree}` }
+                    ], model, apiKey, 0.7, provider, pConfig.baseUrl || '');
+
+                    await ChatViewProvider.getInstance().postMessage({
+                        command: 'improvedPrompt',
+                        content: result.content
+                    });
+                } catch (e) {
+                    outputChannel.appendLine(`[ImprovePrompt] Error: ${e}`);
+                    await ChatViewProvider.getInstance().postMessage({
+                        command: 'improvedPrompt',
+                        content: userDraft // Return original on error
+                    });
+                }
                 break;
             }
 

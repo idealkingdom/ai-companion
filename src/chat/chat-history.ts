@@ -62,7 +62,7 @@ export class ChatHistoryService {
     /**
      * Main Logic: Save a message
      */
-    public async addMessage(chatId: string, role: ROLE, messageText: string, images: string[] = [], imageDescriptions: string[] = [], agentId?: string, agentSteps?: any[]): Promise<StoredMessage> {
+    public async addMessage(chatId: string, role: ROLE, messageText: string, images: string[] = [], imageDescriptions: string[] = [], agentId?: string, agentSteps?: any[], files?: any[]): Promise<StoredMessage> {
         let history = this.getHistory();
         const timestamp = new Date().toISOString();
         let chatIndex = history.findIndex(c => c.chat_id === chatId);
@@ -76,6 +76,7 @@ export class ChatHistoryService {
 
             images: images, // <--- Save the filenames
             imageDescriptions: imageDescriptions,
+            files: files,
             agentSteps: agentSteps
         };
 

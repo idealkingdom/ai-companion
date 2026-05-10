@@ -143,10 +143,20 @@ export class ChatCoreService {
             }
 
             // --- STEP B: SAVE USER MESSAGE TO HISTORY ---
+            // #46: Preserve content for URL-scraped files since they can't be re-opened by path
+            const lightweightFiles = data.files ? data.files.map((f: any) => {
+                const isUrl = f.path && (f.path.startsWith('http://') || f.path.startsWith('https://'));
+                return {
+                    name: f.name,
+                    path: f.path,
+                    language: f.language,
+                    ...(isUrl && f.content ? { content: f.content } : {})
+                };
+            }) : [];
             await this.historyService.addMessage(
                 data.chat_id, ROLE.USER, data.message,
                 storedImageFilenames, storedImageDescriptions,
-                data.agentId
+                data.agentId, undefined, lightweightFiles
             );
 
             // --- STEP C: PREPARE API PAYLOAD ---
@@ -209,14 +219,17 @@ export class ChatCoreService {
             const customModel = (appSettings.customModels || []).find((cm: any) => cm.name === targetModel);
 
             // Resolve API key and base URL — custom model's own config takes priority
-            const activeProvider = appSettings.models.provider || 'OpenAI';
-            const providerConfig = appSettings.models.providerSettings?.[activeProvider];
+            const globalProvider = appSettings.models.provider || 'OpenAI';
+            // IMPORTANT: Use the custom model's own provider for routing (Gemini vs OpenAI-compat)
+            // The global provider setting may differ from the custom model's provider
+            const activeProvider = customModel?.provider || globalProvider;
+            const providerConfig = appSettings.models.providerSettings?.[activeProvider] || appSettings.models.providerSettings?.[globalProvider];
 
             const apiKey = customModel?.apiKey || providerConfig?.apiKey || appSettings.models.apiKey || '';
             const apiBaseUrl = customModel?.baseUrl || providerConfig?.baseUrl || '';
             const apiKeyHeader = customModel?.apiKeyHeader || '';
 
-            outputChannel.appendLine(`[ChatCore] Provider=${activeProvider}, model=${targetModel}, hasApiKey=${!!apiKey}, keyLen=${apiKey.length}, baseUrl=${apiBaseUrl || '(default)'}${apiKeyHeader ? `, apiKeyHeader=${apiKeyHeader}` : ''}${customModel ? ', source=customModel' : ''}`);
+            outputChannel.appendLine(`[ChatCore] Provider=${activeProvider}, model=${targetModel}, hasApiKey=${!!apiKey}, keyLen=${apiKey.length}, baseUrl=${apiBaseUrl || '(default)'}${apiKeyHeader ? `, apiKeyHeader=${apiKeyHeader}` : ''}${customModel ? `, source=customModel(${customModel.provider})` : ''}`);
 
 
             // ─── DETERMINE MODE: AGENTIC vs STANDARD ────────────────────────
@@ -455,6 +468,7 @@ RULES:
 - When editing, provide the EXACT target text to replace (including whitespace).
 - Always verify your changes compile and don't introduce workspace problems after editing.
 - Edits are applied DIRECTLY to the file. The user can review changes inline and revert if needed.
+- Use web_search proactively when the user's question involves external libraries, APIs, or topics you're uncertain about. Don't guess — search first.
 - Skip tool calls for files you already have context for (active editor files above).${todoInstruction}`;
 
         // Resolve and inject rules (global + agent-linked)
@@ -496,14 +510,17 @@ RULES:
         ];
 
         // Resolve the active provider for routing
-        const activeProvider = settings.models?.provider || 'OpenAI';
+        const globalProvider = settings.models?.provider || 'OpenAI';
+        const activeModelEntry = (settings.customModels || []).find((m: any) => m.name === model);
+        const activeProvider = activeModelEntry?.provider || globalProvider;
+        outputChannel.appendLine(`[Agentic] Provider: ${activeProvider} (global=${globalProvider}, custom=${activeModelEntry?.provider || 'n/a'})`);
 
         // Resolve model tier for adaptive behavior
         let modelTier = getModelTier(activeProvider, model);
         
         // Override tier from custom model settings if set
         if (settings.customModels) {
-            const customModel = settings.customModels.find((m: any) => m.name === model && m.provider === activeProvider);
+            const customModel = settings.customModels.find((m: any) => m.name === model);
             if (customModel?.tier) {
                 modelTier = customModel.tier;
             }
@@ -569,9 +586,18 @@ RULES:
         
         // Check custom models
         if (!supportsReasoning && settings.customModels) {
-            const customModel = settings.customModels.find((m: any) => m.name === model && m.provider === activeProvider);
+            const customModel = settings.customModels.find((m: any) => m.name === model);
             if (customModel && customModel.supportsReasoning) {
                 supportsReasoning = true;
+            }
+        }
+
+        // Auto-detect reasoning for known model families (fallback for older custom model entries)
+        if (!supportsReasoning) {
+            const lowerModel = model.toLowerCase();
+            if (lowerModel.includes('gemini') || lowerModel.includes('gpt-5') || lowerModel.includes('o1') || lowerModel.includes('o3')) {
+                supportsReasoning = true;
+                outputChannel.appendLine(`[Agentic] Auto-detected reasoning support for model: ${model}`);
             }
         }
         // Aggressive mode doubles maxSteps for persistent task completion
@@ -647,7 +673,13 @@ RULES:
                     throw new Error('AbortError');
                 }
 
-                switch ((part as any).type) {
+                const partType = (part as any).type;
+                // Diagnostic: log every part type to help debug reasoning visibility
+                if (partType !== 'text-delta' && partType !== 'raw') {
+                    outputChannel.appendLine(`[Agentic] Stream part: type=${partType}`);
+                }
+
+                switch (partType) {
                     // ─── Text streaming ──────────────────────────────
                     case 'text-delta':
                         fullText += (part as any).text;
@@ -661,6 +693,7 @@ RULES:
                     case 'reasoning-start':
                         // Model started thinking — show indicator in UI
                         isThinking = true;
+                        outputChannel.appendLine(`[Agentic] >>> REASONING-START received`);
                         if (onAgentStep) {
                             onAgentStep({ type: 'thinking', text: '' }); // empty text = "start block"
                         }
@@ -669,6 +702,7 @@ RULES:
                     case 'reasoning-delta':
                         // Some models (Gemini) stream actual reasoning text
                         const reasoningText = (part as any).delta || (part as any).text || '';
+                        outputChannel.appendLine(`[Agentic] >>> REASONING-DELTA: "${reasoningText.substring(0, 50)}..."`);
                         if (reasoningText && onAgentStep) {
                             onAgentStep({ type: 'thinking', text: reasoningText });
                         }
@@ -676,7 +710,7 @@ RULES:
 
                     case 'reasoning-end':
                         isThinking = false;
-                        outputChannel.appendLine(`[Agentic] Reasoning block ended`);
+                        outputChannel.appendLine(`[Agentic] >>> REASONING-END received`);
                         break;
 
                     // ─── Tool streaming ──────────────────────────────
@@ -735,6 +769,9 @@ RULES:
                     let allReasoningText = '';
 
                     for (const step of steps) {
+                        // Diagnostic: log step reasoning data
+                        outputChannel.appendLine(`[Agentic] Step reasoning: reasoningText=${(step.reasoningText || '').length} chars, reasoning=${Array.isArray(step.reasoning) ? step.reasoning.length : 0} parts, usage=${JSON.stringify(step.usage)}`);
+                        
                         // Count reasoning tokens
                         const stepTokens = (step.usage as any)?.outputTokenDetails?.reasoningTokens
                             || (step.usage as any)?.reasoningTokens || 0;
@@ -757,7 +794,7 @@ RULES:
                         }
                     }
 
-                    outputChannel.appendLine(`[Agentic] Reasoning: ${totalReasoningTokens} tokens, text length: ${allReasoningText.length}`);
+                    outputChannel.appendLine(`[Agentic] Reasoning summary: ${totalReasoningTokens} tokens, text=${allReasoningText.length} chars, streamedReasoning=${streamedReasoning}`);
 
                     // Send consolidated reasoning to UI ONLY IF it wasn't streamed live
                     if (!streamedReasoning && allReasoningText.trim()) {
