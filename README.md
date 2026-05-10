@@ -4,7 +4,7 @@
 
 **A little radical honesty:** We are late to the party. There are massively funded agentic extensions out there that are leagues ahead of us right now. 
 
-kdAina didn't start as a venture-backed startup; it started as my own personal niche, a portfolio project born purely out of curiosity. I didn't have funding or a massive team—just a love for the craft, a passion for solving hard challenges, and the thrill of creating something on my own (with a little help from AI, of course).
+kdAina didn't start as a venture-backed startup; it started as my own personal niche, a portfolio project born purely out of curiosity. I didn't have funding or a massive team—just a love for the craft, a passion for solving hard challenges, and the thrill of creating something on my own (with a huge help from AI, of course).
 
 What kdAina might lack in corporate backing, it makes up for in heart. It’s an autonomous coding companion built with genuine love by a developer, for developers. It explores your workspace, executes commands, and writes code directly into your files. It might not be the biggest extension on the marketplace, but it's built to be a truly capable, transparent teammate.
 
