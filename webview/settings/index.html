@@ -20,23 +20,10 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <div class="logo-box">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                        stroke="url(#spesGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
-                        class="ai-premium-logo">
-                        <defs>
-                            <linearGradient id="spesGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stop-color="#00f2fe" />
-                                <stop offset="100%" stop-color="#4facfe" />
-                            </linearGradient>
-                        </defs>
-                        <path d="M12 2L2 7v10l10 5 10-5V7L12 2z" />
-                        <path d="M12 22V12" />
-                        <path d="M12 12L2 7" />
-                        <path d="M12 12l10-5" />
-                    </svg>
+                    <img src="{{LOGO_URI}}" width="44" height="44" class="ai-premium-logo" alt="kdAina Logo" />
                 </div>
                 <div class="header-text">
-                    <h2>AI Companion</h2>
+                    <h2>kdAina</h2>
                     <span class="badge">Configuration</span>
                 </div>
             </div>
@@ -72,15 +59,6 @@
                 </button>
             </nav>
 
-            <div class="sidebar-footer">
-                <button id="saveBtn" class="primary-btn" title="Save Changes">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                    <span>Save Changes</span>
-                </button>
-            </div>
         </aside>
 
         <!-- Main Content -->
@@ -219,14 +197,6 @@
                             </select>
                         </div>
 
-                        <div class="appearance-actions">
-                            <button id="saveTemplateBtn" class="secondary-btn small">
-                                💾 Save as Template
-                            </button>
-                            <button id="deleteTemplateBtn" class="secondary-btn small danger-ghost" style="display: none;">
-                                🗑️ Delete Template
-                            </button>
-                        </div>
                     </div>
                 </div>
 
@@ -261,6 +231,15 @@
                             <textarea id="customCssInput" class="styled-input styled-textarea code-font" rows="22"
                                 placeholder="/* --- Custom CSS Examples --- &#10;&#10;:root {&#10;  --font-ui: 'Segoe UI';&#10;  --font-editor: 'Fira Code';&#10;}&#10;&#10;body {&#10;  font-size: 15px !important;&#10;} */"
                                 spellcheck="false"></textarea>
+                        </div>
+
+                        <div class="appearance-actions" style="margin-top: 12px; display: flex; gap: 8px;">
+                            <button id="saveTemplateBtn" class="secondary-btn small">
+                                💾 Save as Template
+                            </button>
+                            <button id="deleteTemplateBtn" class="secondary-btn small danger-ghost" style="display: none;">
+                                🗑️ Delete Template
+                            </button>
                         </div>
                     </div>
                 </div>

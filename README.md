@@ -1,56 +1,41 @@
-# 🤖 AI Companion for VS Code
+# <img src="resources/logo.png" width="36" height="36" align="center" style="border-radius: 6px; mix-blend-mode: screen;" /> kdAina for VS Code
 
-> **Your Pair Programmer, but cooler.**
+> **The Autonomous AI Companion for Builders.**
 
-Welcome to **AI Companion**, the VS Code extension that turns your editor into a powerhouse of productivity. Whether you need a quick snippet refactor or an entire architectural overhaul, we've got you covered.
-
-## ✨ Features That Shine
-
-### 1. 🧠 Smart Chat Interaction
-Don't just code; *converse*.
-*   **Context Aware**: Knows your active file and selected code.
-*   **Dual-Brain Power**: Compatible with **OpenAI** (GPT-5,GPT-4o, GPT-3.5 and o1 family) and **Google Gemini** (3 belows. Pro, Flash).
-*   **Premium UI**: A sleek, dark-mode-first design with glassmorphism that feels right at home in VS Code.
-
-### 2. 👁️ Vision Support
-Drag, drop, done.
-*   Upload UI mockups or bug screenshots directly into the chat.
-*   The AI uses state-of-the-art Vision models to analyze your images and generate code.
-
-### 3. ⛓️ Prompt Chains ("The Recipes")
-Stop repeating yourself.
-*   Define a sequence of specialized agents (e.g., *1. Architect* -> *2. Programmer* -> *3. Critic*).
-*   One click runs your code through the entire assembly line.
-*   **Perfect for:** Generating docs, writing detailed tests, or layered refactoring.
-
-### 4. ⚙️ God-Mode Settings UI
-Control everything.
-*   **Dynamic Model Fetching**: Automatically pulls the latest models from your API provider. No more hardcoded lists.
-*   **Visual Logic**: "Eye-friendly" toggles (glowing text effects!) and clean dropdowns.
-*   **Secure**: Your API keys are stored safely in VS Code's encrypted secret storage.
+Welcome to **kdAina**, the VS Code extension that transforms your editor into an autonomous workspace. Built on a premium, agentic-focused design philosophy, kdAina doesn't just give you code snippets—it acts as an intelligent engineer that can explore, plan, and execute across your entire codebase.
 
 ---
 
-## 🔮 Future Roadmap: Agentic Mode ("The Chef")
-*Coming Soon™*
+## ✨ Features That Shine
 
-We are moving beyond simple "Recipes" to a fully autonomous "Chef".
-*   **The Difference**:
-    *   **Prompt Chains (Current)**: Linear instructions ("Add salt, then stir").
-    *   **Agentic Mode (Future)**: Autonomous reasoning ("This tastes bland, what does it need? Ah, salt!").
-*   **Tools**: The Agent will have access to file reading, terminal commands, and web search to *actually do the work*, not just talk about it.
+### 1. 🤖 Fully Autonomous Agentic Mode ("The Chef")
+Move beyond simple prompt-and-response.
+*   **True Autonomy**: Give kdAina a high-level task, and watch it plan, execute, and verify the changes autonomously.
+*   **Intelligent Tooling**: Built-in tools allow kdAina to read files, search your workspace, scrape documentation, and run terminal commands—all natively within VS Code.
+*   **Real-time Log Interface**: A brutalist, terminal-like UI lets you monitor the agent's thought process, tool executions, and step-by-step progress without clutter.
+
+### 2. 🧠 Smart Context & Dual-Brain Power
+Don't just code; *collaborate*.
+*   **Deep Context Awareness**: Automatically understands your active files, selected code, and workspace structure.
+*   **Provider Agnostic**: Seamlessly compatible with **OpenAI** (o1, GPT-4o) and **Google Gemini** (Gemini 2.5/3.1 Flash/Pro).
+*   **Vision Support**: Drag and drop UI mockups or bug screenshots directly into the chat for instant architectural analysis.
+
+### 3. ⚙️ God-Mode Configuration UI
+Control everything in real-time.
+*   **Real-Time Application**: Settings and UI themes apply instantly as you type—no "Save" buttons needed.
+*   **Custom Styling**: Write and inject your own custom CSS into the extension in real-time.
+*   **Secure**: Your API keys are stored safely using VS Code's native encrypted secret storage.
 
 ---
 
 ## 🚀 Getting Started
 
-1.  **Install** the extension.
-2.  Open the Command Palette (`Ctrl+Shift+P`) and type `AI Companion: Settings`.
-3.  **Choose your fighter**: OpenAI or Gemini.
-4.  Paste your API Key (it glows when visible!).
-5.  Start chatting!
+1.  **Install** the extension from the VS Code Marketplace.
+2.  Open the Command Palette (`Ctrl+Shift+P`) and type `kdAina: Settings`.
+3.  **Choose your provider**: Select your preferred AI model (OpenAI or Gemini).
+4.  Paste your API Key securely.
+5.  Open the **kdAina** panel in the Activity Bar and assign your first autonomous task!
 
 ---
 
-*Built with ❤️ (and a lot of caffeine)*
-*stay tuned!*
+*Engineered with precision for the modern builder.*

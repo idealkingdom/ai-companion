@@ -180,7 +180,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 this.context.extensionUri,
                 this.context.globalStorageUri,
                 vscode.Uri.joinPath(this.context.extensionUri, 'webview', 'chatbox'),
-                vscode.Uri.joinPath(this.context.extensionUri, 'webview', 'libraries')
+                vscode.Uri.joinPath(this.context.extensionUri, 'webview', 'libraries'),
+                vscode.Uri.joinPath(this.context.extensionUri, 'webview', 'assets')
             ]
         };
 
@@ -193,6 +194,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         LIBRARIES_TO_LOAD.forEach(lib => {
             html = fetchFilesWebView(webview, this.context, path.join(LIBRARY_FOLDER, lib.folderName).toString(), html, lib.placeholder, lib.name);
         });
+
+        const logoUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'webview', 'assets', 'logo.png'));
+        html = html.replace('{{LOGO_URI}}', logoUri.toString());
 
         const settingsManager = new SettingsManager(this.context);
         const settings = settingsManager.getSettings();

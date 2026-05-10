@@ -22,7 +22,7 @@ function getOrCreateAITerminal(cwd: string): vscode.Terminal {
 
     if (!aiTerminal) {
         aiTerminal = vscode.window.createTerminal({
-            name: '🤖 AI Companion',
+            name: '🤖 kdAina',
             cwd
         });
     }

@@ -17,7 +17,7 @@ export class PopupManager {
 
         this._panel = vscode.window.createWebviewPanel(
             'aiCompanionChatPopup',
-            'AI Companion Chat',
+            'kdAina Chat',
             vscode.ViewColumn.Beside,
             {
                 enableScripts: true,

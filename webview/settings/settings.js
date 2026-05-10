@@ -641,15 +641,16 @@ if (generateThemeBtn && themePromptInput) {
     });
 }
 
-// Save Button
-saveBtn.addEventListener('click', () => {
-    persistSettings();
-    
-    // Toast UI Animation
-    const toast = document.getElementById('toastNotification');
-    if (toast) {
-        toast.classList.remove('hidden');
-        setTimeout(() => toast.classList.add('hidden'), 3000);
+// Auto-Save listeners
+document.body.addEventListener('change', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+        debouncedPersist(300);
+    }
+});
+
+document.body.addEventListener('input', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        debouncedPersist(300);
     }
 });
 

@@ -209,7 +209,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('ai-companion.resetAllData', async () => {
             const confirm = await vscode.window.showWarningMessage(
-                'This will wipe ALL AI Companion data (settings, chat history, agents). Continue?',
+                'This will wipe ALL kdAina data (settings, chat history, agents). Continue?',
                 { modal: true },
                 'Yes, Reset Everything'
             );
@@ -218,7 +218,7 @@ export function activate(context: vscode.ExtensionContext) {
             for (const key of keys) {
                 await context.globalState.update(key, undefined);
             }
-            vscode.window.showInformationMessage('AI Companion: All data cleared. Reload window to apply.');
+            vscode.window.showInformationMessage('kdAina: All data cleared. Reload window to apply.');
         })
     );
 

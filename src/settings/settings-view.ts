@@ -43,7 +43,6 @@ export class SettingsView {
 
                     case 'saveSettings':
                         await this._settingsManager.updateSettings(message.settings);
-                        vscode.window.showInformationMessage('Settings saved successfully!');
                         vscode.commands.executeCommand('ai-companion.updateUISettings', message.settings.ui);
                         break;
 
@@ -230,7 +229,7 @@ body { background: linear-gradient(145deg, #0a0a1a 0%, #0d0d2b 50%, #0a0a1a 100%
         // Otherwise, create a new panel.
         const panel = vscode.window.createWebviewPanel(
             'aiCompanionSettings',
-            'AI Companion Settings',
+            'kdAina Settings',
             column || vscode.ViewColumn.One,
             {
                 enableScripts: true,
@@ -280,6 +279,10 @@ body { background: linear-gradient(145deg, #0a0a1a 0%, #0d0d2b 50%, #0a0a1a 100%
         // Inject Models
         outputChannel.appendLine(JSON.stringify(Object.keys(getModelProviderOptions())));
         htmlContent = htmlContent.replace(`"{{MODELS}}"`, JSON.stringify(getModelProviderOptions()));
+
+        // Inject Logo
+        const logoUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'assets', 'logo.png'));
+        htmlContent = htmlContent.replace('{{LOGO_URI}}', logoUri.toString());
 
         // Inject Nonce (Safety) - If we add CSP
         // htmlContent = htmlContent.replace(/nonce-PLACEHOLDER/g, nonce);
