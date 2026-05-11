@@ -111,7 +111,7 @@ export class ChatCoreService {
         const currentProvider = appSettings.models.provider;
         const pSettings = appSettings.models.providerSettings?.[currentProvider] || {};
         const accessToken = pSettings.apiKey || '';
-        const temperature = 0.7; // Smart default
+        const temperature = 0.5; // Balanced: focused but not robotic
 
         let aiResponseText = "";
         let totalUsage: any = null;
@@ -568,9 +568,13 @@ RULES:
         outputChannel.appendLine(`[Agentic] Tool names: ${Object.keys(tools).join(', ')}`);
         outputChannel.appendLine(`[Agentic] Messages count: ${messages.length}`);
 
-        // Lower temperature for agent mode precision
-        const agentTemp = Math.min(temperature, 0.3);
-
+        // Optimize temperature by agent role:
+        // - Code/task agents: 0.1 for maximum precision in tool calls and edits
+        // - Research/planning agents: 0.4 for creative analysis while staying grounded
+        const agentName = (agent?.name || '').toLowerCase();
+        const isResearchAgent = agentName.includes('research') || agentName.includes('planner') || agentName.includes('analyst') || agentName.includes('advisor');
+        const agentTemp = isResearchAgent ? 0.4 : 0.1;
+        outputChannel.appendLine(`[Agentic] Temperature: ${agentTemp} (${isResearchAgent ? 'research/planning' : 'code/task'})`);
 
 
         let stepCount = 0;
@@ -599,7 +603,7 @@ RULES:
         // Auto-detect reasoning for known model families (fallback for older custom model entries)
         if (!supportsReasoning) {
             const lowerModel = model.toLowerCase();
-            if (lowerModel.includes('gemini') || lowerModel.includes('gpt-5') || lowerModel.includes('o1') || lowerModel.includes('o3')) {
+            if (lowerModel.includes('gemini') || lowerModel.includes('gpt-5') || lowerModel.includes('o1') || lowerModel.includes('o3') || lowerModel.includes('claude') || lowerModel.includes('sonnet') || lowerModel.includes('opus')) {
                 supportsReasoning = true;
                 outputChannel.appendLine(`[Agentic] Auto-detected reasoning support for model: ${model}`);
             }
