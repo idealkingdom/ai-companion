@@ -574,11 +574,11 @@ CRITICAL RULES:
         outputChannel.appendLine(`[Agentic] Messages count: ${messages.length}`);
 
         // Optimize temperature by agent role:
-        // - Code/task agents: 0.1 for maximum precision in tool calls and edits
-        // - Research/planning agents: 0.4 for creative analysis while staying grounded
+        // - Code/task agents: 0.2 for precision (0.1 causes repetition loops in some models)
+        // - Research/planning agents: 0.5 for creative analysis while staying grounded
         const agentName = (agent?.name || '').toLowerCase();
         const isResearchAgent = agentName.includes('research') || agentName.includes('planner') || agentName.includes('analyst') || agentName.includes('advisor');
-        const agentTemp = isResearchAgent ? 0.4 : 0.1;
+        const agentTemp = isResearchAgent ? 0.5 : 0.2;
         outputChannel.appendLine(`[Agentic] Temperature: ${agentTemp} (${isResearchAgent ? 'research/planning' : 'code/task'})`);
 
 
@@ -714,12 +714,10 @@ CRITICAL RULES:
                         break;
 
                     case 'reasoning-delta':
-                        // Some models (Gemini) stream actual reasoning text
+                        // Reasoning text is already streamed via onChunk → onReasoningChunk
+                        // Just log here for diagnostics, don't send to UI again (prevents duplication)
                         const reasoningText = (part as any).delta || (part as any).text || '';
                         outputChannel.appendLine(`[Agentic] >>> REASONING-DELTA: "${reasoningText.substring(0, 50)}..."`);
-                        if (reasoningText && onAgentStep) {
-                            onAgentStep({ type: 'thinking', text: reasoningText });
-                        }
                         break;
 
                     case 'reasoning-end':

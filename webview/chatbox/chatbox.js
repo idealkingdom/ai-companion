@@ -764,11 +764,15 @@ function getCurrentDate() {
 
 let _scrollTimeout = null;
 let _isUserScrolledUp = false;
+let _programmaticScroll = false;
 
 chatLog.addEventListener('scroll', () => {
-    // 1. Auto-scroll logic: A buffer of ~60px accounts for minor layout shifts
+    // Skip detection when we ourselves triggered the scroll
+    if (_programmaticScroll) return;
+
+    // A buffer of ~150px: if user is within 150px of bottom, consider them "at bottom"
     const distanceToBottom = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight;
-    _isUserScrolledUp = distanceToBottom > 60;
+    _isUserScrolledUp = distanceToBottom > 150;
 });
 
 function scrollToBottom(force = false) {
@@ -779,7 +783,10 @@ function scrollToBottom(force = false) {
     if (_scrollTimeout) return;
     _scrollTimeout = requestAnimationFrame(() => {
         _scrollTimeout = null;
+        _programmaticScroll = true;
         chatLog.scrollTop = chatLog.scrollHeight;
+        // Reset flag after a tick so the scroll event from this assignment is ignored
+        requestAnimationFrame(() => { _programmaticScroll = false; });
     });
 }
 
