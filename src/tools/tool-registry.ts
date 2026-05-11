@@ -1,14 +1,16 @@
 import { WorkspaceIndexService } from '../services/workspace-index';
 import { createFileTools } from './file-tools';
-import { createSysTools } from './sys-tools';
+import { createSysTools, clearTestRetryTracker } from './sys-tools';
 import { createWebTools } from './web-tools';
 import { createCognitiveTools, ModelTier } from './cognitive-tools';
+import { createArtifactTools } from './artifact-tools';
 import { ApprovalService } from '../chat/approval-service';
 import { ReviewManager } from '../chat/review-manager';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
 export interface ToolRegistryOptions {
+    chatId?: string;
     readFilesConfirmation: boolean;
     writeFilesConfirmation: boolean;
     runCommandsConfirmation: boolean;
@@ -22,20 +24,25 @@ export interface ToolRegistryOptions {
  * ready to be injected into the Vercel AI SDK's `tools` parameter.
  */
 export function createToolRegistry(workspaceIndex: WorkspaceIndexService, options?: ToolRegistryOptions) {
+    // Reset test/build retry tracker for each new agentic request
+    clearTestRetryTracker();
+
     const fileTools = createFileTools(workspaceIndex);
     const sysTools = createSysTools();
     const webTools = createWebTools();
-    const cognitiveTools = createCognitiveTools(options?.tier || 'mid');
+    const cognitiveTools = createCognitiveTools(options?.tier || 'mid', options?.chatId);
+    const artifactTools = createArtifactTools(options?.chatId || 'unknown_chat');
 
     const allTools = {
         ...fileTools,
         ...sysTools,
         ...webTools,
-        ...cognitiveTools
+        ...cognitiveTools,
+        ...artifactTools
     };
 
-    const readTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol', 'search_workspace', 'scrape_url', 'web_search', 'get_workspace_problems'];
-    const writeTools = ['chunk_replace', 'create_file'];
+    const readTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol', 'search_workspace', 'scrape_url', 'web_search', 'get_workspace_problems', 'read_artifact'];
+    const writeTools = ['chunk_replace', 'create_file', 'manage_artifact'];
     const commandTools = ['run_command'];
 
     // Wrap all execute functions

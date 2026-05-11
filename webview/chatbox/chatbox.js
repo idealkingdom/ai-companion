@@ -1068,7 +1068,6 @@ function showLoadingIndicator() {
 
     loadingDiv.innerHTML = `
         <div class="message-content">
-            <span class="ai-icon">${aiIconBtnHTML}</span>
             <div class="generating-text">Generating...</div>
         </div>
     `;
@@ -1207,12 +1206,49 @@ function getOrCreateAgentStepsGroup() {
 }
 
 
+// ─── WAITING INDICATOR ──────────────────────────────────────────────────────
+// Shows a pulsing "Analyzing..." between tool completions and the model's
+// next action. Fills the visual dead zone so the user never sees a frozen UI.
+let _waitingIndicatorTimer = null;
+
+function clearWaitingIndicator() {
+    if (_waitingIndicatorTimer) {
+        clearTimeout(_waitingIndicatorTimer);
+        _waitingIndicatorTimer = null;
+    }
+    const existing = document.querySelector('.agent-waiting-indicator');
+    if (existing) { existing.remove(); }
+}
+
+function scheduleWaitingIndicator() {
+    clearWaitingIndicator();
+    _waitingIndicatorTimer = setTimeout(() => {
+        // Only show if there isn't already a streaming thinking block
+        if (document.querySelector('.agent-thinking-block:not([data-finalized="true"])')) { return; }
+        
+        const indicator = document.createElement('div');
+        indicator.className = 'agent-waiting-indicator';
+        indicator.innerHTML = `
+            <div class="waiting-dots">
+                <span></span><span></span><span></span>
+            </div>
+            <span class="waiting-label">Analyzing...</span>
+        `;
+        const group = getOrCreateAgentStepsGroup();
+        group.appendChild(indicator);
+        scrollToBottom();
+    }, 1000); // 1s delay — short enough to feel responsive, long enough to avoid flicker
+}
+
 /**
  * Renders an Agent tool step card in the chat log.
  * Shows what the agent is doing (reading, editing, searching, etc.)
  */
 function renderAgentStep(step) {
     if (!step) { return; }
+
+    // Always clear the waiting indicator when any new step arrives
+    clearWaitingIndicator();
 
     if (step.type === 'thinking') {
         // Differentiate between status messages and actual reasoning tokens
@@ -1376,7 +1412,10 @@ function renderAgentStep(step) {
             'find_symbol': '◎',
             'run_command': '▸',
             'search_workspace': '◈',
-            'scrape_url': '◉'
+            'scrape_url': '◉',
+            'web_search': '🔍',
+            'manage_artifact': '📄',
+            'read_artifact': '📂'
         };
         // #61: Human-readable tool labels
         const toolLabels = {
@@ -1388,11 +1427,25 @@ function renderAgentStep(step) {
             'find_symbol': 'Finding Symbol',
             'run_command': 'Running Command',
             'search_workspace': 'Searching Workspace',
-            'scrape_url': 'Scraping URL'
+            'scrape_url': 'Scraping URL',
+            'web_search': 'Web Search',
+            'manage_artifact': 'Managing Artifact',
+            'read_artifact': 'Reading Artifact'
         };
         const icon = icons[step.toolName] || '◆';
         const displayName = toolLabels[step.toolName] || step.toolName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-        const argsPreview = step.args ? JSON.stringify(step.args).substring(0, 120) : '';
+        let argsPreview = step.args ? JSON.stringify(step.args).substring(0, 120) : '';
+        if (step.args) {
+            if (step.toolName === 'web_search' && step.args.query) {
+                argsPreview = `<span style="opacity: 0.8;">Query:</span> <strong style="color: var(--vscode-textLink-foreground);">${step.args.query}</strong>`;
+            } else if (step.toolName === 'scrape_url' && step.args.url) {
+                argsPreview = `<span style="opacity: 0.8;">URL:</span> <a href="${step.args.url}" target="_blank" style="color: var(--vscode-textLink-foreground); text-decoration: none;">${step.args.url}</a>`;
+            } else if (step.toolName === 'run_command' && step.args.command) {
+                argsPreview = `<code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; font-size: 0.9em;">$ ${step.args.command}</code>`;
+            } else if (step.toolName === 'read_artifact' && step.args.name) {
+                argsPreview = `<span style="opacity: 0.8;">${step.args.scope || 'session'}:</span> <strong style="color: var(--vscode-textLink-foreground);">${step.args.name}</strong>`;
+            }
+        }
 
         // All tools now show as "Running" initially. 
         // Write tools will quickly flip to "Done" (Staged) when the result arrives.
@@ -1443,7 +1496,26 @@ function renderAgentStep(step) {
             statusEl.textContent = isStaged ? 'Staged' : 'Done';
             statusEl.classList.remove('running');
             statusEl.classList.add('done');
+            
+            // Special styling for manage_artifact result
+            if (targetCard && step.toolName === 'manage_artifact' && step.result && step.result._artifactManaged) {
+                targetCard.style.borderLeft = '3px solid #8e44ad';
+                targetCard.style.background = 'rgba(142, 68, 173, 0.05)';
+                const header = targetCard.querySelector('.step-header');
+                if (header) {
+                    header.style.color = '#9b59b6';
+                }
+                const argsPreview = targetCard.querySelector('.step-args');
+                if (argsPreview) {
+                    const am = step.result._artifactManaged;
+                    argsPreview.innerHTML = `<strong>${am.action.toUpperCase()}</strong>: <code>${am.scope}/${am.name}</code>`;
+                }
+            }
         }
+
+        // Schedule the waiting indicator — will show "Analyzing..." if
+        // the model takes >1s to decide its next action
+        scheduleWaitingIndicator();
         return;
     }
 
@@ -1514,14 +1586,6 @@ function initGenerateButton() {
                 console.log('Sending improvePrompt request...');
                 sendMessage('improvePrompt', { prompt });
             }
-
-            // Safety timeout to reset loading state if backend fails/takes too long
-            setTimeout(() => {
-                if (generateBtn.classList.contains('loading')) {
-                    console.warn('Generate prompt timed out, resetting button state');
-                    generateBtn.classList.remove('loading');
-                }
-            }, 15000);
         };
     } else {
         console.warn('generateButton not found in DOM during init');
@@ -2665,6 +2729,7 @@ window.addEventListener('message', event => {
 
         case CHAT_COMMANDS.CHAT_STREAM_END:
             hideLoadingIndicator(); // Always hide loading, even if no chunks arrived
+            clearWaitingIndicator(); // Remove any between-step indicator
 
             // Finalize open agent groups
             document.querySelectorAll('details.agent-steps-group').forEach(group => {
@@ -2893,15 +2958,9 @@ window.addEventListener('message', event => {
                 
                 const input = document.getElementById('messageInput');
                 if (input && message.content) {
-                    input.innerText = message.content;
                     input.focus();
-                    // Move cursor to end
-                    const range = document.createRange();
-                    const sel = window.getSelection();
-                    range.selectNodeContents(input);
-                    range.collapse(false);
-                    sel.removeAllRanges();
-                    sel.addRange(range);
+                    document.execCommand('selectAll', false, null);
+                    document.execCommand('insertText', false, message.content);
                 }
             }
             break;

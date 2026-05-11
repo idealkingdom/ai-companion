@@ -1648,6 +1648,52 @@ details[open] summary .file-arrow {
     font-style: italic;
 }
 
+/* ─── WAITING INDICATOR (between-step heartbeat) ─── */
+.agent-waiting-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    opacity: 0;
+    animation: waitingFadeIn 0.3s ease 0.1s forwards;
+}
+
+@keyframes waitingFadeIn {
+    to { opacity: 1; }
+}
+
+.agent-waiting-indicator .waiting-dots {
+    display: flex;
+    gap: 3px;
+}
+
+.agent-waiting-indicator .waiting-dots span {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--vscode-textLink-foreground, #4fc1ff);
+    opacity: 0.4;
+    animation: waitingPulse 1.4s ease-in-out infinite;
+}
+
+.agent-waiting-indicator .waiting-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.agent-waiting-indicator .waiting-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes waitingPulse {
+    0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); }
+    40% { opacity: 1; transform: scale(1.2); }
+}
+
+.agent-waiting-indicator .waiting-label {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    font-style: italic;
+}
 
 /* ─── UNIFIED CHAT INPUT CONTAINER ─── */
 .unified-input-container {
@@ -1835,6 +1881,8 @@ details[open] summary .file-arrow {
   color: var(--text-color, rgba(255, 255, 255, 0.8));
   font-size: 12px;
   animation: fadeIn 0.3s ease;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .staging-left {

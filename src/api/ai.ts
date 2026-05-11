@@ -254,6 +254,9 @@ export async function aiRequest(
             model: resolvedModel,
             messages: messages,
             temperature: temperature,
+            providerOptions: {
+                anthropic: { thinking: { type: 'disabled' } }
+            }
         });
 
         return { content: text };
@@ -348,8 +351,9 @@ export async function aiAgenticRequest(
                 },
                 // #44: Capture reasoning chunks in real-time (for models that stream them)
                 onChunk: ({ chunk }: any) => {
-                    // Diagnostic: log chunk types for debugging
-                    if (chunk.type !== 'text-delta' && chunk.type !== 'raw') {
+                    // Diagnostic: log significant chunk types (skip high-frequency noise)
+                    const noisyChunkTypes = ['text-delta', 'raw', 'tool-call-delta', 'tool-call-streaming-start', 'tool-input-delta'];
+                    if (!noisyChunkTypes.includes(chunk.type)) {
                         outputChannel.appendLine(`[AI:onChunk] chunk.type=${chunk.type}`);
                     }
                     if (chunk.type === 'reasoning-delta' || chunk.type === 'reasoning') {
@@ -407,10 +411,14 @@ export async function aiAgenticRequest(
                         };
                     }
                 } else if (provider === 'Anthropic') {
-                    // Anthropic corporate gateways: do NOT use SDK thinking parameter
-                    // The gateway mishandles it (leaks thinking as text, causes 500s loops)
-                    // Instead, we use prompt-based <thinking> tag parsing (see processAgenticRequest)
+                    // Anthropic: use SDK-native thinking with an explicit budget
+                    // This gives Claude a fixed reasoning budget rather than adaptive/unbounded thinking
                     streamOptions.maxTokens = 16000;
+                    streamOptions.providerOptions = {
+                        anthropic: {
+                            thinking: { type: 'enabled', budgetTokens: 10000 }
+                        }
+                    };
                 } else if (provider === 'Azure OpenAI') {
                     // Azure OpenAI: reasoning is disabled by corporate gateways, skip
                     outputChannel.appendLine(`[Agentic] Skipping reasoning params for Azure OpenAI (gateway does not support)`);

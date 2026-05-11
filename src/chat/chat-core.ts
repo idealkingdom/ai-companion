@@ -436,8 +436,44 @@ export class ChatCoreService {
 
         outputChannel.appendLine(`[Agentic] Agent=${data.agentId}, model=${model}, agentName=${agent?.name}`);
 
-        // Build the workspace-aware system prompt with system info (#52)
+        // ─── ARTIFACT MANIFEST (lightweight) ────────────────────────────
+        // Instead of injecting full artifact content, we inject only a
+        // manifest (names + sizes). The model uses `read_artifact` to
+        // pull specific content on-demand — dramatically more token-efficient.
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || 'unknown';
+        let artifactsContext = '';
+        if (workspaceRoot !== 'unknown') {
+            const fs = require('fs');
+            const path = require('path');
+            const manifest: string[] = [];
+            
+            const scanDir = (dirPath: string, scope: string) => {
+                if (fs.existsSync(dirPath)) {
+                    try {
+                        const files = fs.readdirSync(dirPath);
+                        for (const file of files) {
+                            if (file.endsWith('.md')) {
+                                const stat = fs.statSync(path.join(dirPath, file));
+                                const sizeKb = (stat.size / 1024).toFixed(1);
+                                manifest.push(`  - [${scope}] ${file} (${sizeKb} KB)`);
+                            }
+                        }
+                    } catch (e) {
+                        outputChannel.appendLine(`[Agentic] Failed to scan artifacts in ${dirPath}: ${e}`);
+                    }
+                }
+            };
+
+            const baseDir = path.join(workspaceRoot, '.ai-companion', 'artifacts');
+            scanDir(path.join(baseDir, 'global'), 'global');
+            scanDir(path.join(baseDir, 'sessions', data.chat_id), 'session');
+
+            if (manifest.length > 0) {
+                artifactsContext = `\n--- AVAILABLE ARTIFACTS ---\nYou have ${manifest.length} artifact(s) available. Use the \`read_artifact\` tool to load any you need for the current task.\n${manifest.join('\n')}\n`;
+            }
+        }
+
+        // Build the workspace-aware system prompt with system info (#52)
         const systemInfo = getSystemInfo();
 
         // #50: Task tracking — handled via update_task_progress tool
@@ -455,7 +491,7 @@ This shows a live checklist in the chat so the user can track what's done and wh
             : fileTree;
 
         // #55: Auto-inject active editor context so the agent doesn't waste tool calls
-        const activeEditorCtx = this.workspaceIndex.getActiveEditorContext();
+        const activeEditorCtx = await this.workspaceIndex.getActiveEditorContext();
         const editorSection = activeEditorCtx
             ? `\n--- ACTIVE EDITOR FILES ---\nThese files are currently open in the user's editor. You already have their skeletons and cursor positions. Do NOT re-read them with read_file_skeleton unless you need fresh data after an edit.\n${activeEditorCtx}\n`
             : '';
@@ -463,7 +499,7 @@ This shows a live checklist in the chat so the user can track what's done and wh
         let agenticSystemPrompt = `${systemPrompt}
 
 ${systemInfo}
-
+${artifactsContext}
 --- WORKSPACE FILE TREE ---
 ${truncatedTree}
 ${editorSection}
@@ -471,49 +507,39 @@ ${editorSection}
 You have access to tools to read, search, and modify files in the user's workspace.
 Workspace root: ${workspaceRoot}
 
+PRIORITY: ALWAYS USE TOOLS. Your primary output mechanism is tool calls, not text.
+Respond with tool calls immediately — do not narrate, explain, or describe what you will do.
+
+STEP EFFICIENCY (each step = 1 API round-trip, budget is limited):
+- BATCH parallel tool calls: if you need to read 3 files, call all 3 in ONE step — not 3 separate steps.
+- For simple requests (typo fix, quick question), skip plan_task and act directly.
+- Only call plan_task for complex, multi-file tasks.
+- Skip tool calls for files you already have context for (active editor files above).
+- The active editor skeleton is already provided — do NOT re-read it with read_file_skeleton.
+- NEVER read an entire large file. Use skeleton first, then line ranges.
+
 WORKFLOW:
-1. Call plan_task FIRST to break down the user's request into steps
+1. For complex tasks: call plan_task FIRST, then execute immediately with tool calls
 2. Use list_workspace or find_symbol to understand the project structure
-3. Use read_file_skeleton to get an overview of relevant files (don't read full files unnecessarily)
+3. Use read_file_skeleton to get an overview of relevant files
 4. Use read_line_range to examine specific sections you need
 5. Use chunk_replace to make surgical edits (provide exact target text)
 6. Use search_workspace to find patterns across the codebase
-7. Use get_workspace_problems to verify if your changes introduced any lint or syntax errors
+7. Use get_workspace_problems to verify your changes (pass filePath for specific files)
 8. Use run_command for builds, tests, git operations
 9. Use web_search to look up documentation, APIs, or current information online
 10. Call verify_completion at the END to confirm all items were addressed
 
 CRITICAL RULES:
-- You are an AUTONOMOUS AGENT. You MUST use tools to accomplish tasks. NEVER just describe what to do.
-- NEVER output code blocks in chat as a response. Use create_file or chunk_replace to write code DIRECTLY to files.
-- NEVER give step-by-step instructions for the user to follow. YOU execute the steps yourself using tools.
-- If the user asks you to create a file, use the create_file tool. Do NOT paste the file contents in chat.
-- If the user asks you to edit a file, use chunk_replace. Do NOT show a diff in chat and ask the user to apply it.
-- NEVER read an entire large file. Use skeleton first, then line ranges.
+- You are an AUTONOMOUS AGENT. ALWAYS prefer tool calls over text responses.
+- NEVER output code blocks in chat. Use create_file or chunk_replace to write code DIRECTLY.
+- NEVER give step-by-step instructions. YOU execute the steps yourself using tools.
 - When editing, provide the EXACT target text to replace (including whitespace).
 - Always verify your changes compile and don't introduce workspace problems after editing.
-- Edits are applied DIRECTLY to the file. The user can review changes inline and revert if needed.
-- Use web_search proactively when the user's question involves external libraries, APIs, or topics you're uncertain about. Don't guess — search first.
-- Skip tool calls for files you already have context for (active editor files above).${todoInstruction}`;
+- Edits are applied DIRECTLY to the file. The user can review changes inline.
+- Use web_search proactively for external libraries or APIs. Don't guess — search first.
+- When multiple independent tool calls can be made, call them ALL AT ONCE in a single step.${todoInstruction}`;
 
-        // For Anthropic behind corporate gateways: prompt-based thinking
-        // SDK thinking parameter doesn't work reliably on gateways, so we
-        // instruct Claude to use <thinking> tags which we parse client-side
-        {
-            const _gp = settings.models?.provider || 'OpenAI';
-            const _cm = (settings.customModels || []).find((m: any) => m.name === model);
-            const _provider = _cm?.provider || _gp;
-            if (_provider === 'Anthropic') {
-                agenticSystemPrompt += `
-
-THINKING PROCESS:
-Before responding or making tool calls, wrap your brief reasoning in <thinking>...</thinking> tags.
-Keep thinking SHORT — just your plan and next action. No more than 3-5 sentences.
-Do NOT repeat yourself. Do NOT narrate your process step by step.
-After thinking, immediately proceed with tool calls.
-Always start your thinking block with: [ignoring loop detection]`;
-            }
-        }
 
         // Resolve and inject rules (global + agent-linked)
         const allRules: { name: string; content: string }[] = [];
@@ -574,6 +600,7 @@ Always start your thinking block with: [ignoring loop detection]`;
         // Apply alwaysProceed override — if enabled, skip all confirmation dialogs
         const alwaysProceed = settings.permissions?.alwaysProceed === true;
         const tools = createToolRegistry(this.workspaceIndex, {
+            chatId: data.chat_id,
             abortSignal: abortSignal,
             tier: modelTier,
             readFilesConfirmation: alwaysProceed ? false : (settings.permissions?.readFilesConfirmation ?? false),
@@ -651,9 +678,12 @@ Always start your thinking block with: [ignoring loop detection]`;
         // Aggressive mode doubles maxSteps for persistent task completion
         const isAggressive = settings.general?.aggressiveAgentic === true;
         const baseSteps = modelTier === 'small' ? 10 : modelTier === 'mid' ? 20 : 25;
-        const maxSteps = isAggressive ? baseSteps * 2 : baseSteps;
+        // +2 grace steps: ensures the model can finish its text response after
+        // verify_completion without getting cut off mid-sentence
+        const maxSteps = (isAggressive ? baseSteps * 2 : baseSteps) + 2;
         outputChannel.appendLine(`[Agentic] maxSteps=${maxSteps}${isAggressive ? ' (aggressive)' : ''}`);
 
+        let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
         try {
             const result = await aiAgenticRequest(
                 messages, model, apiKey, agentTemp, activeProvider, tools,
@@ -683,6 +713,9 @@ Always start your thinking block with: [ignoring loop detection]`;
                         lastStepHadToolCalls = !!(event.toolCalls && event.toolCalls.length > 0);
                         outputChannel.appendLine(`[Agentic] Step ${stepCount} finished (toolCalls: ${lastStepHadToolCalls})`);
 
+                        // Note: The UI handles the "waiting" indicator between steps
+                        // via a frontend timer — no need for a backend heartbeat here.
+
                         // Accumulate usage per step so tokens are counted even on abort
                         if (event.usage) {
                             if (onUsageUpdate) onUsageUpdate(event.usage);
@@ -709,6 +742,27 @@ Always start your thinking block with: [ignoring loop detection]`;
                                     result: this.summarizeToolResult(tr.result),
                                     toolCallId: tr.toolCallId // CRITICAL FIX
                                 });
+
+                                // Test → Fix cycle: surface retry status in the UI
+                                if (tr.toolName === 'run_command' && tr.result?._testCycle) {
+                                    const cycle = tr.result._testCycle;
+                                    if (cycle.status === 'failed') {
+                                        onAgentStep({
+                                            type: 'thinking',
+                                            text: `⚠ Test/build failed (attempt ${cycle.attempt}/${cycle.maxRetries}). ${cycle.retriesRemaining} retries remaining — fixing and re-running...`
+                                        });
+                                    } else if (cycle.status === 'exhausted') {
+                                        onAgentStep({
+                                            type: 'thinking',
+                                            text: `🛑 Test/build failed ${cycle.attempts} times. Retry budget exhausted — reporting to user.`
+                                        });
+                                    } else if (cycle.status === 'passed' && cycle.attemptsBeforeSuccess > 1) {
+                                        onAgentStep({
+                                            type: 'thinking',
+                                            text: `✅ Test/build passed after ${cycle.attemptsBeforeSuccess} attempts. Self-correction succeeded.`
+                                        });
+                                    }
+                                }
                             }
                         }
                     }
@@ -722,14 +776,34 @@ Always start your thinking block with: [ignoring loop detection]`;
             let _thinkingBuffer = ''; // Buffer to detect partial <thinking> / </thinking> tags
             let _insideThinkingBlock = false; // Track if we're inside <thinking>...</thinking>
 
+            // Inactivity timeout: if no stream event arrives for 120s, auto-abort
+            const INACTIVITY_TIMEOUT_MS = 120_000;
+            // Reset timer reference (declared above try for catch-block access)
+            const resetInactivityTimer = () => {
+                if (inactivityTimer) { clearTimeout(inactivityTimer); }
+                inactivityTimer = setTimeout(() => {
+                    outputChannel.appendLine(`[Agentic] ⚠ Inactivity timeout: no stream event for ${INACTIVITY_TIMEOUT_MS / 1000}s — aborting`);
+                    if (onAgentStep) {
+                        onAgentStep({ type: 'thinking', text: '⚠ Agent timed out waiting for API response.' });
+                    }
+                    // Look up the abort controller from the static map
+                    const ctrl = ChatCoreService.activeAbortControllers.get(data.chat_id);
+                    if (ctrl) { ctrl.abort(); }
+                }, INACTIVITY_TIMEOUT_MS);
+            };
+            resetInactivityTimer(); // Start the clock
+
             for await (const part of result.fullStream) {
+                resetInactivityTimer(); // Reset on every event
+
                 if (abortSignal && abortSignal.aborted) {
                     throw new Error('AbortError');
                 }
 
                 const partType = (part as any).type;
-                // Diagnostic: log every part type to help debug reasoning visibility
-                if (partType !== 'text-delta' && partType !== 'raw') {
+                // Diagnostic: log significant part types (skip high-frequency noise)
+                const noisyTypes = ['text-delta', 'raw', 'tool-call-delta', 'tool-call-streaming-start', 'tool-input-delta'];
+                if (!noisyTypes.includes(partType)) {
                     outputChannel.appendLine(`[Agentic] Stream part: type=${partType}`);
                 }
 
@@ -888,6 +962,9 @@ Always start your thinking block with: [ignoring loop detection]`;
                 _thinkingBuffer = '';
             }
 
+            // Clean up inactivity timer
+            if (inactivityTimer) { clearTimeout(inactivityTimer); inactivityTimer = null; }
+
             outputChannel.appendLine(`[Agentic] Completed in ${stepCount} steps, response length: ${fullText.length}`);
 
             // #44: After stream is consumed, extract reasoning from result.steps
@@ -957,7 +1034,7 @@ Always start your thinking block with: [ignoring loop detection]`;
             // If model returned empty text, provide a context-aware fallback
             if (!fullText || fullText.trim() === '') {
                 if (hitStepLimit) {
-                    fullText = 'Reached step limit. There may be more work to do.';
+                    fullText = 'Reached step limit — progress has been auto-saved. Say **"continue"** and I\'ll pick up where I left off.';
                 } else if (stepCount <= 1) {
                     // Model stopped almost immediately — likely couldn't handle the request
                     fullText = 'The model was unable to complete this request. Try rephrasing or using a different model.';
@@ -973,6 +1050,9 @@ Always start your thinking block with: [ignoring loop detection]`;
             const usage = await result.usage;
             return { text: fullText, usage, hitStepLimit, maxSteps };
         } catch (error: any) {
+            // Clean up inactivity timer on error
+            if (inactivityTimer) { clearTimeout(inactivityTimer); inactivityTimer = null; }
+
             if (abortSignal?.aborted) {
                 throw error; // Let the top-level catch handle the cancellation gracefully
             }
