@@ -105,7 +105,7 @@ export class ReviewManager {
                 if (fullText.includes(replacementContent)) {
                     return { success: true };
                 }
-                return { success: false, error: 'Target content not found in file.' };
+                return { success: false, error: 'Target content not found in file. This is usually caused by a whitespace/indentation mismatch or stale content. Use read_line_range to see the EXACT current text, then retry with the precise content.' };
             }
 
             // Check for unique match

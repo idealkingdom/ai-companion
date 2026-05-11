@@ -64,29 +64,38 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
 
             const content = fs.readFileSync(absPath, 'utf-8');
             const lines = content.split('\n');
-            const skeleton: string[] = [];
+            let skeletonStr = '';
+            
+            // Try AST first
+            const fileUri = vscode.Uri.file(absPath);
+            const astSkeleton = await workspaceIndex.buildAstSkeleton(fileUri);
+            
+            if (astSkeleton) {
+                skeletonStr = astSkeleton;
+            } else {
+                // Fallback to Regex for unsupported languages or large files
+                const skeleton: string[] = [];
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    const trimmed = line.trim();
 
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                const trimmed = line.trim();
-
-                if (trimmed.startsWith('import ') || trimmed.startsWith('from ') || (trimmed.startsWith('const ') && trimmed.includes('require('))) {
-                    skeleton.push(`L${i + 1}: ${line}`);
-                } else if (trimmed.startsWith('export ')) {
-                    skeleton.push(`L${i + 1}: ${line}`);
-                } else if (/^\s*(export\s+)?(abstract\s+)?(class|interface|type|enum)\s/.test(line)) {
-                    skeleton.push(`L${i + 1}: ${line}`);
-                } else if (/^\s*(export\s+)?(async\s+)?(function|const\s+\w+\s*=\s*(async\s*)?\(|public|private|protected|static)\s/.test(line)) {
-                    skeleton.push(`L${i + 1}: ${line}`);
-                } else if (/^\s*(const|let|var)\s+\w+\s*=\s*(async\s*)?\(/.test(line)) {
-                    skeleton.push(`L${i + 1}: ${line}`);
-                } else if (/^\s*def\s+\w+/.test(line) || /^\s*class\s+\w+/.test(line)) {
-                    // Python support
-                    skeleton.push(`L${i + 1}: ${line}`);
+                    if (trimmed.startsWith('import ') || trimmed.startsWith('from ') || (trimmed.startsWith('const ') && trimmed.includes('require('))) {
+                        skeleton.push(`L${i + 1}: ${line}`);
+                    } else if (trimmed.startsWith('export ')) {
+                        skeleton.push(`L${i + 1}: ${line}`);
+                    } else if (/^\s*(export\s+)?(abstract\s+)?(class|interface|type|enum)\s/.test(line)) {
+                        skeleton.push(`L${i + 1}: ${line}`);
+                    } else if (/^\s*(export\s+)?(async\s+)?(function|const\s+\w+\s*=\s*(async\s*)?\(|public|private|protected|static)\s/.test(line)) {
+                        skeleton.push(`L${i + 1}: ${line}`);
+                    } else if (/^\s*(const|let|var)\s+\w+\s*=\s*(async\s*)?\(/.test(line)) {
+                        skeleton.push(`L${i + 1}: ${line}`);
+                    } else if (/^\s*def\s+\w+/.test(line) || /^\s*class\s+\w+/.test(line)) {
+                        // Python support
+                        skeleton.push(`L${i + 1}: ${line}`);
+                    }
                 }
+                skeletonStr = skeleton.join('\n') || '(No structural elements found)';
             }
-
-            const skeletonStr = skeleton.join('\n') || '(No structural elements found)';
 
             // Cache it for future calls
             workspaceIndex.cacheSkeleton(absPath, skeletonStr, lines.length);
@@ -131,6 +140,52 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
         }
     } as any);
 
+    // ─── POST-EDIT HELPERS ───────────────────────────────────────────────
+
+    /**
+     * Auto-format a file using VS Code's built-in formatter, then check
+     * LSP diagnostics and return any errors/warnings for the agent to fix.
+     */
+    async function postEditVerify(fileUri: vscode.Uri): Promise<{ formatted: boolean; problems?: string }> {
+        let formatted = false;
+
+        try {
+            // Auto-format: use VS Code's built-in document formatter (LSP-backed)
+            const doc = await vscode.workspace.openTextDocument(fileUri);
+            const edits: vscode.TextEdit[] | undefined = await vscode.commands.executeCommand(
+                'vscode.executeFormatDocumentProvider',
+                fileUri,
+                { tabSize: 2, insertSpaces: true } as vscode.FormattingOptions
+            );
+            if (edits && edits.length > 0) {
+                const wsEdit = new vscode.WorkspaceEdit();
+                for (const edit of edits) {
+                    wsEdit.replace(fileUri, edit.range, edit.newText);
+                }
+                await vscode.workspace.applyEdit(wsEdit);
+                formatted = true;
+            }
+        } catch {
+            // Formatter not available for this file type — that's fine
+        }
+
+        // Auto-verify: check diagnostics for this specific file
+        // Small delay to let the language server process the changes
+        await new Promise(r => setTimeout(r, 300));
+
+        const diagnostics = vscode.languages.getDiagnostics(fileUri);
+        const errors = diagnostics.filter(d => d.severity === vscode.DiagnosticSeverity.Error);
+
+        if (errors.length > 0) {
+            const problemText = errors.slice(0, 8).map(d =>
+                `  Line ${d.range.start.line + 1}: ${d.message}`
+            ).join('\n');
+            return { formatted, problems: problemText };
+        }
+
+        return { formatted };
+    }
+
     // ─── TOOL: chunk_replace ────────────────────────────────────────────
     const chunk_replace = tool({
         description: 'Replace a specific block of text in a file. Provide the exact target text to find and the replacement text. This is a surgical edit — only the matched text is replaced. Changes are written directly to the file.',
@@ -160,12 +215,25 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
                 return { error: result.error || 'Failed to apply edit.' };
             }
 
-            return {
+            // Auto-format + auto-verify
+            const verification = await postEditVerify(fileUri);
+
+            const response: any = {
                 success: true,
                 message: 'Changes applied directly to file. User can review via inline highlights.',
                 file: params.filePath,
                 linesReplaced: cleanTarget.split('\n').length
             };
+
+            if (verification.formatted) {
+                response.autoFormatted = true;
+            }
+
+            if (verification.problems) {
+                response._problems = `Your edit introduced errors in ${params.filePath}:\n${verification.problems}\nFix these before proceeding.`;
+            }
+
+            return response;
         }
     } as any);
 
@@ -200,12 +268,25 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
                 return { error: result.error || 'Failed to create file.' };
             }
 
-            return { 
-                success: true, 
+            // Auto-format + auto-verify
+            const verification = await postEditVerify(fileUri);
+
+            const response: any = {
+                success: true,
                 message: 'File created successfully.',
-                file: params.filePath, 
-                lines: cleanContent.split('\n').length 
+                file: params.filePath,
+                lines: cleanContent.split('\n').length
             };
+
+            if (verification.formatted) {
+                response.autoFormatted = true;
+            }
+
+            if (verification.problems) {
+                response._problems = `New file ${params.filePath} has errors:\n${verification.problems}\nFix these before proceeding.`;
+            }
+
+            return response;
         }
     } as any);
 
@@ -240,3 +321,4 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
         find_symbol
     };
 }
+
