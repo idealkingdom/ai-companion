@@ -18,25 +18,38 @@ function resolveModel(provider: string, model: string, apiKey: string, baseUrl?:
         return google(model);
     }
 
-    // All OpenAI-compatible providers (OpenAI, DeepSeek, Mistral, Custom, etc.)
+    // Determine if this is an Azure-style endpoint (model in URL, Chat Completions format)
+    const isAzure = provider === 'Azure OpenAI' || azureStyle === true;
+
+    // All OpenAI-compatible providers (OpenAI, DeepSeek, Mistral, Custom, Azure OpenAI, etc.)
     const opts: any = {
         baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
     };
 
-    // Custom header support: some providers use non-standard auth headers (e.g., x-api-key)
+    // Custom header support: Azure uses api-key, others may use x-api-key, etc.
     if (apiKeyHeader && apiKeyHeader.trim()) {
         opts.apiKey = 'sk-placeholder'; // SDK requires a non-empty key
         opts.headers = { [apiKeyHeader.trim()]: apiKey };
+    } else if (isAzure) {
+        // Azure OpenAI default: use api-key header
+        opts.apiKey = 'sk-placeholder';
+        opts.headers = { 'api-key': apiKey };
     } else {
         opts.apiKey = apiKey;
     }
 
-    // Azure-style corporate gateways: model is in the URL, not the body
-    if (azureStyle) {
+    // Azure-style: intercept fetch to strip URL suffix and model from body
+    if (isAzure) {
         opts.fetch = createAzureStyleFetch(baseUrl);
     }
 
     const openai = createOpenAI(opts);
+
+    // Azure-style: force Chat Completions API (sends "messages", not "input")
+    // Standard: use default (Responses API in SDK v6+)
+    if (isAzure) {
+        return openai.chat(model);
+    }
     return openai(model);
 }
 
@@ -51,7 +64,7 @@ function createAzureStyleFetch(baseUrl?: string) {
         if (baseUrl && !baseUrl.endsWith('/chat/completions') && fetchUrl.endsWith('/chat/completions')) {
             fetchUrl = fetchUrl.replace('/chat/completions', '');
         }
-        // Strip /responses — same for OpenAI Responses API format
+        // Strip /responses — fallback for OpenAI Responses API format
         if (baseUrl && !baseUrl.endsWith('/responses') && fetchUrl.endsWith('/responses')) {
             fetchUrl = fetchUrl.replace('/responses', '');
         }
@@ -82,6 +95,8 @@ function resolveAgenticModel(provider: string, model: string, apiKey: string, ba
         return google(model);
     }
 
+    const isAzure = provider === 'Azure OpenAI' || azureStyle === true;
+
     // OpenAI-compat with strict compatibility for tool calling
     const opts: any = {
         baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
@@ -91,16 +106,23 @@ function resolveAgenticModel(provider: string, model: string, apiKey: string, ba
     if (apiKeyHeader && apiKeyHeader.trim()) {
         opts.apiKey = 'sk-placeholder';
         opts.headers = { [apiKeyHeader.trim()]: apiKey };
+    } else if (isAzure) {
+        opts.apiKey = 'sk-placeholder';
+        opts.headers = { 'api-key': apiKey };
     } else {
         opts.apiKey = apiKey;
     }
 
-    // Azure-style corporate gateways: model is in the URL, not the body
-    if (azureStyle) {
+    if (isAzure) {
         opts.fetch = createAzureStyleFetch(baseUrl);
     }
 
     const openai = createOpenAI(opts);
+
+    // Azure-style: force Chat Completions API for tool calling compatibility
+    if (isAzure) {
+        return openai.chat(model);
+    }
     return openai(model);
 }
 
