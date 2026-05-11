@@ -1,42 +1,112 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { ChatViewProvider } from './chat-view-provider';
-import { EXTENSION_NAME } from '../constants';
+import { fetchFilesWebView, getHTMLBase } from '../webviewshared';
+import { SettingsManager } from '../services/settings-manager';
+import { EXTENSION_NAME, getModelProviderOptions } from '../constants';
+import { chatMessageListener } from './chat-message-listener';
+import {
+    LIBRARY_FOLDER,
+    CHATBOX_FOLDER,
+    INDEX_HTML,
+    FILES_TO_LOAD,
+    LIBRARIES_TO_LOAD,
+    CHAT_COMMANDS,
+    ROLE,
+    COMMANDS,
+    WORKFLOWS
+} from './chat-constants';
 
 /**
- * PopupManager - Manages the "Detached" WebviewPanel.
- * Allows the chat to live in an editor tab or a separate window.
+ * PopupManager - Manages detached WebviewPanels.
+ * Each popup is a fully independent chat session with its own message handler.
+ * Messages are NOT broadcast to/from the sidebar.
  */
 export class PopupManager {
-    private static _panel: vscode.WebviewPanel | undefined;
+    private static _panels = new Set<vscode.WebviewPanel>();
 
-    public static async togglePopup(context: vscode.ExtensionContext) {
-        if (this._panel) {
-            this._panel.reveal(vscode.ViewColumn.Active);
-            return;
-        }
-
-        this._panel = vscode.window.createWebviewPanel(
+    /**
+     * Opens a new independent popup chat session.
+     * Optionally receives a chatId to load an existing conversation.
+     * @param chatState - Optional { chatId } to load a conversation into the popup.
+     */
+    public static async openPopup(context: vscode.ExtensionContext, chatState?: { chatId?: string }) {
+        const panel = vscode.window.createWebviewPanel(
             'aiCompanionChatPopup',
             'kdAina Chat',
             vscode.ViewColumn.Beside,
             {
                 enableScripts: true,
-                retainContextWhenHidden: true
+                retainContextWhenHidden: true,
+                localResourceRoots: [
+                    context.extensionUri,
+                    context.globalStorageUri,
+                    vscode.Uri.joinPath(context.extensionUri, 'webview', 'chatbox'),
+                    vscode.Uri.joinPath(context.extensionUri, 'webview', 'libraries'),
+                    vscode.Uri.joinPath(context.extensionUri, 'webview', 'assets')
+                ]
             }
         );
 
-        // Use the centralized setup logic
-        const provider = ChatViewProvider.getInstance(context);
-        provider.setupWebview(this._panel.webview);
+        this._panels.add(panel);
 
-        this._panel.onDidDispose(() => {
-            if (this._panel) {
-                ChatViewProvider.removeWebview(this._panel.webview);
-            }
-            this._panel = undefined;
+        // Build the HTML independently (same source files, but isolated instance)
+        let html = getHTMLBase(panel.webview, context, CHATBOX_FOLDER, INDEX_HTML);
+
+        FILES_TO_LOAD.forEach(file => {
+            html = fetchFilesWebView(panel.webview, context, CHATBOX_FOLDER, html, file.placeholder, file.name);
+        });
+
+        LIBRARIES_TO_LOAD.forEach(lib => {
+            html = fetchFilesWebView(panel.webview, context, path.join(LIBRARY_FOLDER, lib.folderName).toString(), html, lib.placeholder, lib.name);
+        });
+
+        const logoUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'webview', 'assets', 'logo.png'));
+        html = html.replace('{{LOGO_URI}}', logoUri.toString());
+
+        const settingsManager = new SettingsManager(context);
+        const settings = settingsManager.getSettings();
+
+        const SHARED_CONSTANTS = JSON.stringify({
+            CHAT_COMMANDS: CHAT_COMMANDS,
+            ROLE: ROLE,
+            COMMANDS: COMMANDS,
+            WORKFLOWS: WORKFLOWS,
+            AGENTS: settings.prompts || [],
+            MODELS: settings.models,
+            AVAILABLE_MODELS: getModelProviderOptions(),
+            CUSTOM_MODELS: settings.customModels || [],
+            PERMISSIONS: settings.permissions,
+            UI: settings.ui
+        });
+
+        panel.webview.html = html.replace(`"{{CONSTANTS}}"`, SHARED_CONSTANTS);
+
+        // Register an INDEPENDENT message listener — bound to this popup's webview
+        panel.webview.onDidReceiveMessage((msg) => chatMessageListener(msg, panel.webview));
+
+        // If detaching a conversation, tell the popup to load it via CHAT_LOAD
+        if (chatState?.chatId) {
+            // Wait for the webview to initialize, then send loadChatInPopup
+            setTimeout(() => {
+                panel.webview.postMessage({
+                    command: 'loadChatInPopup',
+                    chatId: chatState.chatId
+                });
+            }, 500);
+        }
+
+        panel.onDidDispose(() => {
+            this._panels.delete(panel);
         });
 
         // Set icon
-        this._panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'media', 'icon.png');
+        const iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'logo_128.png');
+        panel.iconPath = iconPath;
+    }
+
+    public static disposeAll() {
+        this._panels.forEach(p => p.dispose());
+        this._panels.clear();
     }
 }
