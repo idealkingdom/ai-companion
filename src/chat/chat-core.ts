@@ -446,7 +446,7 @@ This shows a live checklist in the chat so the user can track what's done and wh
             ? `\n--- ACTIVE EDITOR FILES ---\nThese files are currently open in the user's editor. You already have their skeletons and cursor positions. Do NOT re-read them with read_file_skeleton unless you need fresh data after an edit.\n${activeEditorCtx}\n`
             : '';
 
-        const agenticSystemPrompt = `${systemPrompt}
+        let agenticSystemPrompt = `${systemPrompt}
 
 ${systemInfo}
 
@@ -481,6 +481,24 @@ CRITICAL RULES:
 - Edits are applied DIRECTLY to the file. The user can review changes inline and revert if needed.
 - Use web_search proactively when the user's question involves external libraries, APIs, or topics you're uncertain about. Don't guess — search first.
 - Skip tool calls for files you already have context for (active editor files above).${todoInstruction}`;
+
+        // For Anthropic behind corporate gateways: prompt-based thinking
+        // SDK thinking parameter doesn't work reliably on gateways, so we
+        // instruct Claude to use <thinking> tags which we parse client-side
+        {
+            const _gp = settings.models?.provider || 'OpenAI';
+            const _cm = (settings.customModels || []).find((m: any) => m.name === model);
+            const _provider = _cm?.provider || _gp;
+            if (_provider === 'Anthropic') {
+                agenticSystemPrompt += `
+
+THINKING PROCESS:
+Before responding or making tool calls, wrap your reasoning in <thinking>...</thinking> tags.
+Use thinking to plan your approach, analyze the codebase, and decide which tools to call.
+Keep thinking focused and concise. Do NOT repeat yourself in thinking.
+After thinking, immediately proceed with tool calls — do NOT summarize your thinking in the response.`;
+            }
+        }
 
         // Resolve and inject rules (global + agent-linked)
         const allRules: { name: string; content: string }[] = [];
@@ -686,6 +704,8 @@ CRITICAL RULES:
             let fullText = '';
             let isThinking = false;
             let _lastTextDelta = ''; // Dedup guard for corporate gateway double-sends
+            let _thinkingBuffer = ''; // Buffer to detect partial <thinking> / </thinking> tags
+            let _insideThinkingBlock = false; // Track if we're inside <thinking>...</thinking>
 
             for await (const part of result.fullStream) {
                 if (abortSignal && abortSignal.aborted) {
@@ -699,17 +719,74 @@ CRITICAL RULES:
                 }
 
                 switch (partType) {
-                    // ─── Text streaming ──────────────────────────────
+                    // ─── Text streaming with <thinking> tag parsing ──────
                     case 'text-delta':
-                        const deltaText = (part as any).text;
+                        let deltaText = (part as any).text;
                         // Dedup guard: corporate gateways can send duplicate SSE events
                         if (deltaText && deltaText === _lastTextDelta && deltaText.length > 2) {
-                            outputChannel.appendLine(`[Agentic] Skipping duplicate text-delta: "${deltaText.substring(0, 30)}..."`);
                             break;
                         }
                         _lastTextDelta = deltaText;
-                        fullText += deltaText;
-                        if (onChunk) { onChunk(deltaText); }
+
+                        // Accumulate into buffer for tag detection
+                        _thinkingBuffer += deltaText;
+
+                        // Process complete tags in the buffer
+                        while (_thinkingBuffer.length > 0) {
+                            if (_insideThinkingBlock) {
+                                // Inside <thinking>: look for closing tag
+                                const closeIdx = _thinkingBuffer.indexOf('</thinking>');
+                                if (closeIdx !== -1) {
+                                    // Send everything before </thinking> as thinking text
+                                    const thinkingText = _thinkingBuffer.substring(0, closeIdx);
+                                    if (thinkingText && onAgentStep) {
+                                        onAgentStep({ type: 'thinking', text: thinkingText });
+                                    }
+                                    _thinkingBuffer = _thinkingBuffer.substring(closeIdx + '</thinking>'.length);
+                                    _insideThinkingBlock = false;
+                                    isThinking = false;
+                                } else if (_thinkingBuffer.length > 200) {
+                                    // Flush partial thinking text (keep last 20 chars for partial tag)
+                                    const flushLen = _thinkingBuffer.length - 20;
+                                    const thinkingText = _thinkingBuffer.substring(0, flushLen);
+                                    if (thinkingText && onAgentStep) {
+                                        onAgentStep({ type: 'thinking', text: thinkingText });
+                                    }
+                                    _thinkingBuffer = _thinkingBuffer.substring(flushLen);
+                                } else {
+                                    // Wait for more data to check for closing tag
+                                    break;
+                                }
+                            } else {
+                                // Outside <thinking>: look for opening tag
+                                const openIdx = _thinkingBuffer.indexOf('<thinking>');
+                                if (openIdx !== -1) {
+                                    // Send everything before <thinking> as normal text
+                                    const normalText = _thinkingBuffer.substring(0, openIdx);
+                                    if (normalText) {
+                                        fullText += normalText;
+                                        if (onChunk) { onChunk(normalText); }
+                                    }
+                                    _thinkingBuffer = _thinkingBuffer.substring(openIdx + '<thinking>'.length);
+                                    _insideThinkingBlock = true;
+                                    isThinking = true;
+                                    // Signal thinking start
+                                    if (onAgentStep) {
+                                        onAgentStep({ type: 'thinking', text: '' });
+                                    }
+                                } else if (_thinkingBuffer.length > 20) {
+                                    // Flush normal text (keep last 15 chars for partial '<thinking>' tag)
+                                    const flushLen = _thinkingBuffer.length - 15;
+                                    const normalText = _thinkingBuffer.substring(0, flushLen);
+                                    fullText += normalText;
+                                    if (onChunk) { onChunk(normalText); }
+                                    _thinkingBuffer = _thinkingBuffer.substring(flushLen);
+                                } else {
+                                    // Wait for more data
+                                    break;
+                                }
+                            }
+                        }
                         break;
                     case 'text-start':
                     case 'text-end':
@@ -779,6 +856,21 @@ CRITICAL RULES:
                         outputChannel.appendLine(`[Agentic] Unhandled stream part: ${(part as any).type}`);
                         break;
                 }
+            }
+
+            // Flush remaining buffer content
+            if (_thinkingBuffer.length > 0) {
+                if (_insideThinkingBlock) {
+                    // Unclosed thinking block — flush as thinking
+                    if (onAgentStep) {
+                        onAgentStep({ type: 'thinking', text: _thinkingBuffer });
+                    }
+                } else {
+                    // Normal text remaining — flush to chat
+                    fullText += _thinkingBuffer;
+                    if (onChunk) { onChunk(_thinkingBuffer); }
+                }
+                _thinkingBuffer = '';
             }
 
             outputChannel.appendLine(`[Agentic] Completed in ${stepCount} steps, response length: ${fullText.length}`);

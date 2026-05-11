@@ -407,12 +407,10 @@ export async function aiAgenticRequest(
                         };
                     }
                 } else if (provider === 'Anthropic') {
-                    // Anthropic: budgeted thinking (5000 tokens max)
-                    // 'adaptive' can cause thinking to leak into text output on corporate gateways
+                    // Anthropic corporate gateways: do NOT use SDK thinking parameter
+                    // The gateway mishandles it (leaks thinking as text, causes 500s loops)
+                    // Instead, we use prompt-based <thinking> tag parsing (see processAgenticRequest)
                     streamOptions.maxTokens = 16000;
-                    streamOptions.providerOptions = {
-                        anthropic: { thinking: { type: 'enabled', budgetTokens: 5000 } }
-                    };
                 } else if (provider === 'Azure OpenAI') {
                     // Azure OpenAI: reasoning is disabled by corporate gateways, skip
                     outputChannel.appendLine(`[Agentic] Skipping reasoning params for Azure OpenAI (gateway does not support)`);
