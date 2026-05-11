@@ -1,9 +1,14 @@
 {
-  "name": "ai-companion",
+  "name": "kdaina",
   "displayName": "kdAina",
+  "publisher": "idealkingdom",
   "description": "The Autonomous AI Companion for Builders",
-  "version": "0.0.1",
+  "version": "0.0.5",
   "icon": "resources/logo_128.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/idealkingdom/ai-companion.git"
+  },
   "engines": {
     "vscode": "^1.101.0"
   },
@@ -40,6 +45,12 @@
           "minimum": 0,
           "maximum": 2,
           "description": "Sampling temperature (0 = deterministic, 2 = more random)"
+        },
+        "aiCompanion.disableSslVerification": {
+          "type": "boolean",
+          "default": false,
+          "description": "Bypass SSL certificate validation (useful for corporate VPNs or custom proxy endpoints)",
+          "markdownDescription": "Bypass SSL certificate validation (useful for corporate VPNs or custom proxy endpoints)"
         }
       }
     },
