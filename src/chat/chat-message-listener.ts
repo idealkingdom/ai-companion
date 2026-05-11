@@ -552,6 +552,26 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
 
 
 
+                        // Sanitize agentSteps for backward compatibility with bloated history files
+                        // Previously, streaming saved 1000s of 'thinking' chunks per message, freezing the UI on load.
+                        let sanitizedAgentSteps = msg.agentSteps;
+                        if (sanitizedAgentSteps && sanitizedAgentSteps.length > 0) {
+                            const coalesced: any[] = [];
+                            for (const step of sanitizedAgentSteps) {
+                                if (step.type === 'thinking') {
+                                    const last = coalesced[coalesced.length - 1];
+                                    if (last && last.type === 'thinking') {
+                                        last.text = (last.text || '') + (step.text || '');
+                                    } else {
+                                        coalesced.push({ ...step });
+                                    }
+                                } else {
+                                    coalesced.push(step);
+                                }
+                            }
+                            sanitizedAgentSteps = coalesced;
+                        }
+
                         await post({
                             command: CHAT_COMMANDS.CHAT_REQUEST,
                             content: msg.message,
@@ -559,7 +579,7 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                             files: msg.files, // <--- Send files to restore URL/file pills
                             role: msg.role === ROLE.USER ? ROLE.USER : ROLE.BOT,
                             isHistory: true, // TODO flag to avoid saving again
-                            agentSteps: msg.agentSteps // <--- Restore agent steps
+                            agentSteps: sanitizedAgentSteps // <--- Restore sanitized agent steps
                         });
                     }
                 }

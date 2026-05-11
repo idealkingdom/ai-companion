@@ -237,7 +237,21 @@ export class ChatCoreService {
             const isAgenticMode = this.isAgenticAgent(data.agentId, appSettings);
 
             const trackingOnAgentStep = (step: any) => {
-                collectedAgentSteps.push(step);
+                // Coalesce thinking chunks to prevent history bloat and UI hangs
+                if (step.type === 'thinking') {
+                    const lastStep = collectedAgentSteps[collectedAgentSteps.length - 1];
+                    if (lastStep && lastStep.type === 'thinking') {
+                        // Append text to the existing thinking step for history storage
+                        lastStep.text = (lastStep.text || '') + (step.text || '');
+                    } else {
+                        // Create a new thinking step
+                        collectedAgentSteps.push({ ...step });
+                    }
+                } else {
+                    collectedAgentSteps.push(step);
+                }
+                
+                // Still fire the event for real-time streaming to the UI
                 if (onAgentStep) {
                     onAgentStep(step);
                 }
