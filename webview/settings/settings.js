@@ -1243,16 +1243,9 @@ function renderModelTable() {
                             <label>Base URL</label>
                             <input type="text" placeholder="Leave empty for default" value="${escapeHtml(baseUrl)}" data-config-field="baseUrl" disabled>
                         </div>
-                        ${isCustom && providerKey === 'Custom' ? `<div class="config-field">
+                        ${isCustom && (providerKey === 'Custom' || providerKey === 'Azure OpenAI') ? `<div class="config-field">
                             <label>API Key Header <span style="font-size:0.72rem;opacity:0.6;">(optional)</span></label>
                             <input type="text" placeholder="e.g., x-api-key" value="${escapeHtml(apiKeyHeaderVal)}" data-config-field="apiKeyHeader" disabled>
-                        </div>
-                        <div class="config-field" style="flex-direction:row;align-items:center;gap:10px;">
-                            <label style="margin:0;white-space:nowrap;">Azure / Corporate Gateway</label>
-                            <label class="toggle-switch" style="transform:scale(0.85);">
-                                <input type="checkbox" data-config-field="azureStyle" ${azureStyleVal ? 'checked' : ''} disabled>
-                                <span class="toggle-slider"></span>
-                            </label>
                         </div>` : ''}
                     </div>
                     <div class="config-actions">
@@ -1535,9 +1528,16 @@ const addModelAzureStyle = document.getElementById('addModelAzureStyle');
 // Show/hide the custom API key header field based on provider selection
 if (addModelProvider && addModelHeaderGroup) {
     addModelProvider.addEventListener('change', () => {
-        const isCustom = addModelProvider.value === 'Custom';
+        const val = addModelProvider.value;
+        const isCustom = val === 'Custom';
+        const isAzure = val === 'Azure OpenAI';
         addModelHeaderGroup.style.display = isCustom ? 'block' : 'none';
-        if (addModelAzureGroup) addModelAzureGroup.style.display = isCustom ? 'block' : 'none';
+        // For Azure OpenAI, make Base URL required by updating placeholder
+        if (addModelBaseUrl) {
+            addModelBaseUrl.placeholder = isAzure
+                ? 'Required — e.g., https://api.example.com/ai/gpt/gpt-5.1'
+                : 'e.g., https://api.openai.com/v1/chat/completions';
+        }
     });
 }
 
@@ -1547,11 +1547,9 @@ function openAddModelModal() {
     if (addModelProvider) addModelProvider.value = '';
     if (addModelName) addModelName.value = '';
     if (addModelApiKey) addModelApiKey.value = '';
-    if (addModelBaseUrl) addModelBaseUrl.value = '';
+    if (addModelBaseUrl) { addModelBaseUrl.value = ''; addModelBaseUrl.placeholder = 'e.g., https://api.openai.com/v1/chat/completions'; }
     if (addModelApiKeyHeader) addModelApiKeyHeader.value = '';
     if (addModelHeaderGroup) addModelHeaderGroup.style.display = 'none';
-    if (addModelAzureGroup) addModelAzureGroup.style.display = 'none';
-    if (addModelAzureStyle) addModelAzureStyle.checked = false;
     addModelModal.classList.remove('hidden');
 }
 
@@ -1583,6 +1581,12 @@ if (addModelSubmitBtn) {
             return;
         }
 
+        // Azure OpenAI requires a base URL
+        if (provider === 'Azure OpenAI' && !baseUrl) {
+            if (addModelBaseUrl) { addModelBaseUrl.style.borderColor = 'var(--danger-color)'; setTimeout(() => { addModelBaseUrl.style.borderColor = ''; }, 1500); }
+            return;
+        }
+
         // Create the custom model — image/reasoning toggleable from the model table
         // Auto-detect known reasoning models
         const lowerName = name.toLowerCase();
@@ -1590,7 +1594,7 @@ if (addModelSubmitBtn) {
         const supportsImage = lowerName.includes('gemini') || lowerName.includes('gpt-5') || lowerName.includes('vision');
         const supportsReasoning = isKnownReasoningModel;
         const apiKeyHeader = addModelApiKeyHeader?.value?.trim() || '';
-        const isAzureStyle = addModelAzureStyle?.checked || false;
+        const isAzure = provider === 'Azure OpenAI';
         const newModel = {
             id: Date.now().toString(),
             name,
@@ -1600,7 +1604,7 @@ if (addModelSubmitBtn) {
             supportsImage,
             supportsReasoning,
             apiKeyHeader: apiKeyHeader || undefined,
-            azureStyle: isAzureStyle || undefined
+            azureStyle: isAzure || undefined
         };
 
         if (!currentSettings.customModels) currentSettings.customModels = [];
