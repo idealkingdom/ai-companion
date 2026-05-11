@@ -53,6 +53,10 @@ export class ReviewCodeLensProvider implements vscode.CodeLensProvider {
 /**
  * Decoration Service — Highlights lines that were changed by the AI agent.
  * Green = added/modified lines (changes are already written to the file).
+ * Red gutter = deletion marker on the line where removed content was.
+ *
+ * Deleted lines are shown via rich hover tooltip on the green added lines,
+ * with a diff-formatted code block showing exactly what was removed.
  */
 export class ReviewDecorationProvider {
     private static addedDecoration = vscode.window.createTextEditorDecorationType({
@@ -73,32 +77,71 @@ export class ReviewDecorationProvider {
         overviewRulerLane: vscode.OverviewRulerLane.Center,
     });
 
+    /** Red gutter marker for deletion indicators */
+    private static deletionMarker = vscode.window.createTextEditorDecorationType({
+        isWholeLine: true,
+        overviewRulerColor: 'rgba(244, 67, 54, 0.8)',
+        overviewRulerLane: vscode.OverviewRulerLane.Left,
+        before: {
+            contentText: '−',
+            color: 'rgba(244, 67, 54, 0.85)',
+            fontWeight: 'bold',
+            textDecoration: 'none; position: relative; margin-right: 4px;',
+        },
+    });
+
     public static updateDecorations(editor: vscode.TextEditor) {
         const reviewManager = ReviewManager.getInstance();
         const uriStr = editor.document.uri.toString();
-        
+
         const pendingEdits = reviewManager.getPendingEdits(uriStr);
 
         if (!pendingEdits || pendingEdits.length === 0) {
             editor.setDecorations(this.addedDecoration, []);
             editor.setDecorations(this.pendingDecoration, []);
+            editor.setDecorations(this.deletionMarker, []);
             return;
         }
 
         const addedRanges: vscode.DecorationOptions[] = [];
+        const deletionRanges: vscode.DecorationOptions[] = [];
 
         pendingEdits.forEach(edit => {
             const startLine = Math.max(0, edit.startLine);
             const endLine = Math.min(editor.document.lineCount - 1, edit.endLine);
-            
+
+            // Build hover content showing the deleted code (if any)
+            let hoverContent: vscode.MarkdownString;
+
+            if (edit.originalContent) {
+                const deletedLineCount = edit.originalContent.split('\n').length;
+                const escapedOriginal = edit.originalContent;
+
+                hoverContent = new vscode.MarkdownString();
+                hoverContent.isTrusted = true;
+                hoverContent.appendMarkdown(`**AI Change** — Modified by \`${edit.toolName || 'agent'}\`\n\n`);
+                hoverContent.appendMarkdown(`🔴 **${deletedLineCount} line${deletedLineCount !== 1 ? 's' : ''} removed:**\n\n`);
+                hoverContent.appendCodeblock(escapedOriginal, 'diff');
+
+                // Add deletion marker on the first line of the edit
+                deletionRanges.push({
+                    range: new vscode.Range(startLine, 0, startLine, 0),
+                    hoverMessage: new vscode.MarkdownString(`🔴 **${deletedLineCount} line${deletedLineCount !== 1 ? 's' : ''} removed** — hover green lines to see deleted code`)
+                });
+            } else {
+                hoverContent = new vscode.MarkdownString(`**AI Change** — New content by \`${edit.toolName || 'agent'}\``);
+            }
+
+            // ── Green: added/modified lines with hover showing deleted code ──
             for (let i = startLine; i <= endLine; i++) {
                 addedRanges.push({
                     range: new vscode.Range(i, 0, i, editor.document.lineAt(i).text.length),
-                    hoverMessage: new vscode.MarkdownString(`**AI Change** — Modified by \`${edit.toolName || 'agent'}\``)
+                    hoverMessage: hoverContent
                 });
             }
         });
 
         editor.setDecorations(this.addedDecoration, addedRanges);
+        editor.setDecorations(this.deletionMarker, deletionRanges);
     }
 }

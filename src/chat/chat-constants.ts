@@ -97,8 +97,9 @@ export interface Conversation {
 
 export const COMMANDS = [
   { label: '@workspace', description: 'Search across workspace' },
-  { label: '@file', description: 'Pick a specific file' },
-  { label: '@terminal', description: 'Focus terminal' },
+  { label: '@problems', description: 'Attach workspace diagnostics' },
+  { label: '@selection', description: 'Attach current editor selection' },
+  { label: '@terminal', description: 'Capture terminal output' },
 ];
 
 export const WORKFLOWS = [

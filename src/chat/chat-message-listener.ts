@@ -67,17 +67,22 @@ function buildReviewFilesData(): any[] {
 }
 
 // message sent from client js
-export async function chatMessageListener(message: any) {
+// sourceWebview: when provided (e.g. from popups), messages are routed to that
+// specific webview instead of broadcasting via ChatViewProvider.
+export async function chatMessageListener(message: any, sourceWebview?: vscode.Webview) {
 
     // 1. GET DEPENDENCIES
     // We get the context from your Provider to initialize the History Service
     const context = ChatViewProvider.getContext();
-    const webview = ChatViewProvider.getView()?.webview;
+    const webview = sourceWebview || ChatViewProvider.getView()?.webview;
 
     if (!webview) {
         outputChannel.appendLine('Webview is missing.');
         return;
     }
+
+    // Local helper — routes messages to the correct webview (popup or sidebar)
+    const post = (msg: any) => webview.postMessage(msg);
 
 
     const imageService = new ImageStorageService(context);
@@ -98,7 +103,7 @@ export async function chatMessageListener(message: any) {
                     // REHYDRATE
                     const conversation = historyService.getConversation(existingId);
                     if (conversation) {
-                        await ChatViewProvider.getInstance().postMessage({
+                        await post({
                             command: CHAT_COMMANDS.CHAT_STATE_REHYDRATE,
                             content: {
                                 chatId: existingId,
@@ -114,14 +119,14 @@ export async function chatMessageListener(message: any) {
                 // NEW CHAT
                 const newChatId = coreService.generateChatID();
                 ChatViewProvider.setCurrentSessionId(newChatId);
-                await ChatViewProvider.getInstance().postMessage({
+                await post({
                     command: CHAT_COMMANDS.CHAT_RESET,
                     content: { uid: newChatId }
                 });
 
                 // Sync the initial staging state
                 const count = ReviewManager.getInstance().getStagedUris().length;
-                await ChatViewProvider.getInstance().postMessage({
+                await post({
                     command: 'chatStagingUpdate',
                     content: { stagedFilesCount: count }
                 });
@@ -132,7 +137,7 @@ export async function chatMessageListener(message: any) {
                     const wsIndex = new WorkspaceIndexService();
                     await wsIndex.refresh();
                     const fileCount = wsIndex.getFileList().length;
-                    await ChatViewProvider.getInstance().postMessage({
+                    await post({
                         command: 'indexUpdate',
                         content: { fileCount, lastUpdated: new Date().toISOString() }
                     });
@@ -142,6 +147,24 @@ export async function chatMessageListener(message: any) {
                 }
                 break;
             }
+
+        // DETACH CHAT — open popup with conversation, reset sidebar
+        case 'detachChat': {
+            if (context) {
+                const chatId = message.data?.chatId;
+                // Open popup (with chatId if we have one)
+                await PopupManager.openPopup(context, chatId ? { chatId } : undefined);
+
+                // Reset the sidebar to a new chat
+                const newChatId = coreService.generateChatID();
+                ChatViewProvider.setCurrentSessionId(newChatId);
+                await post({
+                    command: CHAT_COMMANDS.CHAT_RESET,
+                    content: { uid: newChatId }
+                });
+            }
+            break;
+        }
         case 'searchWorkspaceFiles':
             {
                 const query = message.data.query || '';
@@ -161,7 +184,7 @@ export async function chatMessageListener(message: any) {
                         path: p
                     }));
 
-                await ChatViewProvider.getInstance().postMessage({
+                await post({
                     command: 'searchFilesResult',
                     query: query,
                     results: results
@@ -200,7 +223,7 @@ export async function chatMessageListener(message: any) {
         case 'requestModels': {
             const { getModelProviderOptions } = require('../constants');
             const latestSettings = settingsManager.getSettings();
-            await ChatViewProvider.getInstance().postMessage({
+            await post({
                 command: 'modelsUpdate',
                 models: latestSettings.models,
                 customModels: latestSettings.customModels,
@@ -216,7 +239,7 @@ export async function chatMessageListener(message: any) {
             const url = message.url;
             try {
                 const result = await scraper.scrape(url);
-                await ChatViewProvider.getInstance().postMessage({
+                await post({
                     command: 'scrapeResult',
                     url: url,
                     success: result.success,
@@ -226,7 +249,7 @@ export async function chatMessageListener(message: any) {
                     error: result.error
                 });
             } catch (err: any) {
-                await ChatViewProvider.getInstance().postMessage({
+                await post({
                     command: 'scrapeResult',
                     url: url,
                     success: false,
@@ -240,7 +263,7 @@ export async function chatMessageListener(message: any) {
             {
                 // Now: We generate ID and send it manually, or add resetChat() to your Service.
                 const newChatId = coreService.generateChatID();
-                await ChatViewProvider.getInstance().postMessage({
+                await post({
                     command: CHAT_COMMANDS.CHAT_RESET,
                     content: { uid: newChatId }
                 });
@@ -259,7 +282,7 @@ export async function chatMessageListener(message: any) {
                 // This turns the text + files into one big Markdown string
                 const formattedMessage = formatMessageWithFiles(rawText, files);
 
-                await ChatViewProvider.getInstance().postMessage({
+                await post({
                     command: CHAT_COMMANDS.CHAT_REQUEST,
                     content: formattedMessage,
                     images: images,
@@ -279,7 +302,7 @@ export async function chatMessageListener(message: any) {
                 if (!chatId || chatId === "") {
                     chatId = coreService.generateChatID();
                     // Update webview with the new ID so future cancellations/messages use it
-                    await ChatViewProvider.getInstance().postMessage({
+                    await post({
                         command: CHAT_COMMANDS.CHAT_ID_UPDATE,
                         content: { uid: chatId }
                     });
@@ -287,7 +310,7 @@ export async function chatMessageListener(message: any) {
                     aiData.chat_id = chatId;
                 }
 
-                ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.CHAT_STREAM_START });
+                post({ command: CHAT_COMMANDS.CHAT_STREAM_START });
 
                 const { text: aiResponse, usage, hitStepLimit, continuationMaxSteps } = await coreService.processChatRequest(
                     aiData,
@@ -298,7 +321,7 @@ export async function chatMessageListener(message: any) {
                             chunkAcks.set(seq.toString(), resolve);
                         });
 
-                        await ChatViewProvider.getInstance().postMessage({
+                        await post({
                             command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
                             content: chunk,
                             seq: seq
@@ -310,7 +333,7 @@ export async function chatMessageListener(message: any) {
                     },
                     // onAgentStep — stream tool telemetry to frontend
                     async (step) => {
-                        await ChatViewProvider.getInstance().postMessage({
+                        await post({
                             command: CHAT_COMMANDS.CHAT_AGENT_STEP,
                             content: step
                         });
@@ -318,13 +341,13 @@ export async function chatMessageListener(message: any) {
                 );
 
                 if (usage) {
-                    ChatViewProvider.getInstance().postMessage({
+                    post({
                         command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
                         usage: usage
                     });
                 }
 
-                ChatViewProvider.getInstance().postMessage({
+                post({
                     command: CHAT_COMMANDS.CHAT_STREAM_END,
                     content: aiResponse,
                     role: ROLE.BOT
@@ -333,7 +356,7 @@ export async function chatMessageListener(message: any) {
                 // If the agent hit the step limit, offer continuation
                 if (hitStepLimit) {
                     const extraSteps = Math.max(5, Math.floor((continuationMaxSteps || 20) / 2));
-                    ChatViewProvider.getInstance().postMessage({
+                    post({
                         command: CHAT_COMMANDS.CHAT_CONTINUE_PROMPT,
                         data: {
                             chatId: aiData.chat_id,
@@ -381,7 +404,7 @@ export async function chatMessageListener(message: any) {
                 const messageToSend = overrideMessage || lastUserMessage;
                 if (!messageToSend) {
                     // No message recovered — cancel the loading state cleanly
-                    ChatViewProvider.getInstance().postMessage({
+                    post({
                         command: CHAT_COMMANDS.CHAT_STREAM_END,
                         content: '',
                         role: ROLE.BOT
@@ -399,19 +422,19 @@ export async function chatMessageListener(message: any) {
                     images: []
                 };
 
-                ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.CHAT_STREAM_START });
+                post({ command: CHAT_COMMANDS.CHAT_STREAM_START });
 
                 try {
                     const { text: aiResponse, usage } = await coreService.processChatRequest(
                         retryData, 
                         async (chunk) => {
-                            await ChatViewProvider.getInstance().postMessage({
+                            await post({
                                 command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
                                 content: chunk
                             });
                         },
                         async (step) => {
-                            await ChatViewProvider.getInstance().postMessage({
+                            await post({
                                 command: CHAT_COMMANDS.CHAT_AGENT_STEP,
                                 content: step
                             });
@@ -419,20 +442,20 @@ export async function chatMessageListener(message: any) {
                     );
 
                     if (usage) {
-                        ChatViewProvider.getInstance().postMessage({
+                        post({
                             command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
                             usage: usage
                         });
                     }
 
-                    ChatViewProvider.getInstance().postMessage({
+                    post({
                         command: CHAT_COMMANDS.CHAT_STREAM_END,
                         content: aiResponse,
                         role: ROLE.BOT
                     });
                 } catch (retryError: any) {
                     outputChannel.appendLine(`[Retry] Error: ${retryError?.message || retryError}`);
-                    ChatViewProvider.getInstance().postMessage({
+                    post({
                         command: CHAT_COMMANDS.CHAT_STREAM_END,
                         content: `Error: ${retryError?.message || 'Retry failed'}`,
                         role: ROLE.BOT
@@ -445,7 +468,7 @@ export async function chatMessageListener(message: any) {
         case CHAT_COMMANDS.HISTORY_LOAD:
             {
                 const historyData = historyService.getFormattedHistoryGroups();
-                await ChatViewProvider.getInstance().postMessage({
+                await post({
                     command: CHAT_COMMANDS.HISTORY_LOAD,
                     content: historyData
                 });
@@ -492,7 +515,7 @@ export async function chatMessageListener(message: any) {
                 if (conversation) {
                     ChatViewProvider.setCurrentSessionId(targetId);
                     // A. Reset UI with the old ID
-                    await ChatViewProvider.getInstance().postMessage({
+                    await post({
                         command: CHAT_COMMANDS.CHAT_RESET,
                         content: { 
                             uid: conversation.chat_id,
@@ -527,7 +550,7 @@ export async function chatMessageListener(message: any) {
 
 
 
-                        await ChatViewProvider.getInstance().postMessage({
+                        await post({
                             command: CHAT_COMMANDS.CHAT_REQUEST,
                             content: msg.message,
                             images: displayImages,
@@ -544,7 +567,7 @@ export async function chatMessageListener(message: any) {
         case CHAT_COMMANDS.HISTORY_CLEAR:
             {
                 await historyService.clear();
-                await ChatViewProvider.getInstance().postMessage({
+                await post({
                     command: CHAT_COMMANDS.HISTORY_LOAD,
                     content: []
                 });
@@ -650,7 +673,7 @@ export async function chatMessageListener(message: any) {
                     const fileContent = document.getText();
                     const languageId = document.languageId;
 
-                    await ChatViewProvider.getInstance().postMessage({
+                    await post({
                         command: 'fileContextAdded',
                         content: {
                             name: fileName,
@@ -673,7 +696,7 @@ export async function chatMessageListener(message: any) {
                 if (type === 'currentFile') {
                     if (!editor) {
                         // No file is open
-                        await ChatViewProvider.getInstance().postMessage({
+                        await post({
                             command: 'error',
                             content: 'No active text editor found.'
                         });
@@ -686,7 +709,7 @@ export async function chatMessageListener(message: any) {
                     const languageId = document.languageId;
 
                     // Send back to Frontend to "attach" it
-                    await ChatViewProvider.getInstance().postMessage({
+                    await post({
                         command: 'fileContextAdded', // We reuse your existing listener logic
                         content: {
                             name: fileName,
@@ -717,7 +740,7 @@ export async function chatMessageListener(message: any) {
                     // We create a "virtual" filename for the selection
                     const fileName = path.basename(editor.document.fileName);
 
-                    await ChatViewProvider.getInstance().postMessage({
+                    await post({
                         command: 'fileContextAdded',
                         content: {
                             name: `Selection (${fileName})`, // e.g. "Selection (script.ts)"
@@ -774,7 +797,7 @@ export async function chatMessageListener(message: any) {
                                     const dataUrl = `data:image/${mime};base64,${base64}`;
 
                                     // Send to Frontend
-                                    await ChatViewProvider.getInstance().postMessage({
+                                    await post({
                                         command: CHAT_COMMANDS.IMAGE_CONTEXT_ADDED,
                                         content: {
                                             name: fileName,
@@ -791,7 +814,7 @@ export async function chatMessageListener(message: any) {
                                 }
 
                                 // Send result to frontend
-                                await ChatViewProvider.getInstance().postMessage({
+                                await post({
                                     command: 'fileContextAdded',
                                     content: {
                                         name: fileName,
@@ -831,7 +854,7 @@ export async function chatMessageListener(message: any) {
                     }
 
                     // Send back to frontend
-                    await ChatViewProvider.getInstance().postMessage({
+                    await post({
                         command: CHAT_COMMANDS.PROBLEM_CONTEXT_ADDED,
                         content: {
                             name: "Workspace Problems",
@@ -842,12 +865,48 @@ export async function chatMessageListener(message: any) {
                         }
                     });
                 }
+                // --- E. TERMINAL ---
+                else if (type === 'terminal') {
+                    const terminal = vscode.window.activeTerminal;
+                    if (!terminal) {
+                        vscode.window.showWarningMessage("No active terminal found.");
+                        return;
+                    }
+
+                    // Use shell integration to read recent output if available
+                    let terminalText = '';
+                    try {
+                        // VS Code 1.93+ supports shellIntegration
+                        const execution = (terminal as any).shellIntegration?.read?.();
+                        if (execution) {
+                            terminalText = execution;
+                        }
+                    } catch {
+                        // fallback
+                    }
+
+                    if (!terminalText) {
+                        // Fallback: note that terminal name/state is available
+                        terminalText = `Active terminal: "${terminal.name}"\n\nNote: Terminal output capture requires VS Code 1.93+ with shell integration enabled.\nYou can copy-paste the relevant terminal output directly into the chat.`;
+                    }
+
+                    await post({
+                        command: 'fileContextAdded',
+                        content: {
+                            name: `Terminal: ${terminal.name}`,
+                            text: terminalText,
+                            language: 'shellscript',
+                            type: 'terminal',
+                            path: null
+                        }
+                    });
+                }
                 // --- E. WORKSPACE ---
                 else if (type === 'workspace') {
                     const workspaceFiles = await vscode.workspace.findFiles('**/*', '{**/node_modules/**,**/dist/**,**/build/**,**/.git/**}');
                     
                     if (workspaceFiles.length === 0) {
-                        await ChatViewProvider.getInstance().postMessage({
+                        await post({
                             command: 'fileContextAdded',
                             content: {
                                 name: "Workspace",
@@ -887,7 +946,7 @@ export async function chatMessageListener(message: any) {
                         currentPathParts = parts;
                     }
 
-                    await ChatViewProvider.getInstance().postMessage({
+                    await post({
                         command: 'fileContextAdded',
                         content: {
                             name: "Workspace",
@@ -921,7 +980,7 @@ export async function chatMessageListener(message: any) {
                 if (isGlobalReview) {
                     // Global review — send all staged data to open review panel
                     const filesData = buildReviewFilesData();
-                    await ChatViewProvider.getInstance().postMessage({
+                    await post({
                         command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
                         content: filesData,
                         openPanel: true // Signal frontend to open the panel
@@ -938,9 +997,10 @@ export async function chatMessageListener(message: any) {
             {
                 const filesData = buildReviewFilesData();
 
-                await ChatViewProvider.getInstance().postMessage({
+                await post({
                     command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
-                    content: filesData
+                    content: filesData,
+                    openPanel: true
                 });
                 break;
             }
@@ -959,7 +1019,7 @@ export async function chatMessageListener(message: any) {
                 }
                 
                 // Notify webview
-                await ChatViewProvider.getInstance().postMessage({
+                await post({
                     command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
                     content: []
                 });
@@ -977,10 +1037,10 @@ export async function chatMessageListener(message: any) {
                 // Update the review window
                 const count = reviewManager.getTotalPendingCount();
                 if (count === 0) {
-                    await ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: [] });
+                    await post({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: [] });
                 } else {
                     const filesData = buildReviewFilesData();
-                    await ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: filesData });
+                    await post({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: filesData });
                 }
                 break;
             }
@@ -996,10 +1056,10 @@ export async function chatMessageListener(message: any) {
                 // Update the review window
                 const count = reviewManager.getTotalPendingCount();
                 if (count === 0) {
-                    await ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: [] });
+                    await post({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: [] });
                 } else {
                     const filesData = buildReviewFilesData();
-                    await ChatViewProvider.getInstance().postMessage({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: filesData });
+                    await post({ command: CHAT_COMMANDS.REVIEW_HUNKS_DATA, content: filesData });
                 }
                 break;
             }
@@ -1049,7 +1109,7 @@ export async function chatMessageListener(message: any) {
                 const fileList = wsIndex.getFileList();
                 outputChannel.appendLine(`[Index] Manual refresh: ${fileCount} files indexed.`);
                 
-                await ChatViewProvider.getInstance().postMessage({
+                await post({
                     command: 'indexUpdate',
                     content: { fileCount, lastUpdated: new Date().toISOString(), fileList }
                 });
@@ -1067,7 +1127,7 @@ export async function chatMessageListener(message: any) {
                 const fileCount = wsIndex.getFileList().length;
                 const fileList = wsIndex.getFileList();
 
-                await ChatViewProvider.getInstance().postMessage({
+                await post({
                     command: 'indexUpdate',
                     content: { fileCount, lastUpdated: new Date().toISOString(), fileList, showViewer: true }
                 });
@@ -1099,15 +1159,60 @@ export async function chatMessageListener(message: any) {
                         { role: 'user', content: `Draft prompt: "${userDraft}"\n\nProject files:\n${fileTree}` }
                     ], model, apiKey, 0.7, provider, pConfig.baseUrl || '');
 
-                    await ChatViewProvider.getInstance().postMessage({
+                    await post({
                         command: 'improvedPrompt',
                         content: result.content
                     });
                 } catch (e) {
                     outputChannel.appendLine(`[ImprovePrompt] Error: ${e}`);
-                    await ChatViewProvider.getInstance().postMessage({
+                    await post({
                         command: 'improvedPrompt',
                         content: userDraft // Return original on error
+                    });
+                }
+                break;
+            }
+
+        case 'suggestPrompts':
+            {
+                const { WorkspaceIndexService } = require('../services/workspace-index');
+                const wsIndex = new WorkspaceIndexService();
+                await wsIndex.refresh();
+                const fileTree = wsIndex.getCompactTreeString().substring(0, 3000);
+                wsIndex.dispose();
+
+                const { aiRequest } = require('../api/ai');
+                const appSettings = settingsManager.getSettings();
+                const provider = appSettings.models.provider;
+                const pConfig = appSettings.models.providerSettings?.[provider] || {};
+                const apiKey = pConfig.apiKey || appSettings.models.apiKey || '';
+                const model = appSettings.models.textModel;
+
+                outputChannel.appendLine(`[SuggestPrompts] Generating prompt ideas...`);
+
+                try {
+                    const result = await aiRequest([
+                        { role: 'system', content: `You are a prompt idea generator for an AI coding assistant. Given a project's file tree, suggest exactly 3 concise, actionable task prompts that would be useful for the developer. Output ONLY a JSON array of 3 strings. Example: ["Add unit tests for the auth module", "Refactor the API error handling", "Add TypeScript types to utils.js"]. No markdown, no explanation.` },
+                        { role: 'user', content: `Project files:\n${fileTree}` }
+                    ], model, apiKey, 0.7, provider, pConfig.baseUrl || '');
+
+                    let suggestions: string[] = [];
+                    try {
+                        const cleaned = (result.content || '').replace(/```json\s*/g, '').replace(/```/g, '').trim();
+                        suggestions = JSON.parse(cleaned);
+                    } catch {
+                        suggestions = ['Fix any open issues in the codebase', 'Add documentation to key functions', 'Optimize performance of the main module'];
+                    }
+
+                    await post({
+                        command: 'suggestPromptsResult',
+                        suggestions
+                    });
+                } catch (e) {
+                    outputChannel.appendLine(`[SuggestPrompts] Error: ${e}`);
+                    await post({
+                        command: 'suggestPromptsResult',
+                        suggestions: ['Fix any open issues in the codebase', 'Add documentation to key functions', 'Optimize performance of the main module']
                     });
                 }
                 break;
