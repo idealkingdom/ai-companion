@@ -1585,10 +1585,12 @@ input:focus + .toggle-slider {
     display: flex;
     gap: 12px;
     align-items: flex-end;
+    flex-wrap: wrap;
 }
 
 .model-config-panel .config-field {
     flex: 1;
+    min-width: 180px;
     display: flex;
     flex-direction: column;
     gap: 4px;
