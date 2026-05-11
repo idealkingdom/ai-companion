@@ -347,44 +347,108 @@ export class WorkspaceIndexService {
     // ─── ACTIVE EDITOR CONTEXT ─────────────────────────────────────────
 
     /**
-     * Returns a compact context string of currently open editor files.
-     * Includes skeleton (imports + function signatures) so the agent
-     * doesn't need to waste a tool call reading them.
+     * Returns context for the user's active editor state.
+     * - The FOCUSED editor gets full AST skeleton + cursor context.
+     * - Other visible editors are listed as a compact manifest (name + line count).
+     * The agent can use read_file_skeleton to pull details for other files on-demand.
      */
-    public getActiveEditorContext(): string {
-        const editors = vscode.window.visibleTextEditors;
-        if (editors.length === 0) { return ''; }
+    public async getActiveEditorContext(): Promise<string> {
+        const activeEditor = vscode.window.activeTextEditor;
+        const visibleEditors = vscode.window.visibleTextEditors;
 
-        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
-        const seen = new Set<string>();
+        if (!activeEditor && visibleEditors.length === 0) { return ''; }
+
         const sections: string[] = [];
+        const seen = new Set<string>();
 
-        for (const editor of editors) {
-            const uri = editor.document.uri;
-            if (uri.scheme !== 'file') { continue; }
-            if (seen.has(uri.fsPath)) { continue; }
+        // ── 1. Full context for the FOCUSED editor ──────────────────────
+        if (activeEditor && activeEditor.document.uri.scheme === 'file') {
+            const uri = activeEditor.document.uri;
             seen.add(uri.fsPath);
-
             const relPath = vscode.workspace.asRelativePath(uri);
-            const content = editor.document.getText();
+            const content = activeEditor.document.getText();
             const lines = content.split('\n');
-            const skeleton = this.extractSkeleton(lines);
 
-            if (skeleton.length === 0) { continue; }
+            let skeletonLines: string[] = [];
+            const astSkeleton = await this.buildAstSkeleton(uri);
+            if (astSkeleton) {
+                skeletonLines = astSkeleton.split('\n');
+            } else {
+                skeletonLines = this.extractSkeleton(lines);
+            }
 
-            // Also include the lines around the cursor for extra context
-            const cursorLine = editor.selection.active.line;
-            const cursorStart = Math.max(0, cursorLine - 3);
-            const cursorEnd = Math.min(lines.length - 1, cursorLine + 3);
+            const cursorLine = activeEditor.selection.active.line;
+            const cursorStart = Math.max(0, cursorLine - 5);
+            const cursorEnd = Math.min(lines.length - 1, cursorLine + 5);
             const cursorContext = lines.slice(cursorStart, cursorEnd + 1)
                 .map((l, i) => `L${cursorStart + i + 1}: ${l}`)
                 .join('\n');
 
-            sections.push(`[${relPath}] (${lines.length} lines, cursor at L${cursorLine + 1})\n${skeleton.join('\n')}\n--- cursor context ---\n${cursorContext}`);
+            const skeletonStr = skeletonLines.length > 0 ? skeletonLines.join('\n') + '\n' : '';
+            sections.push(`[ACTIVE] ${relPath} (${lines.length} lines, cursor at L${cursorLine + 1})\n${skeletonStr}--- cursor context ---\n${cursorContext}`);
         }
 
-        if (sections.length === 0) { return ''; }
+        // ── 2. Lightweight manifest for other visible editors ───────────
+        const otherFiles: string[] = [];
+        for (const editor of visibleEditors) {
+            const uri = editor.document.uri;
+            if (uri.scheme !== 'file') { continue; }
+            if (seen.has(uri.fsPath)) { continue; }
+            seen.add(uri.fsPath);
+            const relPath = vscode.workspace.asRelativePath(uri);
+            const lineCount = editor.document.lineCount;
+            otherFiles.push(`  - ${relPath} (${lineCount} lines)`);
+        }
+
+        if (otherFiles.length > 0) {
+            sections.push(`[OTHER OPEN FILES] Use read_file_skeleton to inspect these if needed:\n${otherFiles.join('\n')}`);
+        }
+
         return sections.join('\n\n');
+    }
+
+    /**
+     * Build an AST skeleton by querying the language server symbols.
+     * Recursively formats the tree into a flat text list with line numbers.
+     */
+    public async buildAstSkeleton(uri: vscode.Uri): Promise<string | null> {
+        try {
+            const symbols: vscode.DocumentSymbol[] | undefined = await vscode.commands.executeCommand(
+                'vscode.executeDocumentSymbolProvider', uri
+            );
+
+            if (!symbols || symbols.length === 0) {
+                return null;
+            }
+
+            const out: string[] = [];
+            this.formatSymbolsRecursively(symbols, out, 0);
+            return out.join('\n');
+        } catch {
+            return null;
+        }
+    }
+
+    private formatSymbolsRecursively(symbols: vscode.DocumentSymbol[], out: string[], depth: number) {
+        // Sort symbols by line number
+        symbols.sort((a, b) => a.range.start.line - b.range.start.line);
+
+        for (const sym of symbols) {
+            // Filter out Variable/Constant noise unless they are at the root
+            if (depth > 0 && (sym.kind === vscode.SymbolKind.Variable || sym.kind === vscode.SymbolKind.Constant)) {
+                continue;
+            }
+
+            const indent = '  '.repeat(depth);
+            const kindName = vscode.SymbolKind[sym.kind] || 'Unknown';
+            const lineNum = sym.range.start.line + 1;
+            
+            out.push(`L${lineNum}: ${indent}[${kindName}] ${sym.name}`);
+
+            if (sym.children && sym.children.length > 0) {
+                this.formatSymbolsRecursively(sym.children, out, depth + 1);
+            }
+        }
     }
 
     /**
