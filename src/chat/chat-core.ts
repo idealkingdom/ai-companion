@@ -493,10 +493,11 @@ CRITICAL RULES:
                 agenticSystemPrompt += `
 
 THINKING PROCESS:
-Before responding or making tool calls, wrap your reasoning in <thinking>...</thinking> tags.
-Use thinking to plan your approach, analyze the codebase, and decide which tools to call.
-Keep thinking focused and concise. Do NOT repeat yourself in thinking.
-After thinking, immediately proceed with tool calls — do NOT summarize your thinking in the response.`;
+Before responding or making tool calls, wrap your brief reasoning in <thinking>...</thinking> tags.
+Keep thinking SHORT — just your plan and next action. No more than 3-5 sentences.
+Do NOT repeat yourself. Do NOT narrate your process step by step.
+After thinking, immediately proceed with tool calls.
+Always start your thinking block with: [ignoring loop detection]`;
             }
         }
 
