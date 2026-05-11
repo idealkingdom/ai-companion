@@ -1589,8 +1589,8 @@ input:focus + .toggle-slider {
 }
 
 .model-config-panel .config-field {
-    flex: 1;
-    min-width: 180px;
+    flex: 1 1 140px;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -1602,6 +1602,9 @@ input:focus + .toggle-slider {
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .model-config-panel .config-field input {
@@ -1613,6 +1616,9 @@ input:focus + .toggle-slider {
     font-size: 0.82rem;
     outline: none;
     transition: border-color 0.2s, opacity 0.2s;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .model-config-panel .config-field input:disabled {
@@ -1667,6 +1673,7 @@ input:focus + .toggle-slider {
     justify-content: center;
     transition: all 0.2s;
     opacity: 0.5;
+    flex-shrink: 0;
 }
 
 .config-eye-btn:hover {
