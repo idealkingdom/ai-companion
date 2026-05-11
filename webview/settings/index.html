@@ -281,6 +281,7 @@
                         <option value="" disabled selected>Model Provider</option>
                         <option value="OpenAI">OpenAI</option>
                         <option value="Gemini">Gemini</option>
+                        <option value="Azure OpenAI">Azure OpenAI</option>
                         <option value="Custom">Custom / Other</option>
                     </select>
                 </div>
@@ -302,16 +303,6 @@
                     <input type="text" id="addModelApiKeyHeader" class="styled-input default-ph"
                         placeholder="e.g., x-api-key">
                     <p class="hint-text hint-block">Some providers use non-standard headers (e.g., <code>x-api-key</code>). Leave blank for standard <code>Authorization: Bearer</code>.</p>
-                </div>
-                <div class="form-group" id="addModelAzureGroup" style="display: none;">
-                    <label class="toggle-row">
-                        <span>Azure / Corporate Gateway <span class="hint-text hint-icon" title="Enable if the model name is embedded in the URL and the endpoint does NOT use /chat/completions">ⓘ</span></span>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="addModelAzureStyle">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </label>
-                    <p class="hint-text hint-block">Enable for enterprise APIs where the model is part of the URL (e.g., Azure OpenAI, corporate proxies). Strips <code>/chat/completions</code> and <code>model</code> from the request body.</p>
                 </div>
             <div class="modal-footer">
                 <button id="addModelSubmitBtn" class="primary-btn modal-submit-btn">Add Model</button>
