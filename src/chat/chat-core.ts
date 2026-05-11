@@ -283,6 +283,8 @@ export class ChatCoreService {
                     onAgentStep({ type: 'thinking', text: '-- Agent stopped by user' } as any);
                 }
                 if (onChunk) { onChunk('\n\n*Agent stopped.*'); }
+                // Usage is still returned via the result — tokens were consumed
+                outputChannel.appendLine(`[ChatCore] Usage on abort: ${totalUsage ? JSON.stringify(totalUsage) : 'none captured'}`);
             } else {
                 console.error('Error fetching chat response:', error);
 
@@ -648,8 +650,10 @@ CRITICAL RULES:
                         lastStepHadToolCalls = !!(event.toolCalls && event.toolCalls.length > 0);
                         outputChannel.appendLine(`[Agentic] Step ${stepCount} finished (toolCalls: ${lastStepHadToolCalls})`);
 
-                        // Note: Reasoning is extracted post-stream via result.steps (line ~585)
-                        // onStepFinish.reasoningText is unreliable for some providers
+                        // Accumulate usage per step so tokens are counted even on abort
+                        if (event.usage) {
+                            if (onUsageUpdate) onUsageUpdate(event.usage);
+                        }
 
                         // Stream tool activity to frontend
                         // AI SDK v6: event has 'toolCalls' array and 'toolResults' array
@@ -681,6 +685,7 @@ CRITICAL RULES:
             // Consume the full stream to get ALL events (text + tools + errors)
             let fullText = '';
             let isThinking = false;
+            let _lastTextDelta = ''; // Dedup guard for corporate gateway double-sends
 
             for await (const part of result.fullStream) {
                 if (abortSignal && abortSignal.aborted) {
@@ -696,8 +701,15 @@ CRITICAL RULES:
                 switch (partType) {
                     // ─── Text streaming ──────────────────────────────
                     case 'text-delta':
-                        fullText += (part as any).text;
-                        if (onChunk) { onChunk((part as any).text); }
+                        const deltaText = (part as any).text;
+                        // Dedup guard: corporate gateways can send duplicate SSE events
+                        if (deltaText && deltaText === _lastTextDelta && deltaText.length > 2) {
+                            outputChannel.appendLine(`[Agentic] Skipping duplicate text-delta: "${deltaText.substring(0, 30)}..."`);
+                            break;
+                        }
+                        _lastTextDelta = deltaText;
+                        fullText += deltaText;
+                        if (onChunk) { onChunk(deltaText); }
                         break;
                     case 'text-start':
                     case 'text-end':

@@ -407,11 +407,11 @@ export async function aiAgenticRequest(
                         };
                     }
                 } else if (provider === 'Anthropic') {
-                    // Anthropic: adaptive thinking — gateway confirms support
-                    // max_tokens required when thinking is enabled
+                    // Anthropic: budgeted thinking (5000 tokens max)
+                    // 'adaptive' can cause thinking to leak into text output on corporate gateways
                     streamOptions.maxTokens = 16000;
                     streamOptions.providerOptions = {
-                        anthropic: { thinking: { type: 'adaptive' } }
+                        anthropic: { thinking: { type: 'enabled', budgetTokens: 5000 } }
                     };
                 } else if (provider === 'Azure OpenAI') {
                     // Azure OpenAI: reasoning is disabled by corporate gateways, skip
