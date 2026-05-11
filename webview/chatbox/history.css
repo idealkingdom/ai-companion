@@ -1,5 +1,5 @@
 /* ======================================================= */
-/* --- HISTORY.CSS (Revised) --- */
+/* --- HISTORY.CSS (Redesigned — Mono Theme) --- */
 /* ======================================================= */
 
 :root {
@@ -16,7 +16,7 @@
   
   --hover-bg: var(--vscode-list-hoverBackground, #e8e8e8);
   --btn-hover-danger: #e81123;
-  --font-ui: var(--vscode-font-family, "Segoe UI", sans-serif);
+  --font-editor: var(--vscode-editor-font-family, "Fira Mono", "Menlo", "Monaco", "Consolas", monospace);
 }
 
 /* --- HEADER LAYOUT --- */
@@ -24,12 +24,12 @@
 .history-header {
   display: flex;
   align-items: center;
-  gap: 8px; /* Space between back btn, search, and trash */
+  gap: 8px;
   padding: 10px 12px;
   background: var(--chat-bg);
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid color-mix(in srgb, var(--text-color) 8%, transparent);
   width: 100%;
-  height: 50px; /* Fixed height for consistency */
+  height: 50px;
   box-sizing: border-box; 
   flex-shrink: 0; 
 }
@@ -45,69 +45,65 @@
   align-items: center;
   justify-content: center;
   color: var(--text-color);
-  opacity: 0.7;
-  transition: all 0.2s;
+  opacity: 0.6;
+  transition: all 0.15s;
   height: 32px;
   width: 32px;
-  flex-shrink: 0; /* Prevent buttons from squishing */
+  flex-shrink: 0;
 }
 
 .header-btn:hover {
-  background: var(--hover-bg);
+  background: color-mix(in srgb, var(--text-color) 6%, transparent);
   opacity: 1;
 }
 
-/* Subtle hover effect for the back arrow */
 .nav-btn:hover {
-  background: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+  background: color-mix(in srgb, var(--text-color) 6%, transparent);
 }
 
-/* Red hover for clear history */
 .action-btn:hover {
   color: var(--btn-hover-danger);
-  background: var(--hover-bg);
+  background: color-mix(in srgb, var(--text-color) 5%, transparent);
 }
 
 /* --- SEARCH BAR WRAPPER --- */
 
 .history-search-wrapper {
-  flex: 1; /* This makes the search bar fill all available space */
+  flex: 1;
   position: relative;
   display: flex;
   align-items: center;
 }
 
-/* The search icon inside the input */
 .search-icon {
   position: absolute;
-  left: 8px;
-  color: var(--input-placeholder);
-  pointer-events: none; /* Let clicks pass through to input */
-  opacity: 0.8;
+  left: 10px;
+  color: var(--text-color);
+  opacity: 0.3;
+  pointer-events: none;
 }
 
 #history-search-input {
   width: 100%;
-  background: var(--input-bg);
+  height: 32px;
+  padding: 0 10px 0 32px;
+  background: color-mix(in srgb, var(--text-color) 4%, transparent);
   color: var(--input-fg);
-  border: 1px solid var(--border-color);
-  border-radius: 15px; /* Pill shape looks modern */
-  padding: 6px 10px 6px 28px; /* Left padding makes room for icon */
-  font-family: var(--font-ui);
-  font-size: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--text-color) 8%, transparent);
+  border-radius: 6px;
+  font-family: var(--font-editor);
+  font-size: 0.8rem;
   outline: none;
-  box-sizing: border-box;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s;
 }
 
 #history-search-input::placeholder {
-  color: var(--input-placeholder);
-  opacity: 0.8;
+  color: var(--text-color);
+  opacity: 0.35;
 }
 
 #history-search-input:focus {
-  border-color: var(--input-focus-border);
-  box-shadow: 0 0 0 1px var(--input-focus-border); 
+  border-color: color-mix(in srgb, var(--text-color) 18%, transparent);
 }
 
 /* --- LIST CONTAINER --- */
@@ -115,37 +111,38 @@
 .history-list-container {
   flex: 1; 
   overflow-y: auto;
-  padding: 0.5rem 0.5rem; /* Slightly tighter padding */
+  padding: 0.5rem;
   background: var(--app-bg); 
 }
 
 .empty-message {
   padding: 2rem;
   text-align: center;
-  opacity: 0.5;
+  opacity: 0.4;
   font-style: italic;
-  font-family: var(--font-ui);
-  font-size: 0.85rem;
+  font-family: var(--font-editor);
+  font-size: 0.82rem;
+  color: var(--text-color);
 }
 
 /* --- GROUP HEADERS --- */
 
 .history-group {
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .history-group-title {
-  font-family: var(--font-ui);
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-family: var(--font-editor);
+  font-size: 0.65rem;
+  font-weight: 600;
   color: var(--text-color);
-  opacity: 0.5;
+  opacity: 0.35;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 0 0.5rem 0.25rem 0.75rem;
+  letter-spacing: 0.8px;
+  padding: 0 0.5rem 0.35rem 0.75rem;
   margin-top: 0.5rem;
   margin-bottom: 0.25rem;
-  /* Removed border-bottom for a cleaner look */
+  border-bottom: 1px solid color-mix(in srgb, var(--text-color) 5%, transparent);
 }
 
 /* --- HISTORY ITEMS --- */
@@ -154,48 +151,66 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
-  margin: 0 8px 6px 8px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--text-color) 2%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text-color) 4%, transparent);
+  padding: 10px 12px;
+  margin: 0 4px 4px 4px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-left: 2px solid transparent;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transition: all 0.15s;
 }
 
 .history-item:hover {
-  background: color-mix(in srgb, var(--text-color) 5%, transparent);
-  border-color: color-mix(in srgb, var(--text-color) 10%, transparent);
-  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--text-color) 4%, transparent);
+  border-color: color-mix(in srgb, var(--text-color) 6%, transparent);
+  border-left-color: color-mix(in srgb, var(--text-color) 20%, transparent);
 }
 
 /* Layout for the inner items */
 .history-info {
   display: flex;
   flex-direction: column;
-  flex: 1; /* Takes up all available space */
+  flex: 1;
   overflow: hidden;
+  gap: 2px;
 }
 
 .history-item-title {
-  font-family: var(--font-ui);
-  font-size: 0.85rem;
+  font-family: var(--font-editor);
+  font-size: 0.82rem;
   font-weight: 600;
   color: var(--text-color);
+  opacity: 0.85;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: 3px;
 }
 
 .history-item-time {
-  font-family: var(--font-ui);
-  font-size: 0.7rem;
+  font-family: var(--font-editor);
+  font-size: 0.68rem;
   color: var(--text-color);
-  opacity: 0.55;
+  opacity: 0.35;
 }
 
-/* --- DELETE BUTTON (Trash Icon) --- */
+.history-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-item-count {
+  font-family: var(--font-editor);
+  font-size: 0.62rem;
+  color: var(--text-color);
+  opacity: 0.3;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text-color) 4%, transparent);
+}
+
+/* --- DELETE BUTTON --- */
 
 .delete-item-btn {
   background: transparent;
@@ -203,87 +218,43 @@
   color: var(--text-color);
   opacity: 0;
   cursor: pointer;
-  padding: 6px;
+  padding: 5px;
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: opacity 0.2s;
-  margin-left: 8px;
-}
-
-.delete-item-btn svg {
-  width: 16px;
-  height: 16px;
-}
-
-.history-item:hover .delete-item-btn {
-  opacity: 0.4;
-}
-
-.delete-item-btn:hover {
-  opacity: 1 !important;
-  background-color: var(--btn-hover-danger);
-  color: white;
-}
-
-/* --- MINIMALIST DELETE BUTTON --- */
-
-.delete-item-btn {
-  background: transparent;
-  border: none;
-  
-  /* Use text color but start invisible */
-  color: var(--text-color);
-  opacity: 0; 
-  
-  cursor: pointer;
-  padding: 6px;
-  border-radius: 50%; /* Circular touch target looks cleaner */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: 8px;
-  
-  /* Smooth transition for the "pop" effect */
-  transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  margin-left: 6px;
+  transition: all 0.15s;
   transform: scale(0.9);
 }
 
 .delete-item-btn svg {
-  width: 14px; /* Slightly smaller icon for elegance */
-  height: 14px;
-  stroke-width: 2; /* Crisp lines */
+  width: 13px;
+  height: 13px;
+  stroke-width: 2;
 }
 
-/* STATE 1: Hovering the ROW -> Button appears faintly */
 .history-item:hover .delete-item-btn {
-  opacity: 0.3; /* Very subtle, barely there */
+  opacity: 0.25;
   transform: scale(1);
 }
 
-/* STATE 2: Hovering the BUTTON -> Button becomes solid & distinct */
 .delete-item-btn:hover {
   opacity: 1 !important;
-  
-  /* Use the native VS Code toolbar hover color (usually subtle grey) */
-  background-color: var(--vscode-toolbar-hoverBackground);
-  
-  /* Tiny scale up for tactile feel */
-  transform: scale(1.15); 
+  background-color: color-mix(in srgb, var(--text-color) 8%, transparent);
+  transform: scale(1.1); 
 }
 
-/* Optional: Active click state */
 .delete-item-btn:active {
   transform: scale(0.95);
 }
 
 /* Search Highlight */
 .highlight {
-  /* Uses the user's theme color for search results */
-  background-color: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.33));
-  color: inherit;
+  background-color: rgba(255, 200, 50, 0.35);
+  color: #fff;
   border-radius: 2px;
-  padding: 0 1px;
-  font-weight: inherit;
+  padding: 1px 3px;
+  font-weight: 600;
+  box-shadow: 0 0 0 1px rgba(255, 200, 50, 0.2);
 }

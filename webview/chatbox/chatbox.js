@@ -13,6 +13,25 @@ console.log('VS_CONSTANTS:', window.VS_CONSTANTS);
 // Extract the constants injected by the backend
 const { CHAT_COMMANDS, ROLE } = window.VS_CONSTANTS || {};
 
+// Apply external media setting to context menu button
+function applyExternalMediaSetting(allowed) {
+    const mediaBtn = document.querySelector('.context-item[data-type="media"]');
+    if (mediaBtn) {
+        if (allowed === false) {
+            mediaBtn.style.opacity = '0.35';
+            mediaBtn.style.pointerEvents = 'none';
+            mediaBtn.title = 'External media disabled in settings';
+        } else {
+            mediaBtn.style.opacity = '';
+            mediaBtn.style.pointerEvents = '';
+            mediaBtn.title = '';
+        }
+    }
+}
+// Apply on load
+const _uiInit = (window.VS_CONSTANTS || {}).UI || {};
+applyExternalMediaSetting(_uiInit.allowExternalMedia);
+
 /**
  * Sends a message to the VS Code extension.
  * @param {string} command - The command to execute.
@@ -385,16 +404,21 @@ function updateAutocompleteItems(text) {
     const query = text.toLowerCase();
 
     if (autocompleteType === '@') {
+        // Always filter commands first (e.g. @workspace, @problems, @selection, @terminal)
+        const matchedCommands = COMMANDS.filter(item =>
+            item.label.toLowerCase().includes(query)
+        );
+
         if (query.length > 0) {
-            // Request files from backend dynamically
+            // Also request files from backend dynamically
             vscode.postMessage({
                 command: 'searchWorkspaceFiles',
                 data: { query: text }
             });
-            return;
-        } else {
-            filteredItems = COMMANDS;
         }
+
+        // Show matched commands immediately (file results will merge in via searchFilesResult)
+        filteredItems = query.length === 0 ? COMMANDS : matchedCommands;
     } else {
         filteredItems = WORKFLOWS.filter(item =>
             item.label.toLowerCase().includes(query) ||
@@ -402,21 +426,52 @@ function updateAutocompleteItems(text) {
         );
     }
 
-    if (filteredItems.length === 0) {
+    if (filteredItems.length === 0 && autocompleteType !== '@') {
+        // Don't hide for @ — file results may arrive async
         hideAutocomplete();
         return;
     }
 
-    selectedIndex = Math.min(selectedIndex, filteredItems.length - 1);
-    renderAutocomplete();
+    if (filteredItems.length > 0) {
+        selectedIndex = Math.min(selectedIndex, filteredItems.length - 1);
+        renderAutocomplete();
+    }
 }
 
 function renderAutocomplete() {
     autocompleteMenu.innerHTML = '';
+
+    // Add hint row when showing @ commands (not file search results)
+    if (autocompleteType === '@' && filteredItems.length > 0 && filteredItems[0].label) {
+        const isFileSearch = filteredItems[0].path;
+        const hintEl = document.createElement('div');
+        hintEl.className = 'autocomplete-hint';
+        hintEl.textContent = isFileSearch ? 'FILES' : 'Type a filename to search...';
+        autocompleteMenu.appendChild(hintEl);
+    }
+
     filteredItems.forEach((item, index) => {
         const itemEl = document.createElement('div');
         itemEl.className = `autocomplete-item ${index === selectedIndex ? 'selected' : ''}`;
+
+        // Determine icon based on label
+        let iconSvg = '';
+        if (item.path) {
+            iconSvg = '<svg class="ac-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>';
+        } else if (item.label === '@workspace') {
+            iconSvg = '<svg class="ac-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>';
+        } else if (item.label === '@problems') {
+            iconSvg = '<svg class="ac-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z M12 15.75h.007v.008H12v-.008z" /></svg>';
+        } else if (item.label === '@selection') {
+            iconSvg = '<svg class="ac-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zM12 2.25V4.5m5.834.166l-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243l-1.59-1.59" /></svg>';
+        } else if (item.label === '@terminal') {
+            iconSvg = '<svg class="ac-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>';
+        } else {
+            iconSvg = '<svg class="ac-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>';
+        }
+
         itemEl.innerHTML = `
+            ${iconSvg}
             <span class="autocomplete-label">${escapeHtml(item.label)}</span>
             <span class="autocomplete-description">${escapeHtml(item.description)}</span>
         `;
@@ -431,7 +486,7 @@ function renderAutocomplete() {
     autocompleteActive = true;
 
     // Ensure selected item is visible if scrolling is needed
-    const selectedEl = autocompleteMenu.children[selectedIndex];
+    const selectedEl = autocompleteMenu.querySelector('.autocomplete-item.selected');
     if (selectedEl) {
         selectedEl.scrollIntoView({ block: 'nearest' });
     }
@@ -458,27 +513,46 @@ function confirmAutocompleteSelection() {
     const triggerIndex = textBeforeCursor.lastIndexOf(autocompleteType);
 
     if (triggerIndex !== -1) {
-        // Special Handling for @file and @workspace
         // Safe removal of trigger token without destroying other HTML elements (pills)
         const deleteLength = 1 + (triggerQuery ? triggerQuery.length : 0);
         const selection = window.getSelection();
+        let deleted = false;
         if (selection.rangeCount > 0) {
             const range = selection.getRangeAt(0);
-            if (range.startContainer.nodeType === Node.TEXT_NODE) {
-                const startOffset = Math.max(0, range.startOffset - deleteLength);
+            if (range.startContainer.nodeType === Node.TEXT_NODE && range.startOffset >= deleteLength) {
+                const startOffset = range.startOffset - deleteLength;
                 range.setStart(range.startContainer, startOffset);
                 range.deleteContents();
+                deleted = true;
             } else {
+                // Fallback: use execCommand delete
                 for (let i = 0; i < deleteLength; i++) {
                     document.execCommand('delete', false, null);
+                }
+                deleted = true;
+            }
+        }
+        // Final fallback: scan text nodes for orphaned trigger char
+        if (!deleted) {
+            const walker = document.createTreeWalker(chatMessage, NodeFilter.SHOW_TEXT);
+            while (walker.nextNode()) {
+                const node = walker.currentNode;
+                const idx = node.textContent.lastIndexOf(autocompleteType);
+                if (idx !== -1) {
+                    node.textContent = node.textContent.substring(0, idx) + node.textContent.substring(idx + deleteLength);
+                    break;
                 }
             }
         }
 
-        if (item.label === '@file') {
-            sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'pickFile' });
-        } else if (item.label === '@workspace') {
+        if (item.label === '@workspace') {
             sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'workspace' });
+        } else if (item.label === '@problems') {
+            sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'problems' });
+        } else if (item.label === '@selection') {
+            sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'selection' });
+        } else if (item.label === '@terminal') {
+            sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'terminal' });
         } else if (item.path) {
             // User selected a specific file from search results
             vscode.postMessage({
@@ -574,14 +648,19 @@ function showHistoryView(historyGroups) {
                     const itemEl = document.createElement('div');
                     itemEl.className = 'history-item';
                     itemEl.dataset.chatId = item.id;
-                    const safeTitle = escapeHtml(item.title);
+                    const safeTitle = escapeHtml(item.title || 'Untitled');
+                    const msgCount = item.messageCount || '';
+                    const countBadge = msgCount ? `<span class="history-item-count">${msgCount} msg${msgCount > 1 ? 's' : ''}</span>` : '';
                     itemEl.innerHTML = `
         <div class="history-info">
             <span class="history-item-title" title="${safeTitle}">${safeTitle}</span>
-            <span class="history-item-time">${item.time}</span>
+            <div class="history-item-meta">
+                <span class="history-item-time">${item.time}</span>
+                ${countBadge}
+            </div>
         </div>
         <button class="delete-item-btn" title="Delete conversation">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         </button>
       `;
                     groupEl.appendChild(itemEl);
@@ -893,7 +972,7 @@ function insertInlineFile(name, text, language, path) {
     // Store content in map
     window.inlineFilesMap[id] = { name, content: text, language, path, lines: text.split('\n').length };
 
-    const html = `<span id="${id}" class="inline-attachment-pill file-pill" contenteditable="false" data-file-id="${id}" data-file="true" data-name="${escapeHtml(name)}" title="Attached file: ${escapeHtml(name)}" onclick="requestOpenFile(this.dataset.fileId)">[📄 ${escapeHtml(name)}]</span>&nbsp;`;
+    const html = `<span id="${id}" class="inline-attachment-pill file-pill" contenteditable="false" data-file-id="${id}" data-file="true" data-name="${escapeHtml(name)}" title="Attached file: ${escapeHtml(name)}" onclick="requestOpenFile(this.dataset.fileId)">[▪ ${escapeHtml(name)}]</span>&nbsp;`;
 
     document.execCommand('insertHTML', false, html);
 
@@ -946,7 +1025,7 @@ window.handleUrlScrape = function(pill) {
         if (msg.command === 'scrapeResult' && msg.url === url) {
             window.removeEventListener('message', handler);
             if (msg.success) {
-                pill.textContent = `🔗 ${msg.title || new URL(url).hostname}`;
+                pill.textContent = `◆ ${msg.title || new URL(url).hostname}`;
                 pill.style.opacity = '1';
                 pill.classList.add('scraped');
                 pill.title = `Scraped: ${msg.title} (${msg.wordCount} words)`;
@@ -964,7 +1043,7 @@ window.handleUrlScrape = function(pill) {
                 pill.dataset.fileId = id;
                 pill.dataset.file = 'true';
             } else {
-                pill.textContent = `❌ ${new URL(url).hostname}`;
+                pill.textContent = `✕ ${new URL(url).hostname}`;
                 pill.style.opacity = '0.5';
                 pill.title = `Failed: ${msg.error}`;
             }
@@ -983,11 +1062,7 @@ function showLoadingIndicator() {
     loadingDiv.innerHTML = `
         <div class="message-content">
             <span class="ai-icon">${aiIconBtnHTML}</span>
-            <div class="loading-dots">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
+            <div class="generating-text">Generating...</div>
         </div>
     `;
 
@@ -1014,9 +1089,9 @@ function appendUserMessage(message, images = [], files = []) {
             const id = "file-pill-hist-" + Date.now() + Math.floor(Math.random() * 1000);
             window.inlineFilesMap[id] = file;
             
-            // #46: Match the marker with the pill text. URL pills use 🔗, local files use [📄 ]
+            // #46: Match the marker with the pill text. URL pills use ◆, local files use [▪ ]
             const isUrl = file.path && (file.path.startsWith('http://') || file.path.startsWith('https://'));
-            const marker = isUrl ? `🔗 ${escapeHtml(file.name)}` : `[📄 ${escapeHtml(file.name)}]`;
+            const marker = isUrl ? `◆ ${escapeHtml(file.name)}` : `[▪ ${escapeHtml(file.name)}]`;
             
             const pillHTML = `<span class="inline-attachment-pill file-pill ${isUrl ? 'url-pill scraped' : ''}" contenteditable="false" data-file-id="${id}" onclick="requestOpenFile(this.dataset.fileId)" title="Attached file: ${escapeHtml(file.name)}">${marker}</span>`;
             
@@ -1043,7 +1118,8 @@ function appendUserMessage(message, images = [], files = []) {
         });
     }
 
-    const userResponseHTML = `<div class="user-message" data-raw-text="${encodeURIComponent(message)}">
+    const userResponseHTML = `<div class="user-message-wrapper">
+        <div class="user-message" data-raw-text="${encodeURIComponent(message)}">
           <div class="user-prompt-header">
             <span class="user-prompt-date">${getCurrentDate()}</span>
             <div class="user-message-actions" style="margin-left: auto;">
@@ -1060,7 +1136,8 @@ function appendUserMessage(message, images = [], files = []) {
           <div class="message-content">
             <span class="message-text">${finalHTML}</span>
           </div>
-        </div>`;
+        </div>
+      </div>`;
 
     if (!chatWelcomeMessage.classList.contains('hidden')) {
         chatWelcomeMessage.classList.add('hidden');
@@ -1134,8 +1211,8 @@ function renderAgentStep(step) {
         // Differentiate between status messages and actual reasoning tokens
         const isStatusMessage = step.text && (
             step.text.startsWith('Agent completed') ||
-            step.text.startsWith('🛑') ||
-            step.text.startsWith('❌')
+            step.text.startsWith('■') ||
+            step.text.startsWith('✕')
         );
 
         if (isStatusMessage) {
@@ -1290,9 +1367,9 @@ function renderAgentStep(step) {
             'chunk_replace': '◇',
             'create_file': '▷',
             'find_symbol': '◎',
-            'run_command': '⚡',
+            'run_command': '▸',
             'search_workspace': '◈',
-            'scrape_url': '🌐'
+            'scrape_url': '◉'
         };
         // #61: Human-readable tool labels
         const toolLabels = {
@@ -1306,7 +1383,7 @@ function renderAgentStep(step) {
             'search_workspace': 'Searching Workspace',
             'scrape_url': 'Scraping URL'
         };
-        const icon = icons[step.toolName] || '🛠️';
+        const icon = icons[step.toolName] || '◆';
         const displayName = toolLabels[step.toolName] || step.toolName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
         const argsPreview = step.args ? JSON.stringify(step.args).substring(0, 120) : '';
 
@@ -1412,21 +1489,24 @@ function initGenerateButton() {
     const generateBtn = document.getElementById('generateButton');
     if (generateBtn) {
         generateBtn.onclick = () => {
-            console.log('Generate button clicked');
             const input = document.getElementById('messageInput');
             if (!input) {
                 console.error('messageInput not found');
                 return;
             }
             const prompt = input.innerText.trim();
-            if (!prompt) {
-                console.warn('Empty prompt, ignoring generate click');
-                return;
-            }
 
-            console.log('Sending improvePrompt request...');
             generateBtn.classList.add('loading');
-            sendMessage('improvePrompt', { prompt });
+
+            if (!prompt) {
+                // Empty input — suggest prompt ideas
+                console.log('Sending suggestPrompts request...');
+                sendMessage('suggestPrompts', {});
+            } else {
+                // Has text — improve the existing prompt
+                console.log('Sending improvePrompt request...');
+                sendMessage('improvePrompt', { prompt });
+            }
 
             // Safety timeout to reset loading state if backend fails/takes too long
             setTimeout(() => {
@@ -1761,9 +1841,14 @@ function openIndexViewer(fileList, fileCount, lastUpdated) {
 
     overlay.innerHTML = `
         <div class="index-viewer-header">
-            <button class="back-btn" onclick="closeIndexViewer()" title="Back to Chat">←</button>
-            <h2>📂 Workspace Index (${fileCount} files)</h2>
-            <button class="refresh-btn" onclick="sendMessage('refreshIndex', {}); closeIndexViewer();">↻ Refresh</button>
+            <button class="back-btn" onclick="closeIndexViewer()" title="Back to Chat">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <h2>Workspace Index <span class="index-count">${fileCount} files</span></h2>
+            <button class="refresh-btn" onclick="sendMessage('refreshIndex', {}); closeIndexViewer();">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Refresh
+            </button>
         </div>
         <div class="index-viewer-search">
             <input type="text" id="index-search-input" placeholder="Search indexed files..." oninput="filterIndexViewer(this.value)" />
@@ -1772,7 +1857,7 @@ function openIndexViewer(fileList, fileCount, lastUpdated) {
             ${groupKeys.map(dir => renderIndexDirGroup(dir, groups[dir])).join('')}
         </div>
         <div class="index-viewer-footer">
-            Last indexed: ${timeStr} — Only source code, config, and docs are indexed. Binaries, caches, and vendor folders are excluded.
+            Last indexed: ${timeStr} — Only source code, config, and docs are indexed.
         </div>
     `;
 
@@ -1806,14 +1891,15 @@ function renderIndexDirGroup(dir, files) {
         const fileName = f.split(/[\\/]/).pop();
         const ext = fileName.split('.').pop();
         const extBadge = ext && ext !== fileName ? `<span class="index-file-ext">.${ext}</span>` : '';
-        return `<div class="index-file-item" data-filepath="${escapeHtml(f)}" onclick="sendMessage('chatOpenFile', { uri: '${escapeHtml(f)}' })" title="${escapeHtml(f)}">${escapeHtml(fileName)} ${extBadge}</div>`;
+        return `<div class="index-file-item" data-filepath="${escapeHtml(f)}" onclick="sendMessage('chatOpenFile', { uri: '${escapeHtml(f)}' })" title="${escapeHtml(f)}"><svg class="index-file-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>${escapeHtml(fileName)} ${extBadge}</div>`;
     }).join('');
 
     return `
         <div class="index-dir-group" data-dir="${escapeHtml(dir)}">
             <div class="index-dir-header" onclick="toggleIndexDir(this)">
                 <span class="dir-chevron">▼</span>
-                📁 ${escapeHtml(dir)}
+                <svg class="index-dir-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                ${escapeHtml(dir)}
                 <span class="index-dir-count">(${files.length})</span>
             </div>
             <div class="index-file-list">
@@ -1946,6 +2032,8 @@ function updateActiveAgentUI(agentId, agentsList) {
 function resetChat(content) {
     chatMessages.innerHTML = '';
     chatLog.dataset.chatId = content.uid;
+    isGenerating = false;
+    toggleSendButton("off");
     attachedImages = [];
     attachedFiles = [];
     renderAttachments();
@@ -2105,7 +2193,7 @@ sendButton.addEventListener("click", event => {
             const stopBadge = document.createElement('div');
             stopBadge.className = 'status-badge status-stopped';
             stopBadge.style.marginTop = '8px';
-            stopBadge.innerHTML = `🛑 Generation stopped by user`;
+            stopBadge.innerHTML = `■ Generation stopped by user`;
             activeStreamNode.parentElement.appendChild(stopBadge);
         }
         return;
@@ -2314,7 +2402,7 @@ window.addEventListener('DOMContentLoaded', () => {
         if (urlPattern.test(text.trim())) {
             const url = text.trim();
             const urlId = 'url-' + Date.now();
-            const pill = `<span class="inline-attachment-pill url-pill" contenteditable="false" data-url="${url}" data-url-id="${urlId}" title="Click to scrape: ${url}" onclick="handleUrlScrape(this)">🔗 ${new URL(url).hostname}${new URL(url).pathname.substring(0, 30)}</span>&nbsp;`;
+            const pill = `<span class="inline-attachment-pill url-pill" contenteditable="false" data-url="${url}" data-url-id="${urlId}" title="Click to scrape: ${url}" onclick="handleUrlScrape(this)">◆ ${new URL(url).hostname}${new URL(url).pathname.substring(0, 30)}</span>&nbsp;`;
             
             // Wrap in setTimeout to avoid "execCommand() ... called recursively" error
             setTimeout(() => {
@@ -2397,21 +2485,21 @@ window.addEventListener('DOMContentLoaded', () => {
 
         const type = item.dataset.type;
 
-        // 1. Current File
-        if (type === 'current-file') {
-            sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'currentFile' });
+        // 1. Media — open file picker (browser input)
+        if (type === 'media') {
+            imageUploadInput.click();
         }
-        // 2. Active Selection
-        else if (type === 'selection') {
-            sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'selection' });
-        }
-        // 3. Pick File
-        else if (type === 'search-files') {
-            sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'pickFile' });
-        }
-        // 4. Problems
-        else if (type === 'problems') {
-            sendMessage(CHAT_COMMANDS.ADD_CONTEXT, { type: 'problems' });
+        // 2. Mentions — insert @ into input to trigger autocomplete
+        else if (type === 'mentions') {
+            // Defer to avoid race with document click handler that closes autocomplete
+            setTimeout(() => {
+                chatMessage.focus();
+                document.execCommand('insertText', false, '@');
+                // Directly trigger autocomplete logic
+                autocompleteType = '@';
+                triggerQuery = '';
+                updateAutocompleteItems('');
+            }, 50);
         }
 
         // Close menu
@@ -2462,7 +2550,10 @@ window.addEventListener('message', event => {
         case 'searchFilesResult':
             {
                 if (autocompleteType !== '@') { break; }
-                filteredItems = message.results || [];
+                const fileResults = message.results || [];
+                // Merge: keep any matched commands at the top, then add file results
+                const commandMatches = filteredItems.filter(item => item.label && !item.path);
+                filteredItems = [...commandMatches, ...fileResults];
                 if (filteredItems.length === 0) {
                     hideAutocomplete();
                     break;
@@ -2690,6 +2781,37 @@ window.addEventListener('message', event => {
             resetChat(message.content);
             break;
 
+        // Backend asks frontend to initiate detach (from VS Code header button)
+        case 'requestDetach':
+            if (isGenerating) {
+                // Show inline warning — can't detach during active generation
+                const warnEl = document.createElement('div');
+                warnEl.className = 'detach-warning';
+                warnEl.textContent = 'Cannot detach while a request is in progress. Please wait or stop the request first.';
+                warnEl.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);background:rgba(220,38,38,0.9);color:#fff;padding:8px 16px;border-radius:8px;font-size:0.82rem;z-index:9999;animation:fadeOut 3s forwards;';
+                document.body.appendChild(warnEl);
+                setTimeout(() => warnEl.remove(), 3000);
+                break;
+            }
+            {
+                const chatId = chatLog?.dataset?.chatId || '';
+                // Only detach if there's an actual conversation
+                if (chatId && chatMessages.children.length > 0) {
+                    sendMessage('detachChat', { chatId });
+                } else {
+                    // Nothing to detach — just open a blank popup
+                    sendMessage('detachChat', {});
+                }
+            }
+            break;
+
+        // Popup: load a conversation by emulating history click
+        case 'loadChatInPopup':
+            if (message.chatId) {
+                sendMessage(CHAT_COMMANDS.CHAT_LOAD, { chatId: message.chatId });
+            }
+            break;
+
         case CHAT_COMMANDS.HISTORY_LOAD:
             showHistoryView(message.content); // Call the global function
             break;
@@ -2747,10 +2869,9 @@ window.addEventListener('message', event => {
                 }));
                 renderHunkReviewPanel();
             } else if (message.openPanel && message.content && message.content.length > 0) {
-                // Explicit user request to open the panel (e.g. "Review Changes" button)
+                // Explicit user request to open the panel
                 openHunkReviewPanel(message.content);
             }
-            // Don't auto-open the panel — user opens it manually via "Review Changes"
             break;
 
         case 'uiSettingsUpdate':
@@ -2773,6 +2894,50 @@ window.addEventListener('message', event => {
                     range.collapse(false);
                     sel.removeAllRanges();
                     sel.addRange(range);
+                }
+            }
+            break;
+
+        case 'suggestPromptsResult':
+            {
+                const generateBtn = document.getElementById('generateButton');
+                if (generateBtn) generateBtn.classList.remove('loading');
+
+                const suggestions = message.suggestions || [];
+                if (suggestions.length > 0) {
+                    // Remove existing chips
+                    const existing = document.querySelector('.prompt-suggestion-chips');
+                    if (existing) existing.remove();
+
+                    const chipsContainer = document.createElement('div');
+                    chipsContainer.className = 'prompt-suggestion-chips';
+
+                    suggestions.forEach(text => {
+                        const chip = document.createElement('button');
+                        chip.className = 'suggestion-chip';
+                        chip.textContent = text;
+                        chip.addEventListener('click', () => {
+                            const input = document.getElementById('messageInput');
+                            if (input) {
+                                input.innerText = text;
+                                input.focus();
+                                const range = document.createRange();
+                                const sel = window.getSelection();
+                                range.selectNodeContents(input);
+                                range.collapse(false);
+                                sel.removeAllRanges();
+                                sel.addRange(range);
+                            }
+                            chipsContainer.remove();
+                        });
+                        chipsContainer.appendChild(chip);
+                    });
+
+                    // Insert chips above the input container
+                    const editorWrapper = document.querySelector('.editor-wrapper');
+                    if (editorWrapper) {
+                        editorWrapper.insertBefore(chipsContainer, editorWrapper.querySelector('.unified-input-container'));
+                    }
                 }
             }
             break;
@@ -2843,6 +3008,67 @@ window.addEventListener('message', event => {
 
         case CHAT_COMMANDS.CHAT_STATE_REHYDRATE:
             rehydrateState(message.content);
+            break;
+
+        // Live settings sync — apply all changes immediately from settings panel
+        case 'settingsChanged':
+            {
+                const s = message.settings;
+                if (!s) break;
+
+                // 1. Models + Custom Models
+                if (s.models) {
+                    MODELS = s.models;
+                    if (window.VS_CONSTANTS) {
+                        window.VS_CONSTANTS.MODELS = s.models;
+                    }
+                }
+                // Always sync customModels (deletions, additions, active toggles)
+                if (window.VS_CONSTANTS) {
+                    window.VS_CONSTANTS.CUSTOM_MODELS = s.customModels || [];
+                }
+                // Refresh model dropdown if we have model data
+                if (s.models) {
+                    initModelDropdown();
+                }
+
+                // 2. Permissions
+                if (s.permissions) {
+                    PERMISSIONS = s.permissions;
+                    if (window.VS_CONSTANTS) window.VS_CONSTANTS.PERMISSIONS = s.permissions;
+                    // Refresh permission UI
+                    const isAP = s.permissions.alwaysProceed === true;
+                    if (tbAlwaysProceed) tbAlwaysProceed.checked = isAP;
+                    if (tbReadPerm) {
+                        tbReadPerm.value = isAP ? 'auto' : (s.permissions.readFilesConfirmation ? 'ask' : 'auto');
+                        tbReadPerm.disabled = isAP;
+                        tbReadPerm.style.opacity = isAP ? '0.4' : '1';
+                    }
+                    if (tbWritePerm) {
+                        tbWritePerm.value = isAP ? 'auto' : (s.permissions.writeFilesConfirmation ? 'ask' : 'auto');
+                        tbWritePerm.disabled = isAP;
+                        tbWritePerm.style.opacity = isAP ? '0.4' : '1';
+                    }
+                    if (tbCmdPerm) {
+                        tbCmdPerm.value = isAP ? 'auto' : (s.permissions.runCommandsConfirmation ? 'ask' : 'auto');
+                        tbCmdPerm.disabled = isAP;
+                        tbCmdPerm.style.opacity = isAP ? '0.4' : '1';
+                    }
+                }
+
+                // 3. Agents
+                if (s.prompts) {
+                    if (window.VS_CONSTANTS) window.VS_CONSTANTS.AGENTS = s.prompts;
+                    renderAgentDropdown(s.prompts);
+                    updateActiveAgentUI(activeAgentId, s.prompts);
+                }
+
+                // 4. UI (CSS + allowExternalMedia)
+                if (s.ui) {
+                    applyUISettings(s.ui);
+                    applyExternalMediaSetting(s.ui.allowExternalMedia);
+                }
+            }
             break;
 
         default:

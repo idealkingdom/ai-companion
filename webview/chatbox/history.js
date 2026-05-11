@@ -50,6 +50,15 @@ window.addEventListener('DOMContentLoaded', () => {
             const item = e.target.closest('.history-item');
             if (item) {
                 const chatId = item.dataset.chatId;
+
+                // If currently generating, cancel the active request first
+                if (typeof isGenerating !== 'undefined' && isGenerating) {
+                    const currentChatId = document.getElementById('chatLog')?.dataset?.chatId;
+                    if (currentChatId) {
+                        sendMessage('cancelChatRequest', { chat_id: currentChatId });
+                    }
+                }
+
                 sendMessage(CHAT_COMMANDS.CHAT_LOAD, { chatId: chatId });
             }
         });

@@ -37,7 +37,7 @@
         </div>
         <!-- #48: Sticky notification when agent asks a question -->
         <div id="agent-question-banner" class="agent-question-banner hidden">
-          <span class="question-icon">💬</span>
+          <span class="question-icon"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
           <span id="agent-question-text">Agent is asking a question — answer to proceed</span>
           <button id="dismiss-question-btn" class="dismiss-question-btn" aria-label="Dismiss">✕</button>
         </div>
@@ -103,32 +103,20 @@
               <!-- Attach -->
               <div class="context-menu-wrapper">
                 <div id="context-menu" class="context-menu hidden">
-                  <div class="context-header">CURRENT</div>
-                  <button class="context-item" data-type="current-file">
+                  <div class="context-header">ADD CONTEXT</div>
+                  <button class="context-item" data-type="media">
                     <svg class="ctx-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.51a2 2 0 0 1-2.83-2.83l8.49-8.48" />
                     </svg>
-                    <span>Active File</span>
+                    <span>Media</span>
+                    <span class="ctx-hint">Photos & files</span>
                   </button>
-                  <button class="context-item" data-type="selection">
+                  <button class="context-item" data-type="mentions">
                     <svg class="ctx-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm0 0c0 1.657 1.007 3 2.25 3S21 13.657 21 12a9 9 0 1 0-2.636 6.364M16.5 12V8.25" />
                     </svg>
-                    <span>Selection</span>
-                  </button>
-                  <div class="context-divider"></div>
-                  <div class="context-header">WORKSPACE</div>
-                  <button class="context-item" data-type="search-files">
-                    <svg class="ctx-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <span>Pick File...</span>
-                  </button>
-                  <button class="context-item" data-type="problems">
-                    <svg class="ctx-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>Problems</span>
+                    <span>Mentions</span>
+                    <span class="ctx-hint">Workspace, problems & more</span>
                   </button>
                 </div>
 
@@ -227,7 +215,7 @@
         </div>
 
 
-        <input type="file" id="image-upload-input" accept="image/*" multiple style="display: none;">
+        <input type="file" id="image-upload-input" accept="image/*,.txt,.md,.json,.js,.ts,.py,.css,.html,.xml,.yaml,.yml,.csv,.log,.sh,.bat,.c,.cpp,.h,.java,.rb,.go,.rs,.php,.sql,.toml,.ini,.cfg,.env" multiple style="display: none;">
       </div>
     </div>
   </div>
