@@ -1,4 +1,5 @@
 import { createOpenAI } from '@ai-sdk/openai';
+import { createAzure } from '@ai-sdk/azure';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText, streamText, stepCountIs } from 'ai';
 import { outputChannel } from '../logger';
@@ -7,7 +8,8 @@ import * as vscode from 'vscode';
 // ─── HELPER: Resolve the correct AI SDK model instance ──────────────────────
 // OpenAI, DeepSeek, Mistral, and any other OpenAI-compatible provider all use
 // `createOpenAI` with a different `baseURL`.  Only Google Gemini uses a
-// completely different SDK (`@ai-sdk/google`).
+// completely different SDK (`@ai-sdk/google`).  Azure OpenAI uses `@ai-sdk/azure`
+// which natively handles api-key headers and Chat Completions format.
 
 function resolveModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string, azureStyle?: boolean) {
     if (provider === 'Gemini') {
@@ -18,71 +20,57 @@ function resolveModel(provider: string, model: string, apiKey: string, baseUrl?:
         return google(model);
     }
 
-    // Determine if this is an Azure-style endpoint (model in URL, Chat Completions format)
-    const isAzure = provider === 'Azure OpenAI' || azureStyle === true;
+    // Azure OpenAI — use the official @ai-sdk/azure provider
+    if (provider === 'Azure OpenAI' || azureStyle === true) {
+        return resolveAzureModel(model, apiKey, baseUrl);
+    }
 
-    // All OpenAI-compatible providers (OpenAI, DeepSeek, Mistral, Custom, Azure OpenAI, etc.)
+    // All OpenAI-compatible providers (OpenAI, DeepSeek, Mistral, Custom, etc.)
     const opts: any = {
         baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
     };
 
-    // Custom header support: Azure uses api-key, others may use x-api-key, etc.
+    // Custom header support: some providers use non-standard auth headers
     if (apiKeyHeader && apiKeyHeader.trim()) {
         opts.apiKey = 'sk-placeholder'; // SDK requires a non-empty key
         opts.headers = { [apiKeyHeader.trim()]: apiKey };
-    } else if (isAzure) {
-        // Azure OpenAI default: use api-key header
-        opts.apiKey = 'sk-placeholder';
-        opts.headers = { 'api-key': apiKey };
     } else {
         opts.apiKey = apiKey;
     }
 
-    // Azure-style: intercept fetch to strip URL suffix and model from body
-    if (isAzure) {
-        opts.fetch = createAzureStyleFetch(baseUrl);
-    }
-
     const openai = createOpenAI(opts);
-
-    // Azure-style: force Chat Completions API (sends "messages", not "input")
-    // Standard: use default (Responses API in SDK v6+)
-    if (isAzure) {
-        return openai.chat(model);
-    }
     return openai(model);
 }
 
 /**
- * Creates a fetch interceptor for Azure-style corporate API gateways.
- * Strips /chat/completions from URL and removes 'model' from body.
+ * Azure OpenAI model resolution using @ai-sdk/azure.
+ * Uses Chat Completions API natively — sends `messages` format, `api-key` header,
+ * and does NOT include `model` in the request body.
+ *
+ * The fetch interceptor redirects the SDK's constructed URL
+ * ({baseURL}/v1/chat/completions) back to the user's exact endpoint,
+ * since corporate gateways route by URL path, not API path conventions.
  */
-function createAzureStyleFetch(baseUrl?: string) {
+function resolveAzureModel(model: string, apiKey: string, baseUrl?: string) {
+    const azure = createAzure({
+        apiKey,
+        baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
+        apiVersion: '',  // Not used by corporate gateways
+        fetch: createAzureGatewayFetch(baseUrl),
+    });
+    return azure.chat(model);
+}
+
+/**
+ * Creates a fetch interceptor for Azure-style corporate API gateways.
+ * The SDK constructs URLs like {baseURL}/v1/chat/completions?api-version=...
+ * but corporate gateways expect the request at the base URL directly.
+ */
+function createAzureGatewayFetch(baseUrl?: string) {
     return async (url: string | Request | URL, requestInit?: any) => {
-        let fetchUrl = url.toString();
-        // Strip /chat/completions — gateway routes by URL path, not body
-        if (baseUrl && !baseUrl.endsWith('/chat/completions') && fetchUrl.endsWith('/chat/completions')) {
-            fetchUrl = fetchUrl.replace('/chat/completions', '');
-        }
-        // Strip /responses — fallback for OpenAI Responses API format
-        if (baseUrl && !baseUrl.endsWith('/responses') && fetchUrl.endsWith('/responses')) {
-            fetchUrl = fetchUrl.replace('/responses', '');
-        }
-
-        // Remove 'model' from body — the gateway resolves model from the URL
-        if (requestInit && typeof requestInit.body === 'string') {
-            try {
-                const bodyObj = JSON.parse(requestInit.body);
-                if (bodyObj && bodyObj.model) {
-                    delete bodyObj.model;
-                    requestInit.body = JSON.stringify(bodyObj);
-                }
-            } catch (e) {
-                // Ignore parse errors
-            }
-        }
-
-        return fetch(fetchUrl, requestInit);
+        // Redirect to the user's exact endpoint URL
+        const targetUrl = baseUrl || url.toString();
+        return fetch(targetUrl, requestInit);
     };
 }
 
@@ -95,7 +83,10 @@ function resolveAgenticModel(provider: string, model: string, apiKey: string, ba
         return google(model);
     }
 
-    const isAzure = provider === 'Azure OpenAI' || azureStyle === true;
+    // Azure OpenAI — use the official @ai-sdk/azure provider
+    if (provider === 'Azure OpenAI' || azureStyle === true) {
+        return resolveAzureModel(model, apiKey, baseUrl);
+    }
 
     // OpenAI-compat with strict compatibility for tool calling
     const opts: any = {
@@ -106,23 +97,11 @@ function resolveAgenticModel(provider: string, model: string, apiKey: string, ba
     if (apiKeyHeader && apiKeyHeader.trim()) {
         opts.apiKey = 'sk-placeholder';
         opts.headers = { [apiKeyHeader.trim()]: apiKey };
-    } else if (isAzure) {
-        opts.apiKey = 'sk-placeholder';
-        opts.headers = { 'api-key': apiKey };
     } else {
         opts.apiKey = apiKey;
     }
 
-    if (isAzure) {
-        opts.fetch = createAzureStyleFetch(baseUrl);
-    }
-
     const openai = createOpenAI(opts);
-
-    // Azure-style: force Chat Completions API for tool calling compatibility
-    if (isAzure) {
-        return openai.chat(model);
-    }
     return openai(model);
 }
 
