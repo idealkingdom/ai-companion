@@ -123,14 +123,22 @@ function createCorporateGatewayFetch(baseUrl: string) {
 
 /**
  * Anthropic model resolution using @ai-sdk/anthropic.
- * Uses Messages API natively — sends `messages` format, `x-api-key` header.
- *
- * For corporate gateways, the fetch interceptor redirects the SDK's constructed URL
- * ({baseURL}/v1/messages) to the user's exact endpoint.
+ * Handles corporate gateway specifics:
+ * - Auth: `api-key` header (NOT Anthropic's default `x-api-key`)
+ * - Streaming: routes to `:streamRawPredict` endpoint
+ * - Strips unsupported: `model`, `anthropic-version` header
  */
 function resolveAnthropicModel(model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string) {
+    const isCorporateGateway = !!baseUrl;
+
+    // Corporate gateways use `api-key` header (same as Azure/GPT endpoints)
+    // Default Anthropic uses `x-api-key` — we must override for corporate
     const headers: any = {};
-    if (apiKeyHeader && apiKeyHeader.trim()) {
+    if (isCorporateGateway) {
+        const headerName = (apiKeyHeader && apiKeyHeader.trim()) ? apiKeyHeader.trim() : 'api-key';
+        headers[headerName] = apiKey;
+        apiKey = 'sk-placeholder'; // SDK still requires a non-empty apiKey
+    } else if (apiKeyHeader && apiKeyHeader.trim()) {
         headers[apiKeyHeader.trim()] = apiKey;
         apiKey = 'sk-placeholder';
     }
@@ -139,9 +147,53 @@ function resolveAnthropicModel(model: string, apiKey: string, baseUrl?: string, 
         apiKey,
         baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
         headers: Object.keys(headers).length > 0 ? headers : undefined,
-        fetch: baseUrl ? createCorporateGatewayFetch(baseUrl) : undefined,
+        fetch: isCorporateGateway ? createAnthropicGatewayFetch(baseUrl!) : undefined,
     });
     return anthropic(model);
+}
+
+/**
+ * Fetch interceptor for corporate Anthropic gateways.
+ * 
+ * Handles three gateway-specific requirements:
+ * 1. Routes streaming requests to `:streamRawPredict` URL (non-streaming uses `:rawPredict`)
+ * 2. Strips `model` from body (gateway determines model from URL path)
+ * 3. Strips `anthropic-version` header (not supported by gateway)
+ */
+function createAnthropicGatewayFetch(baseUrl: string) {
+    return async (url: string | Request | URL, requestInit?: any) => {
+        let targetUrl = baseUrl;
+
+        if (requestInit && typeof requestInit.body === 'string') {
+            try {
+                const bodyObj = JSON.parse(requestInit.body);
+
+                // Route to streaming endpoint when stream=true
+                if (bodyObj.stream === true && targetUrl.includes(':rawPredict')) {
+                    targetUrl = targetUrl.replace(':rawPredict', ':streamRawPredict');
+                }
+
+                // Strip model — gateway determines model from URL path
+                if (bodyObj.model !== undefined) {
+                    delete bodyObj.model;
+                    requestInit.body = JSON.stringify(bodyObj);
+                }
+            } catch (e) {
+                // Ignore parse errors
+            }
+        }
+
+        // Strip anthropic-version header (not supported by gateway)
+        if (requestInit?.headers) {
+            if (typeof requestInit.headers === 'object' && !(requestInit.headers instanceof Headers)) {
+                delete requestInit.headers['anthropic-version'];
+            } else if (requestInit.headers instanceof Headers) {
+                requestInit.headers.delete('anthropic-version');
+            }
+        }
+
+        return fetch(targetUrl, requestInit);
+    };
 }
 
 function resolveAgenticModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string, azureStyle?: boolean) {
@@ -355,12 +407,11 @@ export async function aiAgenticRequest(
                         };
                     }
                 } else if (provider === 'Anthropic') {
-                    // Anthropic: use budgeted thinking to prevent corporate gateway timeouts
-                    // 'adaptive' can run indefinitely; budgetTokens caps thinking time
-                    // max_tokens MUST be > budgetTokens (Anthropic requirement)
+                    // Anthropic: adaptive thinking — gateway confirms support
+                    // max_tokens required when thinking is enabled
                     streamOptions.maxTokens = 16000;
                     streamOptions.providerOptions = {
-                        anthropic: { thinking: { type: 'enabled', budgetTokens: 5000 } }
+                        anthropic: { thinking: { type: 'adaptive' } }
                     };
                 } else if (provider === 'Azure OpenAI') {
                     // Azure OpenAI: reasoning is disabled by corporate gateways, skip
