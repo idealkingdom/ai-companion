@@ -1243,7 +1243,7 @@ function renderModelTable() {
                             <label>Base URL</label>
                             <input type="text" placeholder="Leave empty for default" value="${escapeHtml(baseUrl)}" data-config-field="baseUrl" disabled>
                         </div>
-                        ${isCustom && (providerKey === 'Custom' || providerKey === 'Azure OpenAI') ? `<div class="config-field">
+                        ${isCustom && (providerKey === 'Custom' || providerKey === 'Azure OpenAI' || providerKey === 'Anthropic') ? `<div class="config-field">
                             <label>API Key Header <span style="font-size:0.72rem;opacity:0.6;">(optional)</span></label>
                             <input type="text" placeholder="e.g., x-api-key" value="${escapeHtml(apiKeyHeaderVal)}" data-config-field="apiKeyHeader" disabled>
                         </div>` : ''}
@@ -1531,11 +1531,12 @@ if (addModelProvider && addModelHeaderGroup) {
         const val = addModelProvider.value;
         const isCustom = val === 'Custom';
         const isAzure = val === 'Azure OpenAI';
-        addModelHeaderGroup.style.display = isCustom ? 'block' : 'none';
-        // For Azure OpenAI, make Base URL required by updating placeholder
+        const isAnthropic = val === 'Anthropic';
+        addModelHeaderGroup.style.display = (isCustom || isAnthropic) ? 'block' : 'none';
+        // For Azure OpenAI / Anthropic, make Base URL required by updating placeholder
         if (addModelBaseUrl) {
-            addModelBaseUrl.placeholder = isAzure
-                ? 'Required — e.g., https://api.example.com/ai/gpt/gpt-5.1'
+            addModelBaseUrl.placeholder = (isAzure || isAnthropic)
+                ? 'Required — corporate gateway endpoint URL'
                 : 'e.g., https://api.openai.com/v1/chat/completions';
         }
     });
@@ -1581,8 +1582,8 @@ if (addModelSubmitBtn) {
             return;
         }
 
-        // Azure OpenAI requires a base URL
-        if (provider === 'Azure OpenAI' && !baseUrl) {
+        // Azure OpenAI / Anthropic require a base URL
+        if ((provider === 'Azure OpenAI' || provider === 'Anthropic') && !baseUrl) {
             if (addModelBaseUrl) { addModelBaseUrl.style.borderColor = 'var(--danger-color)'; setTimeout(() => { addModelBaseUrl.style.borderColor = ''; }, 1500); }
             return;
         }
@@ -1590,8 +1591,8 @@ if (addModelSubmitBtn) {
         // Create the custom model — image/reasoning toggleable from the model table
         // Auto-detect known reasoning models
         const lowerName = name.toLowerCase();
-        const isKnownReasoningModel = lowerName.includes('gemini') || lowerName.includes('gpt-5') || lowerName.includes('o1') || lowerName.includes('o3') || lowerName.includes('thinking');
-        const supportsImage = lowerName.includes('gemini') || lowerName.includes('gpt-5') || lowerName.includes('vision');
+        const isKnownReasoningModel = lowerName.includes('gemini') || lowerName.includes('gpt-5') || lowerName.includes('o1') || lowerName.includes('o3') || lowerName.includes('thinking') || lowerName.includes('claude') || lowerName.includes('sonnet') || lowerName.includes('opus');
+        const supportsImage = lowerName.includes('gemini') || lowerName.includes('gpt-5') || lowerName.includes('vision') || lowerName.includes('claude') || lowerName.includes('sonnet') || lowerName.includes('opus');
         const supportsReasoning = isKnownReasoningModel;
         const apiKeyHeader = addModelApiKeyHeader?.value?.trim() || '';
         const isAzure = provider === 'Azure OpenAI';

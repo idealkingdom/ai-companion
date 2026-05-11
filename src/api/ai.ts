@@ -1,5 +1,6 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAzure } from '@ai-sdk/azure';
+import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText, streamText, stepCountIs } from 'ai';
 import { outputChannel } from '../logger';
@@ -10,6 +11,7 @@ import * as vscode from 'vscode';
 // `createOpenAI` with a different `baseURL`.  Only Google Gemini uses a
 // completely different SDK (`@ai-sdk/google`).  Azure OpenAI uses `@ai-sdk/azure`
 // which natively handles api-key headers and Chat Completions format.
+// Anthropic uses `@ai-sdk/anthropic` with native x-api-key and Messages API.
 
 /** Strip stray quotes and whitespace that may slip in when pasting URLs */
 function sanitizeUrl(url?: string): string | undefined {
@@ -31,6 +33,11 @@ function resolveModel(provider: string, model: string, apiKey: string, baseUrl?:
     // Azure OpenAI — use the official @ai-sdk/azure provider
     if (provider === 'Azure OpenAI' || azureStyle === true) {
         return resolveAzureModel(model, apiKey, baseUrl, apiKeyHeader);
+    }
+
+    // Anthropic — use the official @ai-sdk/anthropic provider
+    if (provider === 'Anthropic') {
+        return resolveAnthropicModel(model, apiKey, baseUrl, apiKeyHeader);
     }
 
     // All OpenAI-compatible providers (OpenAI, DeepSeek, Mistral, Custom, etc.)
@@ -103,6 +110,40 @@ function createAzureGatewayFetch(baseUrl?: string) {
     };
 }
 
+/**
+ * Generic fetch interceptor for corporate API gateways.
+ * Redirects the SDK's constructed URL (e.g. {baseURL}/v1/messages) to the
+ * user's exact endpoint URL, since corporate gateways route by URL path.
+ */
+function createCorporateGatewayFetch(baseUrl: string) {
+    return async (url: string | Request | URL, requestInit?: any) => {
+        return fetch(baseUrl, requestInit);
+    };
+}
+
+/**
+ * Anthropic model resolution using @ai-sdk/anthropic.
+ * Uses Messages API natively — sends `messages` format, `x-api-key` header.
+ *
+ * For corporate gateways, the fetch interceptor redirects the SDK's constructed URL
+ * ({baseURL}/v1/messages) to the user's exact endpoint.
+ */
+function resolveAnthropicModel(model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string) {
+    const headers: any = {};
+    if (apiKeyHeader && apiKeyHeader.trim()) {
+        headers[apiKeyHeader.trim()] = apiKey;
+        apiKey = 'sk-placeholder';
+    }
+
+    const anthropic = createAnthropic({
+        apiKey,
+        baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
+        fetch: baseUrl ? createCorporateGatewayFetch(baseUrl) : undefined,
+    });
+    return anthropic(model);
+}
+
 function resolveAgenticModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string, azureStyle?: boolean) {
     baseUrl = sanitizeUrl(baseUrl);
     if (provider === 'Gemini') {
@@ -118,7 +159,10 @@ function resolveAgenticModel(provider: string, model: string, apiKey: string, ba
         return resolveAzureModel(model, apiKey, baseUrl, apiKeyHeader);
     }
 
-    // OpenAI-compat with strict compatibility for tool calling
+    // Anthropic — use the official @ai-sdk/anthropic provider
+    if (provider === 'Anthropic') {
+        return resolveAnthropicModel(model, apiKey, baseUrl, apiKeyHeader);
+    }
     const opts: any = {
         baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
         compatibility: 'strict',
@@ -310,6 +354,14 @@ export async function aiAgenticRequest(
                             google: { thinkingConfig: { thinkingBudget: -1 } }
                         };
                     }
+                } else if (provider === 'Anthropic') {
+                    // Anthropic: use adaptive thinking (model decides depth)
+                    streamOptions.providerOptions = {
+                        anthropic: { thinking: { type: 'adaptive' } }
+                    };
+                } else if (provider === 'Azure OpenAI') {
+                    // Azure OpenAI: reasoning is disabled by corporate gateways, skip
+                    outputChannel.appendLine(`[Agentic] Skipping reasoning params for Azure OpenAI (gateway does not support)`);
                 } else {
                     // OpenAI-compatible providers
                     streamOptions.providerOptions = {
