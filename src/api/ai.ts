@@ -355,9 +355,12 @@ export async function aiAgenticRequest(
                         };
                     }
                 } else if (provider === 'Anthropic') {
-                    // Anthropic: use adaptive thinking (model decides depth)
+                    // Anthropic: use budgeted thinking to prevent corporate gateway timeouts
+                    // 'adaptive' can run indefinitely; budgetTokens caps thinking time
+                    // max_tokens MUST be > budgetTokens (Anthropic requirement)
+                    streamOptions.maxTokens = 16000;
                     streamOptions.providerOptions = {
-                        anthropic: { thinking: { type: 'adaptive' } }
+                        anthropic: { thinking: { type: 'enabled', budgetTokens: 5000 } }
                     };
                 } else if (provider === 'Azure OpenAI') {
                     // Azure OpenAI: reasoning is disabled by corporate gateways, skip
