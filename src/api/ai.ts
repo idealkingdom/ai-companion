@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 // `createOpenAI` with a different `baseURL`.  Only Google Gemini uses a
 // completely different SDK (`@ai-sdk/google`).
 
-function resolveModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string) {
+function resolveModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string, azureStyle?: boolean) {
     if (provider === 'Gemini') {
         const google = createGoogleGenerativeAI({ 
             apiKey,
@@ -31,11 +31,49 @@ function resolveModel(provider: string, model: string, apiKey: string, baseUrl?:
         opts.apiKey = apiKey;
     }
 
+    // Azure-style corporate gateways: model is in the URL, not the body
+    if (azureStyle) {
+        opts.fetch = createAzureStyleFetch(baseUrl);
+    }
+
     const openai = createOpenAI(opts);
     return openai(model);
 }
 
-function resolveAgenticModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string) {
+/**
+ * Creates a fetch interceptor for Azure-style corporate API gateways.
+ * Strips /chat/completions from URL and removes 'model' from body.
+ */
+function createAzureStyleFetch(baseUrl?: string) {
+    return async (url: string | Request | URL, requestInit?: any) => {
+        let fetchUrl = url.toString();
+        // Strip /chat/completions — gateway routes by URL path, not body
+        if (baseUrl && !baseUrl.endsWith('/chat/completions') && fetchUrl.endsWith('/chat/completions')) {
+            fetchUrl = fetchUrl.replace('/chat/completions', '');
+        }
+        // Strip /responses — same for OpenAI Responses API format
+        if (baseUrl && !baseUrl.endsWith('/responses') && fetchUrl.endsWith('/responses')) {
+            fetchUrl = fetchUrl.replace('/responses', '');
+        }
+
+        // Remove 'model' from body — the gateway resolves model from the URL
+        if (requestInit && typeof requestInit.body === 'string') {
+            try {
+                const bodyObj = JSON.parse(requestInit.body);
+                if (bodyObj && bodyObj.model) {
+                    delete bodyObj.model;
+                    requestInit.body = JSON.stringify(bodyObj);
+                }
+            } catch (e) {
+                // Ignore parse errors
+            }
+        }
+
+        return fetch(fetchUrl, requestInit);
+    };
+}
+
+function resolveAgenticModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string, azureStyle?: boolean) {
     if (provider === 'Gemini') {
         const google = createGoogleGenerativeAI({ 
             apiKey,
@@ -57,6 +95,11 @@ function resolveAgenticModel(provider: string, model: string, apiKey: string, ba
         opts.apiKey = apiKey;
     }
 
+    // Azure-style corporate gateways: model is in the URL, not the body
+    if (azureStyle) {
+        opts.fetch = createAzureStyleFetch(baseUrl);
+    }
+
     const openai = createOpenAI(opts);
     return openai(model);
 }
@@ -73,10 +116,11 @@ export async function aiRequest(
     temperature: number,
     provider: string,
     baseUrl?: string,
-    apiKeyHeader?: string
+    apiKeyHeader?: string,
+    azureStyle?: boolean
 ): Promise<{ content: string }> {
 
-    const resolvedModel = resolveModel(provider, model, accessToken, baseUrl, apiKeyHeader);
+    const resolvedModel = resolveModel(provider, model, accessToken, baseUrl, apiKeyHeader, azureStyle);
 
     try {
         const { text } = await generateText({
@@ -104,9 +148,10 @@ export async function aiStreamRequest(
     baseUrl?: string,
     abortSignal?: AbortSignal,
     apiKeyHeader?: string,
-    onFinish?: (event: any) => void
+    onFinish?: (event: any) => void,
+    azureStyle?: boolean
 ) {
-    const resolvedModel = resolveModel(provider, model, accessToken, baseUrl, apiKeyHeader);
+    const resolvedModel = resolveModel(provider, model, accessToken, baseUrl, apiKeyHeader, azureStyle);
 
     try {
         const result = await streamText({
@@ -146,9 +191,10 @@ export async function aiAgenticRequest(
         onReasoningChunk?: (text: string) => void;
         apiKeyHeader?: string;
         onFinish?: (event: any) => void;
+        azureStyle?: boolean;
     } = {}
 ) {
-    const resolvedModel = resolveAgenticModel(provider, model, accessToken, options.baseUrl, options.apiKeyHeader);
+    const resolvedModel = resolveAgenticModel(provider, model, accessToken, options.baseUrl, options.apiKeyHeader, options.azureStyle);
 
     outputChannel.appendLine(`[Agentic] Starting request: provider=${provider}, model=${model}, tools=${Object.keys(tools).join(',')}, maxSteps=${options.maxSteps || 15}`);
     outputChannel.appendLine(`[Agentic] API key present: ${!!accessToken && accessToken.length > 0}, key length: ${accessToken?.length || 0}`);

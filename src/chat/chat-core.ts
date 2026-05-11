@@ -228,8 +228,9 @@ export class ChatCoreService {
             const apiKey = customModel?.apiKey || providerConfig?.apiKey || appSettings.models.apiKey || '';
             const apiBaseUrl = customModel?.baseUrl || providerConfig?.baseUrl || '';
             const apiKeyHeader = customModel?.apiKeyHeader || '';
+            const azureStyle = customModel?.azureStyle === true;
 
-            outputChannel.appendLine(`[ChatCore] Provider=${activeProvider}, model=${targetModel}, hasApiKey=${!!apiKey}, keyLen=${apiKey.length}, baseUrl=${apiBaseUrl || '(default)'}${apiKeyHeader ? `, apiKeyHeader=${apiKeyHeader}` : ''}${customModel ? `, source=customModel(${customModel.provider})` : ''}`);
+            outputChannel.appendLine(`[ChatCore] Provider=${activeProvider}, model=${targetModel}, hasApiKey=${!!apiKey}, keyLen=${apiKey.length}, baseUrl=${apiBaseUrl || '(default)'}${apiKeyHeader ? `, apiKeyHeader=${apiKeyHeader}` : ''}${azureStyle ? ', azureStyle=true' : ''}${customModel ? `, source=customModel(${customModel.provider})` : ''}`);
 
 
             // ─── DETERMINE MODE: AGENTIC vs STANDARD ────────────────────────
@@ -248,7 +249,8 @@ export class ChatCoreService {
                     targetModel, apiKey || accessToken, temperature, apiBaseUrl,
                     appSettings, onChunk, trackingOnAgentStep, abortController.signal,
                     apiKeyHeader,
-                    (usage) => { totalUsage = usage; }
+                    (usage) => { totalUsage = usage; },
+                    azureStyle
                 );
                 aiResponseText = response.text;
                 if (!totalUsage) totalUsage = response.usage;
@@ -262,7 +264,8 @@ export class ChatCoreService {
                     targetModel, apiKey || accessToken, temperature, apiBaseUrl,
                     appSettings, onChunk, abortController.signal,
                     apiKeyHeader,
-                    (usage) => { totalUsage = usage; }
+                    (usage) => { totalUsage = usage; },
+                    azureStyle
                 );
                 aiResponseText = response.text;
                 if (!totalUsage) totalUsage = response.usage;
@@ -294,11 +297,10 @@ export class ChatCoreService {
 
                 outputChannel.appendLine('[ChatCore] Error: ' + extractedErrorMsg);
 
-                aiResponseText = ''; // Clear response text to prevent duplicate bubble
-                const errorStep = { type: 'thinking', text: `❌ Agent error: ${extractedErrorMsg}` };
-                collectedAgentSteps.push(errorStep);
-                if (onAgentStep) {
-                    onAgentStep(errorStep as any);
+                // Render error as a regular chat message (not inside thinking block)
+                aiResponseText = `⚠️ **Error:** ${extractedErrorMsg}`;
+                if (onChunk) {
+                    onChunk(aiResponseText);
                 }
             }
             await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText, [], [], data.agentId, collectedAgentSteps);
@@ -331,7 +333,7 @@ export class ChatCoreService {
         data: any, contextMessages: any[], currentMessage: any,
         model: string, apiKey: string, temperature: number, baseUrl: string,
         settings: any, onChunk?: (text: string) => void, abortSignal?: AbortSignal,
-        apiKeyHeader?: string, onUsageUpdate?: (usage: any) => void
+        apiKeyHeader?: string, onUsageUpdate?: (usage: any) => void, azureStyle?: boolean
     ): Promise<{ text: string, usage?: any }> {
 
         // #64: Default Chat uses ONLY the global system prompt — no extra system info
@@ -365,7 +367,8 @@ export class ChatCoreService {
                         const usage = event.usage || event.totalUsage;
                         totalUsage = usage;
                         if (onUsageUpdate) onUsageUpdate(usage);
-                    }
+                    },
+                    azureStyle
                 );
                 let fullText = '';
                 for await (const chunk of result.fullStream) {
@@ -385,7 +388,7 @@ export class ChatCoreService {
                 totalUsage = usage;
             } else {
                 const response = await aiRequest(
-                    apiPayload, model, apiKey, requestTemperature, activeProvider, baseUrl, apiKeyHeader
+                    apiPayload, model, apiKey, requestTemperature, activeProvider, baseUrl, apiKeyHeader, azureStyle
                 );
                 pipelineContext = response.content;
                 aiResponseText = response.content;
@@ -405,7 +408,8 @@ export class ChatCoreService {
         onAgentStep?: (step: AgentStepEvent) => void,
         abortSignal?: AbortSignal,
         apiKeyHeader?: string,
-        onUsageUpdate?: (usage: any) => void
+        onUsageUpdate?: (usage: any) => void,
+        azureStyle?: boolean
     ): Promise<{ text: string, usage?: any, hitStepLimit?: boolean, maxSteps?: number }> {
         // Note: We do NOT call ReviewManager.startTurn() here.
         // Pending edits are global and persist until the user accepts/reverts them.
@@ -517,7 +521,7 @@ RULES:
 
         // Resolve model tier for adaptive behavior
         let modelTier = getModelTier(activeProvider, model);
-        
+
         // Override tier from custom model settings if set
         if (settings.customModels) {
             const customModel = settings.customModels.find((m: any) => m.name === model);
@@ -583,7 +587,7 @@ RULES:
         } catch (e) {
             outputChannel.appendLine(`[Agentic] Error reading models.json: ${e}`);
         }
-        
+
         // Check custom models
         if (!supportsReasoning && settings.customModels) {
             const customModel = settings.customModels.find((m: any) => m.name === model);
@@ -615,6 +619,7 @@ RULES:
                     abortSignal: abortSignal,
                     enableThinking: supportsReasoning,
                     apiKeyHeader: apiKeyHeader,
+                    azureStyle: azureStyle,
                     onFinish: (event: any) => {
                         const usage = event.usage || event.totalUsage;
                         if (onUsageUpdate && usage) onUsageUpdate(usage);
@@ -771,7 +776,7 @@ RULES:
                     for (const step of steps) {
                         // Diagnostic: log step reasoning data
                         outputChannel.appendLine(`[Agentic] Step reasoning: reasoningText=${(step.reasoningText || '').length} chars, reasoning=${Array.isArray(step.reasoning) ? step.reasoning.length : 0} parts, usage=${JSON.stringify(step.usage)}`);
-                        
+
                         // Count reasoning tokens
                         const stepTokens = (step.usage as any)?.outputTokenDetails?.reasoningTokens
                             || (step.usage as any)?.reasoningTokens || 0;
