@@ -133,7 +133,32 @@ const themeTemplateSelect = document.getElementById('themeTemplateSelect');
 const showKeyToggleBtn = document.getElementById('showKeyToggleBtn');
 const saveTemplateBtn = document.getElementById('saveTemplateBtn');
 const deleteTemplateBtn = document.getElementById('deleteTemplateBtn');
+const allowExternalMediaToggle = document.getElementById('allowExternalMedia');
 let isKeyVisible = false;
+
+// External media toggle handler
+if (allowExternalMediaToggle) {
+    allowExternalMediaToggle.addEventListener('change', (e) => {
+        if (!currentSettings.ui) currentSettings.ui = {};
+        currentSettings.ui.allowExternalMedia = e.target.checked;
+        persistSettings();
+        // Broadcast to chatbox
+        vscode.postMessage({
+            command: 'updateNestedSetting',
+            data: { category: 'ui', key: 'allowExternalMedia', value: e.target.checked }
+        });
+    });
+}
+
+const disableSslToggle = document.getElementById('disableSslVerification');
+if (disableSslToggle) {
+    disableSslToggle.addEventListener('change', (e) => {
+        vscode.postMessage({
+            command: 'updateVsCodeSetting',
+            data: { key: 'disableSslVerification', value: e.target.checked }
+        });
+    });
+}
 
 // Agent Hub summary (optional, safe if missing)
 const agentCountValue = document.getElementById('agentCountValue');
@@ -424,7 +449,7 @@ function updateTemplateDropdown() {
         currentSettings.customTemplates.forEach(template => {
             const option = document.createElement('option');
             option.value = 'custom_' + template.id;
-            option.textContent = `★ ${template.name}`;
+            option.textContent = `▸ ${template.name}`;
             themeTemplateSelect.appendChild(option);
         });
     }
@@ -780,7 +805,10 @@ function populateForm() {
         if (customCssInput) {
             customCssInput.value = ui.customCss || '';
         }
-        
+        if (allowExternalMediaToggle) {
+            allowExternalMediaToggle.checked = ui.allowExternalMedia !== false; // default true
+        }
+
         // Auto-detect template if it matches exactly
         if (themeTemplateSelect && ui.customCss) {
             let foundMatch = false;
@@ -1098,14 +1126,12 @@ function getProviderIcon(provider) {
 }
 
 function renderModelTable() {
-    const builtinBody = document.getElementById('body-builtin');
-    const customBody = document.getElementById('body-custom');
-    const customEmpty = document.getElementById('custom-empty');
-    if (!builtinBody || !customBody) return;
+    const listBody = document.getElementById('model-list-body');
+    if (!listBody) return;
 
     const activeImageModel = currentSettings.models.imageModel;
 
-    // Helper: build a model row with radio + edit + optional delete
+    // Helper: build a model row with expandable config
     function buildRow(modelName, providerKey, providerName, isCustom, customId, supportsImage, modelSupportsReasoning, modelTier) {
         let isActive = true;
         if (isCustom) {
@@ -1116,14 +1142,13 @@ function renderModelTable() {
             if (inactive.includes(modelName)) isActive = false;
         }
 
-        const isImageModel = modelName === activeImageModel;
-        const radioId = `img-radio-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
-        const editId = `edit-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
-        const configId = `config-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const uid = (customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_');
+        const configId = `config-${uid}`;
 
         // Get existing config for this model
         let apiKey = '', baseUrl = '', apiKeyHeaderVal = '', supportsReasoning = modelSupportsReasoning;
         let tier = modelTier || 'mid';
+        let azureStyleVal = false;
         if (isCustom) {
             const cm = (currentSettings.customModels || []).find(m => m.id === customId);
             if (cm) { 
@@ -1132,6 +1157,7 @@ function renderModelTable() {
                 apiKeyHeaderVal = cm.apiKeyHeader || ''; 
                 supportsReasoning = cm.supportsReasoning || false;
                 tier = cm.tier || 'mid';
+                azureStyleVal = cm.azureStyle || false;
             }
         } else {
             const ps = (currentSettings.models.providerSettings || {})[providerKey];
@@ -1139,81 +1165,110 @@ function renderModelTable() {
         }
 
         const hasConfig = apiKey || baseUrl;
-        const configDot = hasConfig ? `<span style="width:6px;height:6px;border-radius:50%;background:var(--success-color);display:inline-block;margin-left:4px;" title="Configured"></span>` : '';
-
-        let actionsHtml = `
-            <button class="icon-btn" title="Edit config" onclick="toggleModelConfig('${editId}', '${configId}')">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-            </button>`;
-        if (isCustom) {
-            actionsHtml += `
-            <button class="icon-btn danger" title="Delete" onclick="deleteCustomModel('${customId}')">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-            </button>`;
-        }
+        const configDot = hasConfig ? `<span class="config-dot" title="Configured"></span>` : '';
 
         const dataAttr = isCustom ? `data-custom-id="${customId}"` : `data-provider="${providerKey}"`;
-
-        const activeToggleId = `active-toggle-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
-        const reasonToggleId = `reason-toggle-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
-        const imageToggleId = `image-toggle-${(customId || providerKey + '-' + modelName).replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const activeToggleId = `active-toggle-${uid}`;
+        const reasonToggleId = `reason-toggle-${uid}`;
+        const imageToggleId = `image-toggle-${uid}`;
 
         const tierLabel = tier === 'frontier' ? 'Pro' : tier === 'mid' ? 'Mid' : 'Lite';
         const tierClickable = isCustom ? ' clickable' : '';
         const tierOnClick = isCustom ? ` onclick="cycleModelTier('${customId}')"` : '';
 
+        let deleteBtn = '';
+        if (isCustom) {
+            deleteBtn = `<button class="icon-btn danger" title="Delete" onclick="event.stopPropagation(); deleteCustomModel('${customId}')">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>`;
+        }
+
+        // Active status indicator on inline row
+        const statusDot = isActive
+            ? `<span class="model-status-dot active" title="Active"></span>`
+            : `<span class="model-status-dot" title="Inactive"></span>`;
+
         return `
             <div class="model-card" ${dataAttr}>
-                <div class="model-card-main">
+                <div class="model-card-main" onclick="toggleModelExpand('${configId}', this)">
                     <div class="model-card-identity">
+                        <svg class="expand-chevron" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                         ${getProviderIcon(providerKey)}
                         <div class="model-card-name-block">
                             <span class="model-card-name">${escapeHtml(modelName)}${configDot}</span>
                             <span class="model-card-provider">${escapeHtml(providerName)}</span>
                         </div>
                     </div>
-                    <div class="model-card-controls">
-                        <span class="tier-badge ${tier}${tierClickable}" title="${isCustom ? 'Click to change tier' : tier}"${tierOnClick}>${tierLabel}</span>
-                        <label class="toggle-switch" title="Active">
-                            <input id="${activeToggleId}" type="checkbox" ${isActive ? 'checked' : ''} onchange="toggleModelActive('${isCustom ? 'true' : 'false'}', '${customId || ''}', '${escapeHtml(modelName)}', this.checked)">
-                            <span class="toggle-slider"></span>
-                        </label>
-                        <label class="toggle-switch model-ctrl-reasoning" title="Reasoning">
-                            <input id="${reasonToggleId}" type="checkbox" ${supportsReasoning ? 'checked' : ''} ${!isCustom ? 'disabled' : ''} onchange="toggleModelReasoning('${customId || ''}', this.checked)">
-                            <span class="toggle-slider"></span>
-                        </label>
-                        <label class="toggle-switch model-ctrl-image" title="Image Support">
-                            <input id="${imageToggleId}" type="checkbox" ${supportsImage ? 'checked' : ''} ${!isCustom ? 'disabled' : ''} onchange="toggleModelImage('${customId || ''}', this.checked)">
-                            <span class="toggle-slider"></span>
-                        </label>
-                        <span class="model-card-actions">${actionsHtml}</span>
+                    <div class="model-card-inline-meta" onclick="event.stopPropagation()">
+                        ${statusDot}
+                        ${deleteBtn}
                     </div>
                 </div>
-            </div>
-            <div class="model-config-panel" id="${configId}" style="display:none;" ${dataAttr}>
-                <div class="config-field">
-                    <label>API Key</label>
-                    <div style="display:flex;gap:0;">
-                        <input type="password" placeholder="sk-..." value="${escapeHtml(apiKey)}" data-config-field="apiKey" style="border-radius:6px 0 0 6px;border-right:none;">
-                        <button class="config-eye-btn" onclick="toggleConfigKey(this)" title="Toggle visibility" type="button">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <div class="model-config-panel" id="${configId}" style="display:none;" ${dataAttr}>
+                    <div class="config-toggles">
+                        <span class="tier-badge tier-${tier}${tierClickable}"${tierOnClick} title="${isCustom ? 'Click to cycle tier' : 'Model tier'}">${tierLabel}</span>
+                        <label class="config-toggle-item">
+                            <span class="config-toggle-label">Active</span>
+                            <label class="toggle-switch">
+                                <input id="${activeToggleId}" type="checkbox" ${isActive ? 'checked' : ''} onchange="toggleModelActive('${isCustom ? 'true' : 'false'}', '${customId || ''}', '${escapeHtml(modelName)}', this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </label>
+                        <label class="config-toggle-item">
+                            <span class="config-toggle-label">Reasoning</span>
+                            <label class="toggle-switch">
+                                <input id="${reasonToggleId}" type="checkbox" ${supportsReasoning ? 'checked' : ''} ${!isCustom ? 'disabled' : ''} onchange="toggleModelReasoning('${customId || ''}', this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </label>
+                        <label class="config-toggle-item">
+                            <span class="config-toggle-label">Image</span>
+                            <label class="toggle-switch">
+                                <input id="${imageToggleId}" type="checkbox" ${supportsImage ? 'checked' : ''} ${!isCustom ? 'disabled' : ''} onchange="toggleModelImage('${customId || ''}', this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </label>
+                    </div>
+                    <div class="config-row">
+                        <div class="config-field">
+                            <label>API Key</label>
+                            <div style="display:flex;gap:0;">
+                                <input type="password" placeholder="sk-..." value="${escapeHtml(apiKey)}" data-config-field="apiKey" disabled style="border-radius:6px 0 0 6px;border-right:none;">
+                                <button class="config-eye-btn" onclick="toggleConfigKey(this)" title="Toggle visibility" type="button">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="config-field">
+                            <label>Base URL</label>
+                            <input type="text" placeholder="Leave empty for default" value="${escapeHtml(baseUrl)}" data-config-field="baseUrl" disabled>
+                        </div>
+                        ${isCustom && providerKey === 'Custom' ? `<div class="config-field">
+                            <label>API Key Header <span style="font-size:0.72rem;opacity:0.6;">(optional)</span></label>
+                            <input type="text" placeholder="e.g., x-api-key" value="${escapeHtml(apiKeyHeaderVal)}" data-config-field="apiKeyHeader" disabled>
+                        </div>
+                        <div class="config-field" style="flex-direction:row;align-items:center;gap:10px;">
+                            <label style="margin:0;white-space:nowrap;">Azure / Corporate Gateway</label>
+                            <label class="toggle-switch" style="transform:scale(0.85);">
+                                <input type="checkbox" data-config-field="azureStyle" ${azureStyleVal ? 'checked' : ''} disabled>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>` : ''}
+                    </div>
+                    <div class="config-actions">
+                        <button class="config-edit-btn" onclick="toggleModelEdit('${configId}')" title="Edit">
+                            <svg class="edit-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            <svg class="check-icon" style="display:none;" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                         </button>
                     </div>
                 </div>
-                <div class="config-field">
-                    <label>Base URL</label>
-                    <input type="text" placeholder="Leave empty for default" value="${escapeHtml(baseUrl)}" data-config-field="baseUrl">
-                </div>
-                ${isCustom && providerKey === 'Custom' ? `<div class="config-field">
-                    <label>API Key Header <span style="font-size:0.72rem;opacity:0.6;">(optional)</span></label>
-                    <input type="text" placeholder="e.g., x-api-key" value="${escapeHtml(apiKeyHeaderVal)}" data-config-field="apiKeyHeader">
-                </div>` : ''}
-                <button class="config-save-btn" onclick="saveModelConfig('${configId}', '${isCustom ? customId : ''}', '${providerKey}')">Save</button>
             </div>`;
     }
 
-    // Build built-in rows
-    let builtinHtml = '';
+    // Build all rows into a single list
+    let allHtml = '';
+
+    // Built-in models
     for (const [providerKey, providerData] of Object.entries(DEFAULT_MODELS)) {
         const source = providerData.models || providerData;
         if (!source || !source.text) continue;
@@ -1225,27 +1280,17 @@ function renderModelTable() {
             const canImage = imageModels.includes(modelName);
             const canReason = reasoningModels.includes(modelName);
             const modelTier = tiers[modelName] || 'mid';
-            builtinHtml += buildRow(modelName, providerKey, providerData.name || providerKey, false, null, canImage, canReason, modelTier);
+            allHtml += buildRow(modelName, providerKey, providerData.name || providerKey, false, null, canImage, canReason, modelTier);
         }
     }
-    builtinBody.innerHTML = builtinHtml;
 
-    // Build custom model rows
+    // Custom models
     const customModels = currentSettings.customModels || [];
-    if (customModels.length === 0) {
-        customBody.innerHTML = '';
-        if (customEmpty) {
-            customBody.appendChild(customEmpty);
-            customEmpty.style.display = 'block';
-        }
-    } else {
-        if (customEmpty) customEmpty.style.display = 'none';
-        let customHtml = '';
-        for (const cm of customModels) {
-            customHtml += buildRow(cm.name, cm.provider, cm.provider, true, cm.id, !!cm.supportsImage, !!cm.supportsReasoning, cm.tier || 'mid');
-        }
-        customBody.innerHTML = customHtml;
+    for (const cm of customModels) {
+        allHtml += buildRow(cm.name, cm.provider, cm.provider, true, cm.id, !!cm.supportsImage, !!cm.supportsReasoning, cm.tier || 'mid');
     }
+
+    listBody.innerHTML = allHtml;
 }
 
 window.toggleModelActive = function (isCustomStr, customId, modelName, isActive) {
@@ -1267,6 +1312,20 @@ window.toggleModelActive = function (isCustomStr, customId, modelName, isActive)
 
     persistSettings();
     populateModelDropdowns(currentSettings.models.provider, currentSettings.models.textModel, currentSettings.models.imageModel);
+
+    // Update inline status dot
+    const selector = isCustom ? `[data-custom-id="${customId}"]` : `[data-provider="${modelName}"]`;
+    // Try to find the closest model-card parent
+    const checkbox = document.getElementById(`active-toggle-${(customId || modelName).replace(/[^a-zA-Z0-9]/g, '_')}`);
+    if (checkbox) {
+        const card = checkbox.closest('.model-card');
+        if (card) {
+            const dot = card.querySelector('.model-status-dot');
+            if (dot) {
+                dot.classList.toggle('active', isActive);
+            }
+        }
+    }
 };
 
 window.toggleModelReasoning = function (customId, supportsReasoning) {
@@ -1302,21 +1361,90 @@ window.cycleModelTier = function (customId) {
     persistSettings();
 };
 
-// Section toggle
-window.toggleModelSection = function(section) {
-    const header = document.getElementById('section-' + section);
-    const body = document.getElementById('body-' + section);
-    if (!header || !body) return;
-    header.classList.toggle('collapsed');
-    body.classList.toggle('collapsed');
-};
 
 
-// Toggle inline config panel
-window.toggleModelConfig = function(editId, configId) {
+// Toggle expand/collapse of model config panel
+window.toggleModelExpand = function(configId, mainEl) {
     const panel = document.getElementById(configId);
     if (!panel) return;
-    panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+    const isOpen = panel.style.display !== 'none';
+    panel.style.display = isOpen ? 'none' : 'flex';
+    
+    // Rotate chevron
+    const card = mainEl.closest('.model-card');
+    if (card) card.classList.toggle('expanded', !isOpen);
+};
+
+// Toggle edit/save mode for model config fields
+window.toggleModelEdit = function(configId) {
+    const panel = document.getElementById(configId);
+    if (!panel) return;
+    
+    const inputs = panel.querySelectorAll('.config-row input');
+    const editIcon = panel.querySelector('.edit-icon');
+    const checkIcon = panel.querySelector('.check-icon');
+    const editBtn = panel.querySelector('.config-edit-btn');
+    
+    const isEditing = !inputs[0]?.disabled === false;
+    
+    if (inputs[0]?.disabled) {
+        // Enter edit mode
+        inputs.forEach(i => i.disabled = false);
+        if (editIcon) editIcon.style.display = 'none';
+        if (checkIcon) checkIcon.style.display = 'inline';
+        if (editBtn) editBtn.classList.add('editing');
+    } else {
+        // Save and exit edit mode
+        // Get config data from panel
+        const dataAttr = panel.dataset.customId ? 'customId' : 'provider';
+        const customId = panel.dataset.customId || '';
+        const providerKey = panel.dataset.provider || '';
+        
+        // Delegate to existing save logic
+        const apiKeyField = panel.querySelector('[data-config-field="apiKey"]');
+        const baseUrlField = panel.querySelector('[data-config-field="baseUrl"]');
+        const apiKey = apiKeyField?.value?.trim() || '';
+        const baseUrl = baseUrlField?.value?.trim() || '';
+        const apiKeyHeaderField = panel.querySelector('[data-config-field="apiKeyHeader"]');
+        const apiKeyHeaderVal = apiKeyHeaderField?.value?.trim() || '';
+        const azureStyleField = panel.querySelector('[data-config-field="azureStyle"]');
+        const azureStyleVal = azureStyleField?.checked || false;
+        
+        if (customId) {
+            const cm = (currentSettings.customModels || []).find(m => m.id === customId);
+            if (cm) {
+                cm.apiKey = apiKey;
+                cm.baseUrl = baseUrl;
+                if (apiKeyHeaderVal) cm.apiKeyHeader = apiKeyHeaderVal;
+                else delete cm.apiKeyHeader;
+                if (azureStyleVal) cm.azureStyle = true;
+                else delete cm.azureStyle;
+            }
+        } else if (providerKey) {
+            if (!currentSettings.models.providerSettings) currentSettings.models.providerSettings = {};
+            if (!currentSettings.models.providerSettings[providerKey]) {
+                currentSettings.models.providerSettings[providerKey] = { apiKey: '', baseUrl: '', textModel: '', imageModel: '' };
+            }
+            currentSettings.models.providerSettings[providerKey].apiKey = apiKey;
+            currentSettings.models.providerSettings[providerKey].baseUrl = baseUrl;
+        }
+        
+        if (providerKey === currentSettings.models.provider || customId) {
+            currentSettings.models.apiKey = apiKey;
+            currentSettings.models.baseUrl = baseUrl;
+        }
+        
+        persistSettings();
+        
+        // Lock fields again
+        inputs.forEach(i => i.disabled = true);
+        if (editIcon) editIcon.style.display = 'inline';
+        if (checkIcon) checkIcon.style.display = 'none';
+        if (editBtn) editBtn.classList.remove('editing');
+        
+        // Update config dot
+        renderModelTable();
+    }
 };
 
 // Toggle API key visibility in config panels
@@ -1340,6 +1468,8 @@ window.saveModelConfig = function(configId, customId, providerKey) {
     const apiKeyHeaderVal = apiKeyHeaderField?.value?.trim() || '';
     const supportsReasoningField = panel.querySelector('[data-config-field="supportsReasoning"]');
     const supportsReasoningVal = supportsReasoningField?.checked || false;
+    const azureStyleField = panel.querySelector('[data-config-field="azureStyle"]');
+    const azureStyleVal = azureStyleField?.checked || false;
 
     if (customId) {
         // Custom model
@@ -1350,6 +1480,8 @@ window.saveModelConfig = function(configId, customId, providerKey) {
             cm.supportsReasoning = supportsReasoningVal;
             if (apiKeyHeaderVal) { cm.apiKeyHeader = apiKeyHeaderVal; }
             else { delete cm.apiKeyHeader; }
+            if (azureStyleVal) { cm.azureStyle = true; }
+            else { delete cm.azureStyle; }
         }
     } else {
         // Built-in model — save to providerSettings
@@ -1368,6 +1500,7 @@ window.saveModelConfig = function(configId, customId, providerKey) {
     }
 
     panel.style.display = 'none';
+    persistSettings();
     renderModelTable(); // Refresh to show config dot
 };
 
@@ -1396,11 +1529,15 @@ const addModelApiKey = document.getElementById('addModelApiKey');
 const addModelBaseUrl = document.getElementById('addModelBaseUrl');
 const addModelApiKeyHeader = document.getElementById('addModelApiKeyHeader');
 const addModelHeaderGroup = document.getElementById('addModelHeaderGroup');
+const addModelAzureGroup = document.getElementById('addModelAzureGroup');
+const addModelAzureStyle = document.getElementById('addModelAzureStyle');
 
 // Show/hide the custom API key header field based on provider selection
 if (addModelProvider && addModelHeaderGroup) {
     addModelProvider.addEventListener('change', () => {
-        addModelHeaderGroup.style.display = addModelProvider.value === 'Custom' ? 'block' : 'none';
+        const isCustom = addModelProvider.value === 'Custom';
+        addModelHeaderGroup.style.display = isCustom ? 'block' : 'none';
+        if (addModelAzureGroup) addModelAzureGroup.style.display = isCustom ? 'block' : 'none';
     });
 }
 
@@ -1413,6 +1550,8 @@ function openAddModelModal() {
     if (addModelBaseUrl) addModelBaseUrl.value = '';
     if (addModelApiKeyHeader) addModelApiKeyHeader.value = '';
     if (addModelHeaderGroup) addModelHeaderGroup.style.display = 'none';
+    if (addModelAzureGroup) addModelAzureGroup.style.display = 'none';
+    if (addModelAzureStyle) addModelAzureStyle.checked = false;
     addModelModal.classList.remove('hidden');
 }
 
@@ -1451,6 +1590,7 @@ if (addModelSubmitBtn) {
         const supportsImage = lowerName.includes('gemini') || lowerName.includes('gpt-5') || lowerName.includes('vision');
         const supportsReasoning = isKnownReasoningModel;
         const apiKeyHeader = addModelApiKeyHeader?.value?.trim() || '';
+        const isAzureStyle = addModelAzureStyle?.checked || false;
         const newModel = {
             id: Date.now().toString(),
             name,
@@ -1459,7 +1599,8 @@ if (addModelSubmitBtn) {
             baseUrl: baseUrl || '',
             supportsImage,
             supportsReasoning,
-            apiKeyHeader: apiKeyHeader || undefined
+            apiKeyHeader: apiKeyHeader || undefined,
+            azureStyle: isAzureStyle || undefined
         };
 
         if (!currentSettings.customModels) currentSettings.customModels = [];
@@ -1476,7 +1617,7 @@ if (addModelSubmitBtn) {
             };
         }
 
-        // Auto-save disabled, must click save manually
+        persistSettings();
         renderModelTable();
         populateModelDropdowns(currentSettings.models.provider, currentSettings.models.textModel, currentSettings.models.imageModel);
         closeAddModelModal();
@@ -1490,6 +1631,7 @@ window.deleteCustomModel = async function(id) {
 
     if (!currentSettings.customModels) return;
     currentSettings.customModels = currentSettings.customModels.filter(m => m.id !== id);
+    persistSettings();
     renderModelTable();
     populateModelDropdowns(currentSettings.models.provider, currentSettings.models.textModel, currentSettings.models.imageModel);
 };

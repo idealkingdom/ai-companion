@@ -88,6 +88,33 @@
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
+
+                        <div class="setting-item">
+                            <div class="setting-item-content">
+                                <div class="setting-item-label">Allow External Media</div>
+                                <p class="setting-item-desc">Enable file and image uploads from your device into chat.</p>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="allowExternalMedia" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="panel-section" style="margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 24px;">
+                        <h3>Network</h3>
+                        <p class="section-desc">Configure connection and proxy settings.</p>
+
+                        <div class="setting-item">
+                            <div class="setting-item-content">
+                                <div class="setting-item-label" style="color: #ff6b6b;">Disable SSL Verification</div>
+                                <p class="setting-item-desc">Bypass certificate validation. Enable this if you get SSL handshake errors behind a corporate VPN.</p>
+                            </div>
+                            <label class="toggle-switch danger-toggle">
+                                <input type="checkbox" id="disableSslVerification">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -123,46 +150,16 @@
                 <input type="hidden" id="baseUrlInput" value="">
                 <input type="hidden" id="apiKeyInput" value="">
 
-                <!-- Model Table -->
+                <!-- Model List -->
                 <div class="glass-panel model-table-panel">
                     <!-- Compact column legend -->
                     <div class="model-table-legend">
-                        <span class="legend-left">Model</span>
-                        <span class="legend-right">
-                            <span>Tier</span>
-                            <span>Active</span>
-                            <span>Reason</span>
-                            <span>Img</span>
-                            <span></span>
-                        </span>
+                        <span class="legend-left">Models</span>
                     </div>
 
-                    <!-- Built-in Section -->
-                    <div class="model-section-header" id="section-builtin" onclick="toggleModelSection('builtin')">
-                        <svg class="section-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
-                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="6 9 12 15 18 9" />
-                        </svg>
-                        Built-in
-                    </div>
-                    <div class="model-section-body" id="body-builtin">
+                    <!-- All models in one flat list -->
+                    <div class="model-section-body" id="model-list-body">
                         <!-- Populated by JS -->
-                    </div>
-
-                    <!-- Custom Section -->
-                    <div class="model-section-header" id="section-custom" onclick="toggleModelSection('custom')">
-                        <svg class="section-chevron" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
-                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="6 9 12 15 18 9" />
-                        </svg>
-                        Custom
-                    </div>
-                    <div class="model-section-body" id="body-custom">
-                        <div class="model-empty-custom" id="custom-empty">
-                            No custom models yet. <a href="#"
-                                onclick="document.getElementById('btn-add-model').click(); return false;">Add a custom
-                                model</a>
-                        </div>
                     </div>
                 </div>
             </section>
@@ -199,6 +196,7 @@
 
                     </div>
                 </div>
+
 
                 <!-- ── AI Theme Generator ── -->
                 <div class="glass-panel">
@@ -304,7 +302,17 @@
                     <input type="text" id="addModelApiKeyHeader" class="styled-input default-ph"
                         placeholder="e.g., x-api-key">
                     <p class="hint-text hint-block">Some providers use non-standard headers (e.g., <code>x-api-key</code>). Leave blank for standard <code>Authorization: Bearer</code>.</p>
-            </div>
+                </div>
+                <div class="form-group" id="addModelAzureGroup" style="display: none;">
+                    <label class="toggle-row">
+                        <span>Azure / Corporate Gateway <span class="hint-text hint-icon" title="Enable if the model name is embedded in the URL and the endpoint does NOT use /chat/completions">ⓘ</span></span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="addModelAzureStyle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </label>
+                    <p class="hint-text hint-block">Enable for enterprise APIs where the model is part of the URL (e.g., Azure OpenAI, corporate proxies). Strips <code>/chat/completions</code> and <code>model</code> from the request body.</p>
+                </div>
             <div class="modal-footer">
                 <button id="addModelSubmitBtn" class="primary-btn modal-submit-btn">Add Model</button>
             </div>
