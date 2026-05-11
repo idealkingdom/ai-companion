@@ -49,7 +49,8 @@ export const DEFAULT_SETTINGS: AppSettings = (() => {
         },
         ui: {
             sidebarPosition: 'right',
-            showLineNumbers: true
+            showLineNumbers: true,
+            allowExternalMedia: true
         },
         prompts: [
             {
