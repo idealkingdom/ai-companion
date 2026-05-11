@@ -44,7 +44,19 @@ export class SettingsView {
                     case 'saveSettings':
                         await this._settingsManager.updateSettings(message.settings);
                         vscode.commands.executeCommand('ai-companion.updateUISettings', message.settings.ui);
+                        // Broadcast live settings update to all chat webviews
+                        ChatViewProvider.getInstance().postMessage({
+                            command: 'settingsChanged',
+                            settings: message.settings
+                        });
                         break;
+
+                    case 'updateVsCodeSetting': {
+                        const { key, value } = message.data;
+                        const config = vscode.workspace.getConfiguration('aiCompanion');
+                        await config.update(key, value, vscode.ConfigurationTarget.Global);
+                        break;
+                    }
 
                     case 'generateTheme':
                         try {
