@@ -11,7 +11,15 @@ import * as vscode from 'vscode';
 // completely different SDK (`@ai-sdk/google`).  Azure OpenAI uses `@ai-sdk/azure`
 // which natively handles api-key headers and Chat Completions format.
 
+/** Strip stray quotes and whitespace that may slip in when pasting URLs */
+function sanitizeUrl(url?: string): string | undefined {
+    if (!url) { return undefined; }
+    const cleaned = url.replace(/^["'\s]+|["'\s]+$/g, '');
+    return cleaned.length > 0 ? cleaned : undefined;
+}
+
 function resolveModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string, azureStyle?: boolean) {
+    baseUrl = sanitizeUrl(baseUrl);
     if (provider === 'Gemini') {
         const google = createGoogleGenerativeAI({ 
             apiKey,
@@ -22,7 +30,7 @@ function resolveModel(provider: string, model: string, apiKey: string, baseUrl?:
 
     // Azure OpenAI — use the official @ai-sdk/azure provider
     if (provider === 'Azure OpenAI' || azureStyle === true) {
-        return resolveAzureModel(model, apiKey, baseUrl);
+        return resolveAzureModel(model, apiKey, baseUrl, apiKeyHeader);
     }
 
     // All OpenAI-compatible providers (OpenAI, DeepSeek, Mistral, Custom, etc.)
@@ -44,18 +52,25 @@ function resolveModel(provider: string, model: string, apiKey: string, baseUrl?:
 
 /**
  * Azure OpenAI model resolution using @ai-sdk/azure.
- * Uses Chat Completions API natively — sends `messages` format, `api-key` header,
- * and does NOT include `model` in the request body.
+ * Uses Chat Completions API natively — sends `messages` format, `api-key` header.
  *
  * The fetch interceptor redirects the SDK's constructed URL
  * ({baseURL}/v1/chat/completions) back to the user's exact endpoint,
  * since corporate gateways route by URL path, not API path conventions.
  */
-function resolveAzureModel(model: string, apiKey: string, baseUrl?: string) {
+function resolveAzureModel(model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string) {
+    const headers: any = {};
+    if (apiKeyHeader && apiKeyHeader.trim()) {
+        headers[apiKeyHeader.trim()] = apiKey;
+        // If a custom header is used, we still must provide a non-empty key to the SDK
+        apiKey = 'sk-placeholder';
+    }
+
     const azure = createAzure({
         apiKey,
         baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
         apiVersion: '',  // Not used by corporate gateways
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
         fetch: createAzureGatewayFetch(baseUrl),
     });
     return azure.chat(model);
@@ -63,18 +78,33 @@ function resolveAzureModel(model: string, apiKey: string, baseUrl?: string) {
 
 /**
  * Creates a fetch interceptor for Azure-style corporate API gateways.
- * The SDK constructs URLs like {baseURL}/v1/chat/completions?api-version=...
- * but corporate gateways expect the request at the base URL directly.
+ * 1. Redirects the SDK's appended URL ({baseURL}/v1/chat/completions) to the exact base URL.
+ * 2. Strips the 'model' parameter from the JSON body to prevent 500 errors on strict gateways.
  */
 function createAzureGatewayFetch(baseUrl?: string) {
     return async (url: string | Request | URL, requestInit?: any) => {
         // Redirect to the user's exact endpoint URL
         const targetUrl = baseUrl || url.toString();
+
+        // Remove 'model' from body — corporate gateways resolve model from the URL
+        if (requestInit && typeof requestInit.body === 'string') {
+            try {
+                const bodyObj = JSON.parse(requestInit.body);
+                if (bodyObj && bodyObj.model !== undefined) {
+                    delete bodyObj.model;
+                    requestInit.body = JSON.stringify(bodyObj);
+                }
+            } catch (e) {
+                // Ignore parse errors
+            }
+        }
+
         return fetch(targetUrl, requestInit);
     };
 }
 
 function resolveAgenticModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string, azureStyle?: boolean) {
+    baseUrl = sanitizeUrl(baseUrl);
     if (provider === 'Gemini') {
         const google = createGoogleGenerativeAI({ 
             apiKey,
@@ -85,7 +115,7 @@ function resolveAgenticModel(provider: string, model: string, apiKey: string, ba
 
     // Azure OpenAI — use the official @ai-sdk/azure provider
     if (provider === 'Azure OpenAI' || azureStyle === true) {
-        return resolveAzureModel(model, apiKey, baseUrl);
+        return resolveAzureModel(model, apiKey, baseUrl, apiKeyHeader);
     }
 
     // OpenAI-compat with strict compatibility for tool calling
