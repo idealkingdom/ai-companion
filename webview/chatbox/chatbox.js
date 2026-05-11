@@ -2647,11 +2647,12 @@ window.addEventListener('message', event => {
                         }
                     });
                 }
+            }
 
-                // Send ACK back to extension so it can send the next chunk
-                if (message.seq) {
-                    sendMessage(CHAT_COMMANDS.CHAT_CHUNK_ACK, { seq: message.seq });
-                }
+            // ALWAYS send ACK back — even if rendering failed
+            // Without this, the backend hangs forever waiting for the ACK → deadlock
+            if (message.seq) {
+                sendMessage(CHAT_COMMANDS.CHAT_CHUNK_ACK, { seq: message.seq });
             }
             break;
 

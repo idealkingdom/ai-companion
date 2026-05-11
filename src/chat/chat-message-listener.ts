@@ -327,9 +327,11 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                             seq: seq
                         });
 
-                        // Wait for webview to acknowledge receipt before sending next chunk
-                        // This ensures backend and UI are perfectly synced for cancellation
-                        await ackPromise;
+                        // Wait for webview ACK with timeout safety net
+                        // If webview is disconnected/crashed, don't hang forever
+                        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 10000));
+                        await Promise.race([ackPromise, timeoutPromise]);
+                        chunkAcks.delete(seq.toString()); // Clean up if timed out
                     },
                     // onAgentStep — stream tool telemetry to frontend
                     async (step) => {
