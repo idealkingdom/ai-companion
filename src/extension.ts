@@ -44,6 +44,29 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // Apply SSL Verification Setting
+    const applySslConfig = () => {
+        const config = vscode.workspace.getConfiguration('aiCompanion');
+        const disableSsl = config.get<boolean>('disableSslVerification');
+        if (disableSsl) {
+            process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+            outputChannel.appendLine('[Config] SSL Certificate Verification Disabled.');
+        } else {
+            // Restore default behavior
+            delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+            outputChannel.appendLine('[Config] SSL Certificate Verification Enabled.');
+        }
+    };
+    applySslConfig();
+
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration('aiCompanion.disableSslVerification')) {
+                applySslConfig();
+            }
+        })
+    );
+
     // 4. Register Virtual Document Provider for Diffs
     context.subscriptions.push(
         vscode.workspace.registerTextDocumentContentProvider(
@@ -191,10 +214,15 @@ export function activate(context: vscode.ExtensionContext) {
         ReviewDecorationProvider.updateDecorations(vscode.window.activeTextEditor);
     }
 
-    // Register Popup Toggle
+    // Register Popup Toggle (Detach Chat)
     context.subscriptions.push(
         vscode.commands.registerCommand('ai-companion.togglePopup', () => {
-            PopupManager.togglePopup(context);
+            // Ask the sidebar frontend to initiate the detach
+            // (it checks isGenerating and handles the flow)
+            const view = ChatViewProvider.getView();
+            if (view) {
+                view.webview.postMessage({ command: 'requestDetach' });
+            }
         })
     );
 
