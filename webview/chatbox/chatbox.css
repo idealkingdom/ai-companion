@@ -248,6 +248,11 @@ span.logo svg{
   padding: 12px 16px;
   width: 100%;
   box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--chat-bg); /* Match scroll container background */
+  box-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.1); /* Subtle separation when sticking */
 }
 
 .user-message {
@@ -265,6 +270,27 @@ span.logo svg{
   margin: 0;
   display: flex;
   flex-direction: column;
+}
+
+.user-message .message-content {
+  max-height: 15vh; /* Prevent long sticky messages from dominating the screen */
+  overflow-y: auto;
+  padding-right: 4px; /* Space for scrollbar */
+}
+
+/* Custom minimal scrollbar for message content */
+.user-message .message-content::-webkit-scrollbar {
+  width: 4px;
+}
+.user-message .message-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.user-message .message-content::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+.user-message .message-content::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.4);
 }
 
 .user-message:hover {
@@ -1458,35 +1484,46 @@ details[open] summary .file-arrow {
 }
 
 .agent-step-card {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 4px;
-    padding: 8px 12px;
+    padding: 2px 0;
     font-size: 0.75rem;
     font-family: var(--font-ui);
     animation: stepFadeIn 0.3s ease-out;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    transition: background 0.2s, border-color 0.2s;
-    contain: layout style;
     position: relative;
+    list-style: none;
 }
 
-.agent-step-card::before {
-    content: '';
-    position: absolute;
-    left: -14px;
-    top: 14px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.2);
+.agent-step-card::-webkit-details-marker {
+    display: none;
 }
 
-.agent-step-card:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.15);
+.terminal-snippet {
+    background: #1e1e1e;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-top: 6px;
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: 11px;
+    color: #cccccc;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.terminal-prompt {
+    color: #9cdcfe;
+    margin-bottom: 4px;
+}
+
+.terminal-cwd {
+    color: #4fc1ff;
+}
+
+.terminal-output {
+    color: #cecece;
+}
+.step-header:hover {
+    opacity: 0.8;
 }
 
 @keyframes stepFadeIn {
@@ -1498,7 +1535,28 @@ details[open] summary .file-arrow {
     display: flex;
     align-items: center;
     gap: 8px;
-    width: 100%;
+    width: max-content;
+    cursor: pointer;
+    user-select: none;
+    transition: opacity 0.2s;
+}
+
+.step-header .chevron {
+    transition: transform 0.2s;
+    opacity: 0.4;
+    width: 14px;
+    height: 14px;
+    margin-left: 4px;
+}
+
+.agent-step-card[open] .step-header .chevron {
+    transform: rotate(90deg);
+}
+
+.step-content {
+    padding-left: 20px;
+    margin-top: 2px;
+    margin-bottom: 8px;
 }
 
 .step-icon {

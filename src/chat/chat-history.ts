@@ -162,7 +162,47 @@ export class ChatHistoryService {
     }
 
     /**
-     * Deletes the last N messages from a conversation (for Retry).
+     * Deletes messages from a specific user message index to the end of the conversation.
+     * This is far more robust than counting backward from the end, as it ignores un-saved streaming bots.
+     */
+    public async deleteFromUserMessageIndex(chatId: string, userMsgIndex: number): Promise<string | null> {
+        const history = this.getHistory();
+        const chatIndex = history.findIndex(c => c.chat_id === chatId);
+        if (chatIndex === -1) { return null; }
+
+        const chat = history[chatIndex];
+        
+        let currentUserIdx = -1;
+        let targetMsgIdx = -1;
+        for (let i = 0; i < chat.messages.length; i++) {
+            if (chat.messages[i].role === ROLE.USER) {
+                currentUserIdx++;
+                if (currentUserIdx === userMsgIndex) {
+                    targetMsgIdx = i;
+                    break;
+                }
+            }
+        }
+
+        if (targetMsgIdx === -1) { return null; }
+
+        const removed = chat.messages.splice(targetMsgIdx);
+
+        for (const msg of removed) {
+            if (msg.images && msg.images.length > 0) {
+                for (const fileName of msg.images) {
+                    await this.imageService.deleteImage(fileName);
+                }
+            }
+        }
+
+        const targetUserMsg = removed[0];
+        await this.storage.update(ChatHistoryService.STORAGE_KEY, history);
+        return targetUserMsg?.message ?? null;
+    }
+
+    /**
+     * Deletes the last N messages from a conversation (for Retry fallback).
      * Returns the text of the last user message so it can be re-submitted.
      */
     public async deleteLastMessages(chatId: string, count: number = 2): Promise<string | null> {

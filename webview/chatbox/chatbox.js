@@ -770,14 +770,15 @@ chatLog.addEventListener('scroll', () => {
     // Skip detection when we ourselves triggered the scroll
     if (_programmaticScroll) return;
 
-    // A buffer of ~150px: if user is within 150px of bottom, consider them "at bottom"
+    // A buffer of ~300px: if user is within 300px of bottom, consider them "at bottom"
+    // Increased from 150px to prevent chunk-loading from accidentally tripping the "user scrolled up" state
     const distanceToBottom = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight;
-    _isUserScrolledUp = distanceToBottom > 150;
+    _isUserScrolledUp = distanceToBottom > 300;
 });
 
 function scrollToBottom(force = false) {
     if (!force && _isUserScrolledUp) {
-        return; 
+        return;
     }
     // Throttle to one scroll per animation frame — prevents layout thrashing
     if (_scrollTimeout) return;
@@ -1006,7 +1007,7 @@ function insertInlineFile(name, text, language, path) {
  * The scrape_url tool is already available to the agent, but this
  * lets users manually trigger scraping from the chat input.
  */
-window.handleUrlScrape = function(pill) {
+window.handleUrlScrape = function (pill) {
     const url = pill.dataset.url;
     if (!url) return;
 
@@ -1036,7 +1037,7 @@ window.handleUrlScrape = function(pill) {
                 pill.style.opacity = '1';
                 pill.classList.add('scraped');
                 pill.title = `Scraped: ${msg.title} (${msg.wordCount} words)`;
-                
+
                 // Store scraped content as a file context
                 const id = pill.dataset.urlId || 'url-' + Date.now();
                 window.inlineFilesMap = window.inlineFilesMap || {};
@@ -1059,34 +1060,35 @@ window.handleUrlScrape = function(pill) {
     window.addEventListener('message', handler);
 };
 
-function showLoadingIndicator() {
-    hideLoadingIndicator();
-
-    const loadingDiv = document.createElement('div');
-    loadingDiv.className = 'loading-indicator';
-    loadingDiv.id = 'loading-indicator';
-
-    loadingDiv.innerHTML = `
-        <div class="message-content">
-            <div class="generating-text">Generating...</div>
-        </div>
-    `;
-
-    chatbox.appendChild(loadingDiv);
-    scrollToBottom();
+function getActiveTurn() {
+    let lastTurn = chatbox.lastElementChild;
+    if (!lastTurn || !lastTurn.classList.contains('chat-turn')) {
+        lastTurn = document.createElement('div');
+        lastTurn.className = 'chat-turn';
+        chatbox.appendChild(lastTurn);
+    }
+    return lastTurn;
 }
 
 function hideLoadingIndicator() {
-    const indicator = document.getElementById('loading-indicator');
-    if (indicator) {
-        indicator.remove();
-    }
+    document.querySelectorAll('.loading-indicator').forEach(el => el.remove());
+}
+
+function showLoadingIndicator() {
+    hideLoadingIndicator();
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'loading-indicator';
+    loadingDiv.innerHTML = `<div class="generating-text" style="opacity: 0.5; font-size: 0.9em; margin-bottom: 8px;">Generating...</div>`;
+    getActiveTurn().appendChild(loadingDiv);
+    scrollToBottom();
 }
 
 
 // --- MESSAGE HANDLING ---
 
 function appendUserMessage(message, images = [], files = []) {
+    // Force scroll lock when user sends a new message
+    _isUserScrolledUp = false;
 
     let finalHTML = processMessageContent(message);
 
@@ -1094,13 +1096,13 @@ function appendUserMessage(message, images = [], files = []) {
         files.forEach(file => {
             const id = "file-pill-hist-" + Date.now() + Math.floor(Math.random() * 1000);
             window.inlineFilesMap[id] = file;
-            
+
             // #46: Match the marker with the pill text. URL pills use ◆, local files use [▪ ]
             const isUrl = file.path && (file.path.startsWith('http://') || file.path.startsWith('https://'));
             const marker = isUrl ? `◆ ${escapeHtml(file.name)}` : `[▪ ${escapeHtml(file.name)}]`;
-            
+
             const pillHTML = `<span class="inline-attachment-pill file-pill ${isUrl ? 'url-pill scraped' : ''}" contenteditable="false" data-file-id="${id}" onclick="requestOpenFile(this.dataset.fileId)" title="Attached file: ${escapeHtml(file.name)}">${marker}</span>`;
-            
+
             if (finalHTML.includes(marker)) {
                 finalHTML = finalHTML.replace(marker, pillHTML);
             } else {
@@ -1152,10 +1154,11 @@ function appendUserMessage(message, images = [], files = []) {
 
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = userResponseHTML;
+    const turnDiv = document.createElement('div');
+    turnDiv.className = 'chat-turn';
+    chatbox.appendChild(turnDiv);
 
-    const newMessageElement = tempDiv.firstElementChild;
-
-    chatbox.appendChild(newMessageElement);
+    turnDiv.appendChild(tempDiv.firstElementChild);
 
     // Important: Since we injected new <pre> blocks inside the details, 
     // we might want to re-run syntax highlighting or copy buttons
@@ -1170,35 +1173,49 @@ function appendUserMessage(message, images = [], files = []) {
     scrollToBottom(true);
 }
 
-function getOrCreateAgentStepsGroup() {
+function getOrCreateAgentStepsGroup(isHistory) {
     let detailsEl = chatbox.querySelector('details.agent-steps-group:not([data-finalized="true"])');
     if (!detailsEl) {
-        hideLoadingIndicator();
-
         detailsEl = document.createElement('details');
         detailsEl.className = 'agent-steps-group';
-        detailsEl.open = true;
+        detailsEl.open = !isHistory; // History groups start collapsed
         detailsEl.dataset.startTime = Date.now();
+        if (isHistory) { detailsEl.dataset.history = 'true'; }
 
         const summary = document.createElement('summary');
         summary.className = 'agent-steps-summary';
-        summary.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg> <span class="summary-text">Working...</span>`;
+
+        if (isHistory) {
+            // History: show static text, no live timer
+            summary.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg> <span class="summary-text">Completed steps</span>`;
+        } else {
+            summary.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg> <span class="summary-text">Working...</span>`;
+        }
         detailsEl.appendChild(summary);
 
         const stepsContainer = document.createElement('div');
         stepsContainer.className = 'agent-steps-container';
         detailsEl.appendChild(stepsContainer);
 
-        chatbox.appendChild(detailsEl);
+        const activeTurn = getActiveTurn();
+        const loadingIndicator = activeTurn.querySelector('.loading-indicator');
+        if (loadingIndicator) {
+            activeTurn.insertBefore(detailsEl, loadingIndicator);
+        } else {
+            activeTurn.appendChild(detailsEl);
+        }
 
-        detailsEl.dataset.timer = setInterval(() => {
-            const ms = Date.now() - parseInt(detailsEl.dataset.startTime);
-            const secs = Math.floor(ms / 1000);
-            const summaryText = summary.querySelector('.summary-text');
-            if (summaryText) {
-                summaryText.textContent = `Worked for ${secs}s`;
-            }
-        }, 1000);
+        if (!isHistory) {
+            // Only start the live timer for real-time requests
+            detailsEl.dataset.timer = setInterval(() => {
+                const ms = Date.now() - parseInt(detailsEl.dataset.startTime);
+                const secs = Math.floor(ms / 1000);
+                const summaryText = summary.querySelector('.summary-text');
+                if (summaryText) {
+                    summaryText.textContent = `Worked for ${secs}s`;
+                }
+            }, 1000);
+        }
 
         return stepsContainer;
     }
@@ -1225,7 +1242,7 @@ function scheduleWaitingIndicator() {
     _waitingIndicatorTimer = setTimeout(() => {
         // Only show if there isn't already a streaming thinking block
         if (document.querySelector('.agent-thinking-block:not([data-finalized="true"])')) { return; }
-        
+
         const indicator = document.createElement('div');
         indicator.className = 'agent-waiting-indicator';
         indicator.innerHTML = `
@@ -1239,6 +1256,36 @@ function scheduleWaitingIndicator() {
         scrollToBottom();
     }, 1000); // 1s delay — short enough to feel responsive, long enough to avoid flicker
 }
+
+const AGENT_ICONS = {
+    'list_workspace': '○',
+    'read_file_skeleton': '▢',
+    'read_line_range': '▤',
+    'chunk_replace': '◇',
+    'create_file': '▷',
+    'find_symbol': '◎',
+    'run_command': '▸',
+    'search_workspace': '◈',
+    'scrape_url': '◉',
+    'web_search': '⌕',
+    'manage_artifact': '🗄',
+    'read_artifact': '🗎'
+};
+
+const AGENT_TOOL_LABELS = {
+    'list_workspace': { running: 'Listing Workspace', done: 'Listed Workspace' },
+    'read_file_skeleton': { running: 'Reading File Skeleton', done: 'Read File Skeleton' },
+    'read_line_range': { running: 'Reading Lines', done: 'Read Lines' },
+    'chunk_replace': { running: 'Editing File', done: 'Edited File' },
+    'create_file': { running: 'Creating File', done: 'Created File' },
+    'find_symbol': { running: 'Finding Symbol', done: 'Found Symbol' },
+    'run_command': { running: 'Running Command', done: 'Ran Command' },
+    'search_workspace': { running: 'Searching Workspace', done: 'Searched Workspace' },
+    'scrape_url': { running: 'Scraping URL', done: 'Scraped URL' },
+    'web_search': { running: 'Searching Web', done: 'Searched Web' },
+    'manage_artifact': { running: 'Managing Artifact', done: 'Managed Artifact' },
+    'read_artifact': { running: 'Reading Artifact', done: 'Read Artifact' }
+};
 
 /**
  * Renders an Agent tool step card in the chat log.
@@ -1344,7 +1391,7 @@ function renderAgentStep(step) {
             }, 1000);
             thinkingBlock.dataset.thinkTimer = String(timerId);
 
-            getOrCreateAgentStepsGroup().appendChild(thinkingBlock);
+            getOrCreateAgentStepsGroup(step._isHistory).appendChild(thinkingBlock);
         }
 
         // Append the reasoning text (if any — empty string for reasoning-start)
@@ -1393,49 +1440,47 @@ function renderAgentStep(step) {
     }
 
     // Helper is defined below
-    const stepsContainer = getOrCreateAgentStepsGroup();
+    const stepsContainer = getOrCreateAgentStepsGroup(step._isHistory);
 
-    const stepEl = (step.toolCallId && stepsContainer.querySelector(`[data-tool-call-id="${step.toolCallId}"]`)) ||
-        document.createElement('div');
+    // Tools that go inside category groups don't need expand/collapse — use a simple div
+    const groupedTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol',
+        'search_workspace', 'get_workspace_problems', 'read_artifact', 'chunk_replace',
+        'create_file', 'manage_artifact', 'scrape_url', 'web_search'];
+    const isGroupedTool = groupedTools.includes(step.toolName);
+
+    let stepEl = null;
+    if (step.toolCallId) {
+        stepEl = stepsContainer.querySelector(`[data-tool-call-id="${step.toolCallId}"]`);
+    }
+    if (!stepEl && step.toolName) {
+        const candidates = stepsContainer.querySelectorAll(`[data-tool-name="${step.toolName}"] .step-status.running`);
+        if (candidates.length > 0) {
+            stepEl = candidates[candidates.length - 1].closest('.agent-step-card');
+        }
+    }
+    if (!stepEl) {
+        stepEl = document.createElement(isGroupedTool ? 'div' : 'details');
+    }
 
     if (!stepEl.parentNode) {
         stepEl.className = 'agent-step-card';
     }
 
     if (step.type === 'tool_call') {
-        const icons = {
-            'list_workspace': '○',
-            'read_file_skeleton': '▢',
-            'read_line_range': '▤',
-            'chunk_replace': '◇',
-            'create_file': '▷',
-            'find_symbol': '◎',
-            'run_command': '▸',
-            'search_workspace': '◈',
-            'scrape_url': '◉',
-            'web_search': '🔍',
-            'manage_artifact': '📄',
-            'read_artifact': '📂'
-        };
-        // #61: Human-readable tool labels
-        const toolLabels = {
-            'list_workspace': 'Listing Workspace',
-            'read_file_skeleton': 'Reading File Skeleton',
-            'read_line_range': 'Reading Lines',
-            'chunk_replace': 'Editing File',
-            'create_file': 'Creating File',
-            'find_symbol': 'Finding Symbol',
-            'run_command': 'Running Command',
-            'search_workspace': 'Searching Workspace',
-            'scrape_url': 'Scraping URL',
-            'web_search': 'Web Search',
-            'manage_artifact': 'Managing Artifact',
-            'read_artifact': 'Reading Artifact'
-        };
-        const icon = icons[step.toolName] || '◆';
-        const displayName = toolLabels[step.toolName] || step.toolName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const icon = AGENT_ICONS[step.toolName] || '◆';
+        const labelObj = AGENT_TOOL_LABELS[step.toolName];
+        let displayName = labelObj ? labelObj.running : step.toolName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        
         let argsPreview = step.args ? JSON.stringify(step.args).substring(0, 120) : '';
         if (step.args) {
+            // Attempt to extract a filename to append to the display name for transparency
+            const filePath = step.args.TargetFile || step.args.AbsolutePath || step.args.SearchPath || step.args.DirectoryPath;
+            if (typeof filePath === 'string') {
+                const basename = filePath.split(/[\\/]/).pop();
+                if (basename) {
+                    displayName += ` - ${basename}`;
+                }
+            }
             if (step.toolName === 'web_search' && step.args.query) {
                 argsPreview = `<span style="opacity: 0.8;">Query:</span> <strong style="color: var(--vscode-textLink-foreground);">${step.args.query}</strong>`;
             } else if (step.toolName === 'scrape_url' && step.args.url) {
@@ -1449,17 +1494,37 @@ function renderAgentStep(step) {
 
         // All tools now show as "Running" initially. 
         // Write tools will quickly flip to "Done" (Staged) when the result arrives.
-        stepEl.innerHTML = `
-            <div class="step-header">
-                <span class="step-icon">${icon}</span>
-                <span class="step-tool-name">${displayName}</span>
-                <span class="step-status running">Running</span>
-            </div>
-            <div class="step-args">${argsPreview}</div>
-        `;
+        if (isGroupedTool) {
+            // Grouped tools: simple inline header, no expand/collapse needed
+            stepEl.innerHTML = `
+                <div class="step-header">
+                    <span class="step-icon">${icon}</span>
+                    <span class="step-tool-name">${displayName}</span>
+                    <span class="step-status running"></span>
+                </div>
+            `;
+        } else {
+            // Ungrouped tools (run_command, plan_task, etc): expandable with content area
+            stepEl.innerHTML = `
+                <summary class="step-header">
+                    <span class="step-icon">${icon}</span>
+                    <span class="step-tool-name">${displayName}</span>
+                    <span class="step-status running"></span>
+                    <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </summary>
+                <div class="step-content">
+                    <div class="step-args">${argsPreview}</div>
+                </div>
+            `;
+            // Auto-open if there is something to show
+            if (argsPreview) {
+                stepEl.open = true;
+            }
+        }
 
         if (step.toolCallId) {
             stepEl.dataset.toolCallId = step.toolCallId;
+            stepEl.dataset.toolName = step.toolName;
             // Store args for later review
             window.pendingToolArgs = window.pendingToolArgs || {};
             window.pendingToolArgs[step.toolCallId] = step.args;
@@ -1476,7 +1541,6 @@ function renderAgentStep(step) {
 
                 const statusEl = stepEl.querySelector('.step-status');
                 if (statusEl) {
-                    statusEl.textContent = 'Waiting for Approval';
                     statusEl.classList.remove('running');
                     statusEl.classList.add('pending');
                 }
@@ -1484,19 +1548,30 @@ function renderAgentStep(step) {
         }
 
     } else if (step.type === 'tool_result') {
-        // Find the specific card by toolCallId or fallback to last running
+        // Find the specific card by toolCallId, then try toolName fallback
         let targetCard = null;
         if (step.toolCallId) {
             targetCard = stepsContainer.querySelector(`[data-tool-call-id="${step.toolCallId}"]`);
+        }
+        // Fallback: if toolCallId didn't match (e.g. streaming used a temp ID),
+        // find the last card with this toolName that's still "running"
+        if (!targetCard && step.toolName) {
+            const candidates = stepsContainer.querySelectorAll(`[data-tool-name="${step.toolName}"] .step-status.running`);
+            if (candidates.length > 0) {
+                targetCard = candidates[candidates.length - 1].closest('.agent-step-card');
+            }
         }
 
         const statusEl = (targetCard || stepsContainer).querySelector('.step-status.running');
         if (statusEl) {
             const isStaged = step.result && (typeof step.result.message === 'string' && step.result.message.includes('staged'));
-            statusEl.textContent = isStaged ? 'Staged' : 'Done';
+            if (isStaged) statusEl.textContent = 'Staged';
             statusEl.classList.remove('running');
             statusEl.classList.add('done');
-            
+
+            // The user requested to keep the present tense verb (e.g., "Running Command") 
+            // permanently, so we no longer flip it to past tense here.
+
             // Special styling for manage_artifact result
             if (targetCard && step.toolName === 'manage_artifact' && step.result && step.result._artifactManaged) {
                 targetCard.style.borderLeft = '3px solid #8e44ad';
@@ -1511,6 +1586,35 @@ function renderAgentStep(step) {
                     argsPreview.innerHTML = `<strong>${am.action.toUpperCase()}</strong>: <code>${am.scope}/${am.name}</code>`;
                 }
             }
+
+            // run_command: render terminal snippet in the step-content div
+            if (targetCard && step.toolName === 'run_command' && step.result && typeof step.result.output === 'string') {
+                const commandArgs = window.pendingToolArgs && window.pendingToolArgs[step.toolCallId];
+                const commandExecuted = commandArgs ? commandArgs.command : 'command';
+
+                const terminalSnippet = document.createElement('div');
+                terminalSnippet.className = 'terminal-snippet';
+
+                let outputText = step.result.output.trim();
+                if (outputText.length > 2000) {
+                    outputText = outputText.substring(0, 2000) + '\n... (output truncated)';
+                }
+                if (!outputText) {
+                    outputText = '(no output)';
+                }
+
+                const escapedOutput = outputText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const cwdText = '~/.../workspace';
+
+                terminalSnippet.innerHTML = `
+                    <div class="terminal-prompt"><span class="terminal-cwd">${cwdText}</span> $ ${commandExecuted}</div>
+                    <div class="terminal-output">${escapedOutput}</div>
+                `;
+                // Ensure the card is open so the terminal snippet is visible
+                targetCard.open = true;
+                const contentDiv = targetCard.querySelector('.step-content') || targetCard;
+                contentDiv.appendChild(terminalSnippet);
+            }
         }
 
         // Schedule the waiting indicator — will show "Analyzing..." if
@@ -1519,165 +1623,232 @@ function renderAgentStep(step) {
         return;
     }
 
-    stepsContainer.appendChild(stepEl);
-    scrollToBottom();
-}
+        if (!stepEl.parentNode) {
+            const categories = {
+                'list_workspace': 'explore',
+                'read_file_skeleton': 'explore',
+                'read_line_range': 'explore',
+                'find_symbol': 'explore',
+                'search_workspace': 'explore',
+                'get_workspace_problems': 'explore',
+                'read_artifact': 'explore',
+                'chunk_replace': 'edit',
+                'create_file': 'edit',
+                'manage_artifact': 'edit',
+                'scrape_url': 'web',
+                'web_search': 'web'
+            };
+            const categoryLabels = {
+                'explore': 'Explored',
+                'edit': 'Edited',
+                'web': 'Searched'
+            };
 
-/** ─── STAGING BAR LOGIC ─── **/
-function updateStagingBar(count) {
-    const stagingBar = document.getElementById('staging-bar');
-    const stagingCount = document.getElementById('staging-count');
-    const pillReviews = document.getElementById('pill-reviews');
+            const cat = categories[step.toolName];
 
-    if (!stagingBar || !stagingCount) {
-        return;
-    }
+            if (cat) {
+                // Find the last actual group in stepsContainer
+                let lastChild = stepsContainer.lastElementChild;
+                if (lastChild && lastChild.classList.contains('agent-waiting-indicator')) {
+                    lastChild = lastChild.previousElementSibling;
+                }
 
-    if (count > 0) {
-        stagingBar.classList.remove('hidden');
-        stagingCount.textContent = `${count} File${count > 1 ? 's' : ''} With Changes`;
-        if (pillReviews) pillReviews.classList.add('glow');
-    } else {
-        stagingBar.classList.remove('hidden');
-        stagingCount.textContent = `0 Files With Changes`;
-        if (pillReviews) pillReviews.classList.remove('glow');
-    }
-}
-
-// Global button listeners (can stay at top level but wrapped in check)
-document.addEventListener('DOMContentLoaded', () => {
-    const stagingReviewBtn = document.getElementById('staging-review-btn');
-    const stagingApproveBtn = document.getElementById('staging-approve-btn');
-    const stagingDiscardBtn = document.getElementById('staging-discard-btn');
-
-    if (stagingReviewBtn) {
-        stagingReviewBtn.onclick = () => sendMessage('chatReviewDiff', { isGlobalReview: true });
-    }
-    if (stagingApproveBtn) {
-        stagingApproveBtn.onclick = () => sendMessage('chatToolApproval', { approved: true });
-    }
-    if (stagingDiscardBtn) {
-        stagingDiscardBtn.onclick = () => sendMessage('chatToolApproval', { approved: false });
-    }
-
-    // Initialize Generate Button
-    initGenerateButton();
-});
-
-function initGenerateButton() {
-    const generateBtn = document.getElementById('generateButton');
-    if (generateBtn) {
-        generateBtn.onclick = () => {
-            const input = document.getElementById('messageInput');
-            if (!input) {
-                console.error('messageInput not found');
-                return;
-            }
-            const prompt = input.innerText.trim();
-
-            generateBtn.classList.add('loading');
-
-            if (!prompt) {
-                // Empty input — suggest prompt ideas
-                console.log('Sending suggestPrompts request...');
-                sendMessage('suggestPrompts', {});
+                if (lastChild && lastChild.tagName === 'DETAILS' && lastChild.dataset.category === cat) {
+                    // Append to existing group
+                    const count = parseInt(lastChild.dataset.count || '0') + 1;
+                    lastChild.dataset.count = String(count);
+                    const labelEl = lastChild.querySelector('.group-label');
+                    if (labelEl) {
+                        labelEl.textContent = `${categoryLabels[cat]} ${count} items`;
+                    }
+                    const groupContent = lastChild.querySelector('.group-content');
+                    if (groupContent) {
+                        groupContent.appendChild(stepEl);
+                    } else {
+                        lastChild.appendChild(stepEl);
+                    }
+                } else {
+                    // Create new group
+                    const groupEl = document.createElement('details');
+                    groupEl.className = 'agent-step-group-sub agent-step-card';
+                    groupEl.dataset.category = cat;
+                    groupEl.dataset.count = "1";
+                    groupEl.open = true;
+                    groupEl.innerHTML = `
+                    <summary class="step-header">
+                        <span class="step-icon">◂</span>
+                        <span class="group-label step-tool-name">${categoryLabels[cat]} 1 item</span>
+                        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </summary>
+                    <div class="group-content step-content" style="padding-left: 12px; border-left: 1px solid rgba(255, 255, 255, 0.1);"></div>
+                `;
+                    groupEl.querySelector('.group-content').appendChild(stepEl);
+                    stepsContainer.appendChild(groupEl);
+                }
             } else {
-                // Has text — improve the existing prompt
-                console.log('Sending improvePrompt request...');
-                sendMessage('improvePrompt', { prompt });
+                // Un-grouped items (e.g. run_command)
+                stepsContainer.appendChild(stepEl);
             }
-        };
-    } else {
-        console.warn('generateButton not found in DOM during init');
-    }
-}
-
-
-window.approveTool = (toolCallId, approved) => {
-    sendMessage('chatToolApproval', { toolCallId, approved });
-    // Local update for immediate feedback
-    updateCardApproval(toolCallId, approved);
-};
-
-function updateCardApproval(toolCallId, approved) {
-    // Find the button or use direct lookup for the card
-    // We look for common elements that contain the toolCallId
-    const btn = document.querySelector(`.approve-btn[onclick*="${toolCallId}"], .deny-btn[onclick*="${toolCallId}"], .review-btn[onclick*="${toolCallId}"]`);
-    if (btn) {
-        const card = btn.closest('.agent-step-card');
-        if (card) {
-            card.classList.remove('approval-pending');
-            const status = card.querySelector('.step-status');
-            if (status) {
-                status.textContent = approved ? 'Approved' : 'Denied';
-                status.className = `step-status ${approved ? 'approved' : 'denied'}`;
-            }
-            const actions = card.querySelector('.step-actions');
-            if (actions) { actions.remove(); }
         }
-    }
-}
 
-window.reviewDiff = (toolCallId, toolName) => {
-    try {
-        console.log('Initiating ReviewDiff for:', toolCallId, toolName);
-        const args = window.pendingToolArgs ? window.pendingToolArgs[toolCallId] : null;
-        if (args) {
-            sendMessage('chatReviewDiff', { toolCallId, toolName, args });
+        scrollToBottom();
+    }
+
+    /** ─── STAGING BAR LOGIC ─── **/
+    function updateStagingBar(count) {
+        const stagingBar = document.getElementById('staging-bar');
+        const stagingCount = document.getElementById('staging-count');
+        const pillReviews = document.getElementById('pill-reviews');
+
+        if (!stagingBar || !stagingCount) {
+            return;
+        }
+
+        if (count > 0) {
+            stagingBar.classList.remove('hidden');
+            stagingCount.textContent = `${count} File${count > 1 ? 's' : ''} With Changes`;
+            if (pillReviews) pillReviews.classList.add('glow');
         } else {
-            console.error('No pending args found for toolCallId:', toolCallId);
+            stagingBar.classList.remove('hidden');
+            stagingCount.textContent = `0 Files With Changes`;
+            if (pillReviews) pillReviews.classList.remove('glow');
         }
-    } catch (e) {
-        console.error('Failed to initiate diff review', e);
     }
-};
 
-// ─── HUNK REVIEW PANEL ───────────────────────────────────────────────
-let hunkReviewState = null; // { files: [...], undoStack: [], currentNavIndex: 0 }
+    // Global button listeners (can stay at top level but wrapped in check)
+    document.addEventListener('DOMContentLoaded', () => {
+        const stagingReviewBtn = document.getElementById('staging-review-btn');
+        const stagingApproveBtn = document.getElementById('staging-approve-btn');
+        const stagingDiscardBtn = document.getElementById('staging-discard-btn');
 
-function openHunkReviewPanel(filesData) {
-    // Initialize state (allow empty filesData for forced open)
-    hunkReviewState = {
-        files: (filesData || []).map(f => ({
-            ...f,
-            hunks: (f.hunks || []).map(h => ({ ...h, accepted: true }))
-        })),
-        undoStack: [], // Stack of { fileIdx, hunkIdx, prevState }
-        currentNavIndex: 0
+        if (stagingReviewBtn) {
+            stagingReviewBtn.onclick = () => sendMessage('chatReviewDiff', { isGlobalReview: true });
+        }
+        if (stagingApproveBtn) {
+            stagingApproveBtn.onclick = () => sendMessage('chatToolApproval', { approved: true });
+        }
+        if (stagingDiscardBtn) {
+            stagingDiscardBtn.onclick = () => sendMessage('chatToolApproval', { approved: false });
+        }
+
+        // Initialize Generate Button
+        initGenerateButton();
+    });
+
+    function initGenerateButton() {
+        const generateBtn = document.getElementById('generateButton');
+        if (generateBtn) {
+            generateBtn.onclick = () => {
+                const input = document.getElementById('messageInput');
+                if (!input) {
+                    console.error('messageInput not found');
+                    return;
+                }
+                const prompt = input.innerText.trim();
+
+                generateBtn.classList.add('loading');
+
+                if (!prompt) {
+                    // Empty input — suggest prompt ideas
+                    console.log('Sending suggestPrompts request...');
+                    sendMessage('suggestPrompts', {});
+                } else {
+                    // Has text — improve the existing prompt
+                    console.log('Sending improvePrompt request...');
+                    sendMessage('improvePrompt', { prompt });
+                }
+            };
+        } else {
+            console.warn('generateButton not found in DOM during init');
+        }
+    }
+
+
+    window.approveTool = (toolCallId, approved) => {
+        sendMessage('chatToolApproval', { toolCallId, approved });
+        // Local update for immediate feedback
+        updateCardApproval(toolCallId, approved);
     };
 
-    renderHunkReviewPanel();
-}
+    function updateCardApproval(toolCallId, approved) {
+        // Find the button or use direct lookup for the card
+        // We look for common elements that contain the toolCallId
+        const btn = document.querySelector(`.approve-btn[onclick*="${toolCallId}"], .deny-btn[onclick*="${toolCallId}"], .review-btn[onclick*="${toolCallId}"]`);
+        if (btn) {
+            const card = btn.closest('.agent-step-card');
+            if (card) {
+                card.classList.remove('approval-pending');
+                const status = card.querySelector('.step-status');
+                if (status) {
+                    status.textContent = approved ? 'Approved' : 'Denied';
+                    status.className = `step-status ${approved ? 'approved' : 'denied'}`;
+                }
+                const actions = card.querySelector('.step-actions');
+                if (actions) { actions.remove(); }
+            }
+        }
+    }
 
-function closeHunkReviewPanel() {
-    hunkReviewState = null;
-    const overlay = document.getElementById('hunk-review-overlay');
-    if (overlay) { overlay.remove(); }
-}
+    window.reviewDiff = (toolCallId, toolName) => {
+        try {
+            console.log('Initiating ReviewDiff for:', toolCallId, toolName);
+            const args = window.pendingToolArgs ? window.pendingToolArgs[toolCallId] : null;
+            if (args) {
+                sendMessage('chatReviewDiff', { toolCallId, toolName, args });
+            } else {
+                console.error('No pending args found for toolCallId:', toolCallId);
+            }
+        } catch (e) {
+            console.error('Failed to initiate diff review', e);
+        }
+    };
 
-function renderHunkReviewPanel() {
-    if (!hunkReviewState) { return; }
+    // ─── HUNK REVIEW PANEL ───────────────────────────────────────────────
+    let hunkReviewState = null; // { files: [...], undoStack: [], currentNavIndex: 0 }
 
-    // Remove existing if present
-    let overlay = document.getElementById('hunk-review-overlay');
-    const wasOpen = !!overlay;
-    const scrollPos = wasOpen ? overlay.querySelector('.hunk-review-body').scrollTop : 0;
+    function openHunkReviewPanel(filesData) {
+        // Initialize state (allow empty filesData for forced open)
+        hunkReviewState = {
+            files: (filesData || []).map(f => ({
+                ...f,
+                hunks: (f.hunks || []).map(h => ({ ...h, accepted: true }))
+            })),
+            undoStack: [], // Stack of { fileIdx, hunkIdx, prevState }
+            currentNavIndex: 0
+        };
 
-    if (overlay) { overlay.remove(); }
+        renderHunkReviewPanel();
+    }
 
-    overlay = document.createElement('div');
-    overlay.id = 'hunk-review-overlay';
-    overlay.className = 'hunk-review-overlay';
+    function closeHunkReviewPanel() {
+        hunkReviewState = null;
+        const overlay = document.getElementById('hunk-review-overlay');
+        if (overlay) { overlay.remove(); }
+    }
 
-    const bodyContent = hunkReviewState.files.length === 0
-        ? `<div class="hunk-empty-state" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; opacity:0.6; padding-top: 40px;">
+    function renderHunkReviewPanel() {
+        if (!hunkReviewState) { return; }
+
+        // Remove existing if present
+        let overlay = document.getElementById('hunk-review-overlay');
+        const wasOpen = !!overlay;
+        const scrollPos = wasOpen ? overlay.querySelector('.hunk-review-body').scrollTop : 0;
+
+        if (overlay) { overlay.remove(); }
+
+        overlay = document.createElement('div');
+        overlay.id = 'hunk-review-overlay';
+        overlay.className = 'hunk-review-overlay';
+
+        const bodyContent = hunkReviewState.files.length === 0
+            ? `<div class="hunk-empty-state" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; opacity:0.6; padding-top: 40px;">
              <div class="empty-icon" style="font-size: 48px; margin-bottom: 16px;">✓</div>
              <div class="empty-text" style="font-size: 1.1rem; font-weight: 600;">No pending changes</div>
              <div class="empty-subtext" style="font-size: 0.85rem;">All changes have been accepted or reverted.</div>
            </div>`
-        : hunkReviewState.files.map((file, fileIdx) => renderFileSection(file, fileIdx)).join('');
+            : hunkReviewState.files.map((file, fileIdx) => renderFileSection(file, fileIdx)).join('');
 
-    overlay.innerHTML = `
+        overlay.innerHTML = `
         <div class="hunk-review-header">
             <button class="back-btn" onclick="closeHunkReviewPanel()" title="Back to Chat">←</button>
             <h2>Review Changes (${hunkReviewState.files.length} file${hunkReviewState.files.length !== 1 ? 's' : ''})</h2>
@@ -1701,17 +1872,17 @@ function renderHunkReviewPanel() {
         </div>
     `;
 
-    document.body.appendChild(overlay);
-    if (wasOpen) {
-        overlay.querySelector('.hunk-review-body').scrollTop = scrollPos;
+        document.body.appendChild(overlay);
+        if (wasOpen) {
+            overlay.querySelector('.hunk-review-body').scrollTop = scrollPos;
+        }
     }
-}
 
-function renderNavigator() {
-    const total = hunkReviewState.files.length;
-    const current = hunkReviewState.currentNavIndex || 0;
-    
-    return `
+    function renderNavigator() {
+        const total = hunkReviewState.files.length;
+        const current = hunkReviewState.currentNavIndex || 0;
+
+        return `
         <div class="hunk-navigator" style="display:flex; align-items:center; gap:10px; background: rgba(255,255,255,0.06); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
             <button class="nav-btn" onclick="navigateHunk(-1)" ${current <= 0 ? 'disabled' : ''} style="background:none; border:none; color:inherit; cursor:pointer; font-size:11px; opacity:${current <= 0 ? '0.3' : '1'};">
                 ↑ Prev
@@ -1722,44 +1893,44 @@ function renderNavigator() {
             </button>
         </div>
     `;
-}
-
-function navigateHunk(direction) {
-    if (!hunkReviewState) return;
-    const total = hunkReviewState.files.length;
-    let idx = (hunkReviewState.currentNavIndex || 0) + direction;
-    idx = Math.max(0, Math.min(idx, total - 1));
-    hunkReviewState.currentNavIndex = idx;
-
-    const section = document.querySelector(`.hunk-file-section[data-file-idx="${idx}"]`);
-    if (section) {
-        section.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
-    // Update counter & button states in-place (no full re-render = no flicker)
-    const counter = document.querySelector('.nav-counter');
-    if (counter) { counter.textContent = `${idx + 1} / ${total}`; }
-    const prevBtn = document.querySelector('.nav-btn[onclick="navigateHunk(-1)"]');
-    const nextBtn = document.querySelector('.nav-btn[onclick="navigateHunk(1)"]');
-    if (prevBtn) { prevBtn.disabled = idx <= 0; prevBtn.style.opacity = idx <= 0 ? '0.3' : '1'; }
-    if (nextBtn) { nextBtn.disabled = idx >= total - 1; nextBtn.style.opacity = idx >= total - 1 ? '0.3' : '1'; }
+    function navigateHunk(direction) {
+        if (!hunkReviewState) return;
+        const total = hunkReviewState.files.length;
+        let idx = (hunkReviewState.currentNavIndex || 0) + direction;
+        idx = Math.max(0, Math.min(idx, total - 1));
+        hunkReviewState.currentNavIndex = idx;
 
-    // Update current section highlights
-    document.querySelectorAll('.hunk-file-section').forEach((s, i) => {
-        const isCurrent = i === idx;
-        s.style.borderColor = isCurrent ? 'rgba(79, 172, 254, 0.4)' : 'rgba(255, 255, 255, 0.06)';
-        s.querySelector('.hunk-file-header').style.background = isCurrent ? 'rgba(79, 172, 254, 0.05)' : 'rgba(255, 255, 255, 0.03)';
-    });
-}
+        const section = document.querySelector(`.hunk-file-section[data-file-idx="${idx}"]`);
+        if (section) {
+            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
 
-function renderFileSection(file, fileIdx) {
-    const badge = file.isNewFile
-        ? '<span class="hunk-file-badge new-file">NEW</span>'
-        : '<span class="hunk-file-badge modified">MODIFIED</span>';
-    
-    const isCurrent = hunkReviewState.currentNavIndex === fileIdx;
+        // Update counter & button states in-place (no full re-render = no flicker)
+        const counter = document.querySelector('.nav-counter');
+        if (counter) { counter.textContent = `${idx + 1} / ${total}`; }
+        const prevBtn = document.querySelector('.nav-btn[onclick="navigateHunk(-1)"]');
+        const nextBtn = document.querySelector('.nav-btn[onclick="navigateHunk(1)"]');
+        if (prevBtn) { prevBtn.disabled = idx <= 0; prevBtn.style.opacity = idx <= 0 ? '0.3' : '1'; }
+        if (nextBtn) { nextBtn.disabled = idx >= total - 1; nextBtn.style.opacity = idx >= total - 1 ? '0.3' : '1'; }
 
-    return `
+        // Update current section highlights
+        document.querySelectorAll('.hunk-file-section').forEach((s, i) => {
+            const isCurrent = i === idx;
+            s.style.borderColor = isCurrent ? 'rgba(79, 172, 254, 0.4)' : 'rgba(255, 255, 255, 0.06)';
+            s.querySelector('.hunk-file-header').style.background = isCurrent ? 'rgba(79, 172, 254, 0.05)' : 'rgba(255, 255, 255, 0.03)';
+        });
+    }
+
+    function renderFileSection(file, fileIdx) {
+        const badge = file.isNewFile
+            ? '<span class="hunk-file-badge new-file">NEW</span>'
+            : '<span class="hunk-file-badge modified">MODIFIED</span>';
+
+        const isCurrent = hunkReviewState.currentNavIndex === fileIdx;
+
+        return `
         <div class="hunk-file-section ${isCurrent ? 'current' : ''}" data-file-idx="${fileIdx}" style="margin-bottom:16px; border:1px solid ${isCurrent ? 'rgba(79, 172, 254, 0.4)' : 'rgba(255, 255, 255, 0.06)'}; border-radius:8px; overflow:hidden;">
             <div class="hunk-file-header" style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background: ${isCurrent ? 'rgba(79, 172, 254, 0.05)' : 'rgba(255, 255, 255, 0.03)'};">
                 <div class="hunk-file-name" onclick="sendMessage('chatOpenFile', { uri: '${file.uri}' })" style="cursor: pointer; display:flex; align-items:center; gap:8px; font-family:var(--font-editor); font-size:0.82rem; font-weight:600;" title="Open File for Direct Review">
@@ -1778,22 +1949,22 @@ function renderFileSection(file, fileIdx) {
             </div>
         </div>
     `;
-}
+    }
 
-function renderHunkCard(hunk, fileIdx, hunkIdx) {
-    const isAccepted = hunk.accepted;
-    const cardClass = isAccepted ? '' : 'rejected';
-    const location = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
+    function renderHunkCard(hunk, fileIdx, hunkIdx) {
+        const isAccepted = hunk.accepted;
+        const cardClass = isAccepted ? '' : 'rejected';
+        const location = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
 
-    const linesHtml = hunk.lines.map(line => {
-        const prefix = line.charAt(0);
-        let lineClass = 'context';
-        if (prefix === '+') { lineClass = 'added'; }
-        else if (prefix === '-') { lineClass = 'removed'; }
-        return `<div class="hunk-diff-line ${lineClass}">${escapeHtml(line)}</div>`;
-    }).join('');
+        const linesHtml = hunk.lines.map(line => {
+            const prefix = line.charAt(0);
+            let lineClass = 'context';
+            if (prefix === '+') { lineClass = 'added'; }
+            else if (prefix === '-') { lineClass = 'removed'; }
+            return `<div class="hunk-diff-line ${lineClass}">${escapeHtml(line)}</div>`;
+        }).join('');
 
-    return `
+        return `
         <div class="hunk-card ${cardClass}" data-file-idx="${fileIdx}" data-hunk-idx="${hunkIdx}">
             <div class="hunk-card-header">
                 <span>${location}</span>
@@ -1807,116 +1978,116 @@ function renderHunkCard(hunk, fileIdx, hunkIdx) {
             </div>
         </div>
     `;
-}
-
-function toggleFileSection(fileIdx) {
-    const section = document.querySelector(`.hunk-file-section[data-file-idx="${fileIdx}"]`);
-    if (section) {
-        section.classList.toggle('collapsed');
     }
-}
 
-function toggleHunk(fileIdx, hunkIdx, accepted) {
-    if (!hunkReviewState) { return; }
-
-    const file = hunkReviewState.files[fileIdx];
-    if (!file) { return; }
-    const hunk = file.hunks[hunkIdx];
-    if (!hunk) { return; }
-
-    // Save to undo stack
-    hunkReviewState.undoStack.push({
-        fileIdx,
-        hunkIdx,
-        prevState: hunk.accepted
-    });
-
-    hunk.accepted = accepted;
-
-    // Sync with backend
-    sendMessage('chatToggleHunk', { uri: file.uri, index: hunk.index, accepted });
-
-    // Re-render efficiently (just update the card + footer)
-    renderHunkReviewPanel();
-}
-
-function undoHunkToggle() {
-    if (!hunkReviewState || hunkReviewState.undoStack.length === 0) { return; }
-
-    const last = hunkReviewState.undoStack.pop();
-    const file = hunkReviewState.files[last.fileIdx];
-    if (file) {
-        const hunk = file.hunks[last.hunkIdx];
-        if (hunk) {
-            hunk.accepted = last.prevState;
+    function toggleFileSection(fileIdx) {
+        const section = document.querySelector(`.hunk-file-section[data-file-idx="${fileIdx}"]`);
+        if (section) {
+            section.classList.toggle('collapsed');
         }
     }
 
-    renderHunkReviewPanel();
-}
+    function toggleHunk(fileIdx, hunkIdx, accepted) {
+        if (!hunkReviewState) { return; }
 
-function commitSelectedHunks() {
-    if (!hunkReviewState) { return; }
+        const file = hunkReviewState.files[fileIdx];
+        if (!file) { return; }
+        const hunk = file.hunks[hunkIdx];
+        if (!hunk) { return; }
 
-    const selections = hunkReviewState.files.map(file => ({
-        uri: file.uri,
-        acceptedIndices: file.hunks
-            .filter(h => h.accepted)
-            .map(h => h.index)
-    }));
+        // Save to undo stack
+        hunkReviewState.undoStack.push({
+            fileIdx,
+            hunkIdx,
+            prevState: hunk.accepted
+        });
 
-    sendMessage('commitSelectedHunks', { selections, action: 'commit' });
-    closeHunkReviewPanel();
-}
+        hunk.accepted = accepted;
 
-function discardAllHunks() {
-    sendMessage('commitSelectedHunks', { selections: [], action: 'discard' });
-    closeHunkReviewPanel();
-}
+        // Sync with backend
+        sendMessage('chatToggleHunk', { uri: file.uri, index: hunk.index, accepted });
 
-
-// Keyboard shortcuts for hunk review panel
-document.addEventListener('keydown', (e) => {
-    if (!hunkReviewState) { return; }
-
-    // Ctrl+Z / Cmd+Z = Undo
-    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-        e.preventDefault();
-        undoHunkToggle();
+        // Re-render efficiently (just update the card + footer)
+        renderHunkReviewPanel();
     }
 
-    // Escape = Close panel
-    if (e.key === 'Escape') {
-        e.preventDefault();
+    function undoHunkToggle() {
+        if (!hunkReviewState || hunkReviewState.undoStack.length === 0) { return; }
+
+        const last = hunkReviewState.undoStack.pop();
+        const file = hunkReviewState.files[last.fileIdx];
+        if (file) {
+            const hunk = file.hunks[last.hunkIdx];
+            if (hunk) {
+                hunk.accepted = last.prevState;
+            }
+        }
+
+        renderHunkReviewPanel();
+    }
+
+    function commitSelectedHunks() {
+        if (!hunkReviewState) { return; }
+
+        const selections = hunkReviewState.files.map(file => ({
+            uri: file.uri,
+            acceptedIndices: file.hunks
+                .filter(h => h.accepted)
+                .map(h => h.index)
+        }));
+
+        sendMessage('commitSelectedHunks', { selections, action: 'commit' });
         closeHunkReviewPanel();
-        closeIndexViewer();
     }
-});
 
-// ─── WORKSPACE INDEX VIEWER ──────────────────────────────────────────
+    function discardAllHunks() {
+        sendMessage('commitSelectedHunks', { selections: [], action: 'discard' });
+        closeHunkReviewPanel();
+    }
 
-function openIndexViewer(fileList, fileCount, lastUpdated) {
-    // Remove existing if present
-    let overlay = document.getElementById('index-viewer-overlay');
-    if (overlay) { overlay.remove(); }
 
-    overlay = document.createElement('div');
-    overlay.id = 'index-viewer-overlay';
-    overlay.className = 'index-viewer-overlay';
+    // Keyboard shortcuts for hunk review panel
+    document.addEventListener('keydown', (e) => {
+        if (!hunkReviewState) { return; }
 
-    // Group files by top-level directory
-    const groups = groupFilesByDir(fileList);
-    const groupKeys = Object.keys(groups).sort();
+        // Ctrl+Z / Cmd+Z = Undo
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+            e.preventDefault();
+            undoHunkToggle();
+        }
 
-    const timeStr = lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : '—';
+        // Escape = Close panel
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            closeHunkReviewPanel();
+            closeIndexViewer();
+        }
+    });
 
-    overlay.innerHTML = `
+    // ─── WORKSPACE INDEX VIEWER ──────────────────────────────────────────
+
+    function openIndexViewer(fileList, fileCount, lastUpdated) {
+        // Remove existing if present
+        let overlay = document.getElementById('index-viewer-overlay');
+        if (overlay) { overlay.remove(); }
+
+        overlay = document.createElement('div');
+        overlay.id = 'index-viewer-overlay';
+        overlay.className = 'index-viewer-overlay';
+
+        // Group files by top-level directory
+        const groups = groupFilesByDir(fileList);
+        const groupKeys = Object.keys(groups).sort();
+
+        const timeStr = lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : '—';
+
+        overlay.innerHTML = `
         <div class="index-viewer-header">
             <button class="back-btn" onclick="closeIndexViewer()" title="Back to Chat">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6"/></svg>
             </button>
             <h2>Workspace Index <span class="index-count">${fileCount} files</span></h2>
-            <button class="refresh-btn" onclick="sendMessage('refreshIndex', {}); closeIndexViewer();">
+            <button class="refresh-btn" onclick="sendMessage('refreshIndex', { chatId: chatLog.dataset.chatId }); closeIndexViewer();">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 Refresh
             </button>
@@ -1932,45 +2103,57 @@ function openIndexViewer(fileList, fileCount, lastUpdated) {
         </div>
     `;
 
-    document.body.appendChild(overlay);
+        document.body.appendChild(overlay);
 
-    // Focus the search input
-    setTimeout(() => {
-        const searchInput = document.getElementById('index-search-input');
-        if (searchInput) { searchInput.focus(); }
-    }, 100);
-}
-
-function closeIndexViewer() {
-    const overlay = document.getElementById('index-viewer-overlay');
-    if (overlay) { overlay.remove(); }
-}
-
-function groupFilesByDir(fileList) {
-    const groups = {};
-    for (const filePath of fileList) {
-        const parts = filePath.split(/[\\/]/);
-        const dir = parts.length > 1 ? parts[0] : '(root)';
-        if (!groups[dir]) { groups[dir] = []; }
-        groups[dir].push(filePath);
+        // Focus the search input
+        setTimeout(() => {
+            const searchInput = document.getElementById('index-search-input');
+            if (searchInput) { searchInput.focus(); }
+        }, 100);
     }
-    return groups;
-}
 
-function renderIndexDirGroup(dir, files) {
-    const fileItems = files.map(f => {
-        const fileName = f.split(/[\\/]/).pop();
-        const ext = fileName.split('.').pop();
-        const extBadge = ext && ext !== fileName ? `<span class="index-file-ext">.${ext}</span>` : '';
-        return `<div class="index-file-item" data-filepath="${escapeHtml(f)}" onclick="sendMessage('chatOpenFile', { uri: '${escapeHtml(f)}' })" title="${escapeHtml(f)}"><svg class="index-file-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>${escapeHtml(fileName)} ${extBadge}</div>`;
-    }).join('');
+    function closeIndexViewer() {
+        const overlay = document.getElementById('index-viewer-overlay');
+        if (overlay) { overlay.remove(); }
+    }
 
-    return `
+    function groupFilesByDir(fileList) {
+        const groups = {};
+        for (const filePath of fileList) {
+            const parts = filePath.split(/[\\/]/);
+            const dir = parts.length > 1 ? parts[0] : '(root)';
+            if (!groups[dir]) { groups[dir] = []; }
+            groups[dir].push(filePath);
+        }
+        return groups;
+    }
+
+    function renderIndexDirGroup(dir, files) {
+        let headerText = dir;
+        if (dir === '.ai-companion') {
+            headerText = '.ai-companion (Artifacts)';
+        }
+
+        const fileItems = files.map(f => {
+            let fileName = f.split(/[\\/]/).pop();
+            if (dir === '.ai-companion' && f.includes('sessions')) {
+                const parts = f.split(/[\\/]/);
+                if (parts.length >= 3) {
+                    fileName = `${parts[parts.length - 2]}/${fileName}`;
+                }
+            }
+
+            const ext = fileName.split('.').pop();
+            const extBadge = ext && ext !== fileName ? `<span class="index-file-ext">.${ext}</span>` : '';
+            return `<div class="index-file-item" data-filepath="${escapeHtml(f)}" onclick="sendMessage('chatOpenFile', { uri: '${escapeHtml(f)}' })" title="${escapeHtml(f)}"><svg class="index-file-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>${escapeHtml(fileName)} ${extBadge}</div>`;
+        }).join('');
+
+        return `
         <div class="index-dir-group" data-dir="${escapeHtml(dir)}">
             <div class="index-dir-header" onclick="toggleIndexDir(this)">
                 <span class="dir-chevron">▼</span>
                 <svg class="index-dir-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
-                ${escapeHtml(dir)}
+                ${escapeHtml(headerText)}
                 <span class="index-dir-count">(${files.length})</span>
             </div>
             <div class="index-file-list">
@@ -1978,56 +2161,56 @@ function renderIndexDirGroup(dir, files) {
             </div>
         </div>
     `;
-}
-
-function toggleIndexDir(headerEl) {
-    headerEl.classList.toggle('collapsed');
-    const fileList = headerEl.nextElementSibling;
-    if (fileList) {
-        fileList.classList.toggle('hidden');
     }
-}
 
-function filterIndexViewer(query) {
-    const body = document.getElementById('index-viewer-body');
-    if (!body) { return; }
-
-    const queryLower = query.toLowerCase().trim();
-    const groups = body.querySelectorAll('.index-dir-group');
-
-    for (const group of groups) {
-        const items = group.querySelectorAll('.index-file-item');
-        let visibleCount = 0;
-
-        for (const item of items) {
-            const filePath = (item.dataset.filepath || '').toLowerCase();
-            const match = !queryLower || filePath.includes(queryLower);
-            item.style.display = match ? '' : 'none';
-            if (match) { visibleCount++; }
-        }
-
-        // Hide entire directory group if no matches
-        group.style.display = visibleCount > 0 ? '' : 'none';
-
-        // Expand matching directories when searching
-        if (queryLower && visibleCount > 0) {
-            const header = group.querySelector('.index-dir-header');
-            const fileList = group.querySelector('.index-file-list');
-            if (header) { header.classList.remove('collapsed'); }
-            if (fileList) { fileList.classList.remove('hidden'); }
-        }
-
-        // Update count
-        const countEl = group.querySelector('.index-dir-count');
-        if (countEl) {
-            countEl.textContent = `(${visibleCount})`;
+    function toggleIndexDir(headerEl) {
+        headerEl.classList.toggle('collapsed');
+        const fileList = headerEl.nextElementSibling;
+        if (fileList) {
+            fileList.classList.toggle('hidden');
         }
     }
-}
 
-function appendAIMessage(response) {
-    const parsedResponse = marked.parse(response);
-    const systemResponseHTML = `<div class="system-message">
+    function filterIndexViewer(query) {
+        const body = document.getElementById('index-viewer-body');
+        if (!body) { return; }
+
+        const queryLower = query.toLowerCase().trim();
+        const groups = body.querySelectorAll('.index-dir-group');
+
+        for (const group of groups) {
+            const items = group.querySelectorAll('.index-file-item');
+            let visibleCount = 0;
+
+            for (const item of items) {
+                const filePath = (item.dataset.filepath || '').toLowerCase();
+                const match = !queryLower || filePath.includes(queryLower);
+                item.style.display = match ? '' : 'none';
+                if (match) { visibleCount++; }
+            }
+
+            // Hide entire directory group if no matches
+            group.style.display = visibleCount > 0 ? '' : 'none';
+
+            // Expand matching directories when searching
+            if (queryLower && visibleCount > 0) {
+                const header = group.querySelector('.index-dir-header');
+                const fileList = group.querySelector('.index-file-list');
+                if (header) { header.classList.remove('collapsed'); }
+                if (fileList) { fileList.classList.remove('hidden'); }
+            }
+
+            // Update count
+            const countEl = group.querySelector('.index-dir-count');
+            if (countEl) {
+                countEl.textContent = `(${visibleCount})`;
+            }
+        }
+    }
+
+    function appendAIMessage(response) {
+        const parsedResponse = marked.parse(response);
+        const systemResponseHTML = `<div class="system-message">
             <div class="message-content">
                 <span class="message-text">${parsedResponse}</span>
                 <div class="message-footer">
@@ -2037,791 +2220,849 @@ function appendAIMessage(response) {
             </div>`;
 
 
-    if (!chatWelcomeMessage.classList.contains('hidden')) {
-        chatWelcomeMessage.classList.add('hidden');
-        document.querySelector('.chat-container').classList.remove('new-chat');
+        if (!chatWelcomeMessage.classList.contains('hidden')) {
+            chatWelcomeMessage.classList.add('hidden');
+            document.querySelector('.chat-container').classList.remove('new-chat');
+        }
+
+
+        const tempDiv = document.createElement('div');
+
+
+        tempDiv.innerHTML = systemResponseHTML;
+
+        const newMessageElement = tempDiv.firstElementChild;
+
+        getActiveTurn().appendChild(newMessageElement);
+
+        hljs.highlightAll();
+        addAllCopyButtons();
+        scrollToBottom();
     }
 
 
-    const tempDiv = document.createElement('div');
+    function chatRequest(content) {
+        sendMessage('chatRequest', content);
+        appendUserMessage(content.message, content.images);
+    }
 
+    function updateActiveAgentUI(agentId, agentsList) {
+        activeAgentId = agentId || 'default';
 
-    tempDiv.innerHTML = systemResponseHTML;
+        const chatIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`;
+        const agentIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
+        const arrowIcon = `<svg class="dropdown-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>`;
 
-    const newMessageElement = tempDiv.firstElementChild;
-
-    chatbox.appendChild(newMessageElement);
-
-    hljs.highlightAll();
-    addAllCopyButtons();
-    scrollToBottom();
-}
-
-
-function chatRequest(content) {
-    sendMessage('chatRequest', content);
-    appendUserMessage(content.message, content.images);
-}
-
-function updateActiveAgentUI(agentId, agentsList) {
-    activeAgentId = agentId || 'default';
-
-    const chatIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`;
-    const agentIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
-    const arrowIcon = `<svg class="dropdown-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>`;
-
-    if (activeAgentId === 'default') {
-        if (modeSelected) {
-            modeSelected.innerHTML = `<span class="mode-icon">${chatIcon}</span> Chat ${arrowIcon}`;
-        }
-    } else {
-        const agents = agentsList || (window.VS_CONSTANTS ? window.VS_CONSTANTS.AGENTS : []);
-        const agent = (agents || []).find(a => a.id === activeAgentId);
-        if (agent && modeSelected) {
-            modeSelected.innerHTML = `<span class="mode-icon">${agentIcon}</span> ${escapeHtml(agent.name)} ${arrowIcon}`;
-        } else {
-            // Fallback to default if agent not found
-            activeAgentId = 'default';
+        if (activeAgentId === 'default') {
             if (modeSelected) {
                 modeSelected.innerHTML = `<span class="mode-icon">${chatIcon}</span> Chat ${arrowIcon}`;
             }
-        }
-    }
-
-    // Update selected class in dropdown
-    if (modeOptions) {
-        modeOptions.querySelectorAll('.mode-option').forEach(o => {
-            if (o.dataset.value === activeAgentId) {
-                o.classList.add('selected');
+        } else {
+            const agents = agentsList || (window.VS_CONSTANTS ? window.VS_CONSTANTS.AGENTS : []);
+            const agent = (agents || []).find(a => a.id === activeAgentId);
+            if (agent && modeSelected) {
+                modeSelected.innerHTML = `<span class="mode-icon">${agentIcon}</span> ${escapeHtml(agent.name)} ${arrowIcon}`;
             } else {
-                o.classList.remove('selected');
+                // Fallback to default if agent not found
+                activeAgentId = 'default';
+                if (modeSelected) {
+                    modeSelected.innerHTML = `<span class="mode-icon">${chatIcon}</span> Chat ${arrowIcon}`;
+                }
             }
-        });
-    }
-}
-
-function resetChat(content) {
-    chatMessages.innerHTML = '';
-    chatLog.dataset.chatId = content.uid;
-    isGenerating = false;
-    toggleSendButton("off");
-    attachedImages = [];
-    attachedFiles = [];
-    renderAttachments();
-    chatWelcomeMessage.classList.remove('hidden');
-    document.querySelector('.chat-container').classList.add('new-chat');
-    showChatView(); // Make sure we're on the chat view
-    chatMessage.focus();
-
-    // Only reset agent if the content explicitly provides one (e.g. loading from history)
-    // New chat should preserve whatever agent the user currently has selected
-    if (content.agentId !== undefined) {
-        updateActiveAgentUI(content.agentId);
-    }
-}
-
-
-
-/**
- * Retry: keep the user message, remove only all AI messages following it.
- */
-function retryLastMessage(btn) {
-    const userMsgEl = btn ? btn.closest('.user-message') : null;
-    const allMessages = Array.from(chatbox.querySelectorAll('.user-message, .system-message'));
-    // Start removing from the message AFTER the user message
-    const startIdx = userMsgEl ? allMessages.indexOf(userMsgEl) + 1 : allMessages.length - 1;
-    if (startIdx <= 0 || startIdx > allMessages.length) { return; }
-
-    // Count system-messages (AI responses) after this user message
-    const messagesAfter = allMessages.length - startIdx;
-    // Minimum count is 2: the user message itself + at least 1 bot response (even if empty/error)
-    const removedCount = Math.max(2, messagesAfter + 1);
-    
-    // Blast away all DOM nodes that come after userMsgEl
-    if (userMsgEl) {
-        let nextNode = userMsgEl.nextSibling;
-        while (nextNode) {
-            const toRemove = nextNode;
-            nextNode = nextNode.nextSibling;
-            toRemove.remove();
         }
-    } else {
-        // Fallback for non-button invocation
-        for (let i = startIdx; i < allMessages.length; i++) {
-            allMessages[i].remove();
+
+        // Update selected class in dropdown
+        if (modeOptions) {
+            modeOptions.querySelectorAll('.mode-option').forEach(o => {
+                if (o.dataset.value === activeAgentId) {
+                    o.classList.add('selected');
+                } else {
+                    o.classList.remove('selected');
+                }
+            });
         }
     }
 
-    showLoadingIndicator();
-    toggleSendButton('disabled');
-    sendMessage(CHAT_COMMANDS.CHAT_RETRY, { chat_id: chatLog.dataset.chatId, count: removedCount, agentId: activeAgentId });
-}
+    function resetChat(content) {
+        chatMessages.innerHTML = '';
+        chatLog.dataset.chatId = content.uid;
+        isGenerating = false;
+        toggleSendButton("off");
+        attachedImages = [];
+        attachedFiles = [];
+        renderAttachments();
+        chatWelcomeMessage.classList.remove('hidden');
+        document.querySelector('.chat-container').classList.add('new-chat');
+        showChatView(); // Make sure we're on the chat view
+        chatMessage.focus();
 
-/**
- * Edit: swap user message bubble with an inline editable textarea.
- * On cancel, restore the original bubble.
- */
-function editUserMessage(btn) {
-    const userMsgEl = btn.closest('.user-message');
-    const rawText = decodeURIComponent(userMsgEl.dataset.rawText || '');
-
-    // Count formal AI/user messages for the backend history trim
-    const allMessages = Array.from(chatbox.querySelectorAll('.user-message, .system-message'));
-    const startIdx = allMessages.indexOf(userMsgEl);
-    const messagesAfter = allMessages.slice(startIdx + 1);
-    const removedCount = messagesAfter.length + 1; // +1 = the user msg itself for history delete
-
-    // Blast away all DOM nodes that come after userMsgEl
-    let nextNode = userMsgEl.nextSibling;
-    while (nextNode) {
-        const toRemove = nextNode;
-        nextNode = nextNode.nextSibling;
-        toRemove.remove();
+        // Only reset agent if the content explicitly provides one (e.g. loading from history)
+        // New chat should preserve whatever agent the user currently has selected
+        if (content.agentId !== undefined) {
+            updateActiveAgentUI(content.agentId);
+        }
     }
 
-    // Swap the text span for a textarea, IN-PLACE inside the existing bubble
-    const textSpan = userMsgEl.querySelector('.message-text');
-    const footer = userMsgEl.querySelector('.message-footer');
-    const actionsDiv = userMsgEl.querySelector('.user-message-actions');
 
-    // Build textarea to replace text span
-    const ta = document.createElement('textarea');
-    ta.className = 'edit-textarea';
-    ta.value = rawText;
-    ta.rows = Math.max(2, rawText.split('\n').length);
-    textSpan.replaceWith(ta);
-    ta.focus();
-    ta.setSelectionRange(ta.value.length, ta.value.length);
 
-    // Auto-grow helper (fallback for browsers without field-sizing support)
-    function autoGrow() {
-        ta.style.height = 'auto';
-        ta.style.height = Math.min(ta.scrollHeight, 220) + 'px';
-    }
-    ta.addEventListener('input', () => {
-        autoGrow();
-        sendBtn.disabled = !ta.value.trim();
-    });
-    autoGrow(); // run once on init
+    /**
+     * Retry: keep the user message, remove only all AI messages following it.
+     */
+    function retryLastMessage(btn) {
+        const userMsgEl = btn ? btn.closest('.user-message') : null;
+        const allMessages = Array.from(chatbox.querySelectorAll('.user-message, .system-message'));
 
-    // Swap action buttons to Cancel/Send
-    const originalActionsHTML = actionsDiv.innerHTML;
-    actionsDiv.innerHTML = `
-        <button class="edit-cancel-btn">Cancel</button>
-        <button class="edit-send-btn" ${!rawText.trim() ? 'disabled' : ''}>Send</button>`;
+        // Determine where to start removing AI messages
+        let startIdx = -1;
+        let targetUserMsg = userMsgEl;
+        if (targetUserMsg) {
+            startIdx = allMessages.indexOf(targetUserMsg) + 1;
+        } else {
+            // Fallback for non-button invocation (e.g. command palette)
+            // Find the LAST user message in the chat
+            const reversed = [...allMessages].reverse();
+            targetUserMsg = reversed.find(el => el.classList.contains('user-message'));
+            startIdx = targetUserMsg ? allMessages.indexOf(targetUserMsg) + 1 : allMessages.length - 1;
+        }
 
-    const sendBtn = actionsDiv.querySelector('.edit-send-btn');
+        // Calculate precise userMsgIdx for robust backend deletion
+        const allUserMessages = Array.from(chatbox.querySelectorAll('.user-message'));
+        const userMsgIdx = targetUserMsg ? allUserMessages.indexOf(targetUserMsg) : allUserMessages.length - 1;
 
-    // Cancel: restore everything, put back AI messages
-    actionsDiv.querySelector('.edit-cancel-btn').addEventListener('click', () => {
-        ta.replaceWith(textSpan);
-        actionsDiv.innerHTML = originalActionsHTML;
-        // Re-attach action button listeners (onclick attributes are restored via innerHTML)
-        messagesAfter.forEach(el => chatbox.appendChild(el));
-    });
+        if (startIdx <= 0 || startIdx > allMessages.length) { return; }
 
-    // Send: update bubble text, remove AI history, re-submit
-    sendBtn.addEventListener('click', () => {
-        const newText = ta.value.trim();
-        if (!newText) { return; }
+        // Count system-messages (AI responses) after this user message
+        const messagesAfter = allMessages.length - startIdx;
+        // Minimum count is 2: the user message itself + at least 1 bot response (even if empty/error)
+        const removedCount = Math.max(2, messagesAfter + 1);
 
-        // Restore bubble to display mode with updated text
-        textSpan.innerHTML = escapeHtml(newText).replace(/\n/g, '<br>');
-        ta.replaceWith(textSpan);
-        userMsgEl.dataset.rawText = encodeURIComponent(newText);
-        actionsDiv.innerHTML = originalActionsHTML;
+        // Blast away all DOM nodes that come after targetUserMsg
+        if (targetUserMsg) {
+            let wrapper = targetUserMsg.closest('.user-message-wrapper') || targetUserMsg;
+            let turnDiv = wrapper.closest('.chat-turn') || wrapper;
+            
+            // 1. Remove all siblings after the user message inside the turnDiv
+            let nextNode = wrapper.nextSibling;
+            while (nextNode) {
+                const toRemove = nextNode;
+                nextNode = nextNode.nextSibling;
+                toRemove.remove();
+            }
+            
+            // 2. Remove all subsequent turnDivs
+            let nextTurn = turnDiv.nextSibling;
+            while (nextTurn) {
+                const toRemove = nextTurn;
+                nextTurn = nextTurn.nextSibling;
+                toRemove.remove();
+            }
+        } else {
+            for (let i = startIdx; i < allMessages.length; i++) {
+                allMessages[i].remove();
+            }
+        }
 
         showLoadingIndicator();
         toggleSendButton('disabled');
         sendMessage(CHAT_COMMANDS.CHAT_RETRY, {
             chat_id: chatLog.dataset.chatId,
             count: removedCount,
-            overrideMessage: newText,
+            userMsgIdx: userMsgIdx >= 0 ? userMsgIdx : undefined,
             agentId: activeAgentId
         });
-    });
+    }
 
-    scrollToBottom();
-}
+    /**
+     * Edit: swap user message bubble with an inline editable textarea.
+     * On cancel, restore the original bubble.
+     */
+    function editUserMessage(btn) {
+        const userMsgEl = btn.closest('.user-message');
+        const rawText = decodeURIComponent(userMsgEl.dataset.rawText || '');
 
+        // Find exact user message index for robust backend deletion
+        const allUserMessages = Array.from(chatbox.querySelectorAll('.user-message'));
+        const userMsgIdx = allUserMessages.indexOf(userMsgEl);
 
+        // Count formal AI/user messages for the legacy backend history trim
+        const allMessages = Array.from(chatbox.querySelectorAll('.user-message, .system-message'));
+        const startIdx = allMessages.indexOf(userMsgEl);
+        const messagesAfter = allMessages.slice(startIdx + 1);
+        const removedCount = messagesAfter.length + 1; // +1 = the user msg itself for history delete
 
+        // Blast away all DOM nodes that come after userMsgEl
+        let wrapper = userMsgEl.closest('.user-message-wrapper') || userMsgEl;
+        let turnDiv = wrapper.closest('.chat-turn') || wrapper;
+        
+        let removedNodes = [];
+        
+        // 1. Remove siblings inside the turn
+        let nextNode = wrapper.nextSibling;
+        while (nextNode) {
+            const toRemove = nextNode;
+            nextNode = nextNode.nextSibling;
+            removedNodes.push({ parent: turnDiv, node: toRemove });
+            toRemove.remove();
+        }
+        
+        // 2. Remove subsequent turns
+        let nextTurn = turnDiv.nextSibling;
+        while (nextTurn) {
+            const toRemove = nextTurn;
+            nextTurn = nextTurn.nextSibling;
+            removedNodes.push({ parent: chatbox, node: toRemove });
+            toRemove.remove();
+        }
 
-// 1. Send Button Click
-sendButton.addEventListener("click", event => {
-    if (isGenerating) {
-        // Cancel ongoing request
-        vscode.postMessage({
-            command: 'cancelChatRequest',
-            data: { chat_id: chatLog.dataset.chatId }
+        // Swap the text span for a textarea, IN-PLACE inside the existing bubble
+        const textSpan = userMsgEl.querySelector('.message-text');
+        const footer = userMsgEl.querySelector('.message-footer');
+        const actionsDiv = userMsgEl.querySelector('.user-message-actions');
+
+        // Build textarea to replace text span
+        const ta = document.createElement('textarea');
+        ta.className = 'edit-textarea';
+        ta.value = rawText;
+        ta.rows = Math.max(2, rawText.split('\n').length);
+        textSpan.replaceWith(ta);
+        ta.focus();
+        ta.setSelectionRange(ta.value.length, ta.value.length);
+
+        // Auto-grow helper (fallback for browsers without field-sizing support)
+        function autoGrow() {
+            ta.style.height = 'auto';
+            ta.style.height = Math.min(ta.scrollHeight, 220) + 'px';
+        }
+        ta.addEventListener('input', () => {
+            autoGrow();
+            sendBtn.disabled = !ta.value.trim();
         });
-        isGenerating = false;
-        toggleSendButton("off");
-        hideLoadingIndicator();
+        autoGrow(); // run once on init
 
-        // Immediate visual feedback: append a stopped badge
-        if (activeStreamNode) {
-            const stopBadge = document.createElement('div');
-            stopBadge.className = 'status-badge status-stopped';
-            stopBadge.style.marginTop = '8px';
-            stopBadge.innerHTML = `■ Generation stopped by user`;
-            activeStreamNode.parentElement.appendChild(stopBadge);
-        }
-        return;
-    }
-    const imagePills = chatMessage.querySelectorAll('.inline-attachment-pill[data-image="true"]');
-    const dynamicAttachedImages = [];
-    const usedNames = new Set();
+        // Swap action buttons to Cancel/Send
+        const originalActionsHTML = actionsDiv.innerHTML;
+        actionsDiv.innerHTML = `
+        <button class="edit-cancel-btn">Cancel</button>
+        <button class="edit-send-btn" ${!rawText.trim() ? 'disabled' : ''}>Send</button>`;
 
-    imagePills.forEach(pill => {
-        let name = pill.dataset.name;
-        let originalName = name;
-        let counter = 1;
-        while (usedNames.has(name)) {
-            const dotRegex = /(.*)(\.[a-zA-Z0-9]+)$/;
-            const match = originalName.match(dotRegex);
-            if (match) {
-                name = `${match[1]}_${counter}${match[2]}`;
-            } else {
-                name = `${originalName}_${counter}`;
-            }
-            counter++;
-        }
-        usedNames.add(name);
+        const sendBtn = actionsDiv.querySelector('.edit-send-btn');
 
-        if (pill.dataset.name !== name) {
-            pill.dataset.name = name;
-            pill.innerHTML = `[${escapeHtml(name)}]`;
-        }
-
-        dynamicAttachedImages.push({
-            name: name,
-            dataUrl: pill.dataset.url
+        // Cancel: restore everything, put back AI messages
+        actionsDiv.querySelector('.edit-cancel-btn').addEventListener('click', () => {
+            ta.replaceWith(textSpan);
+            actionsDiv.innerHTML = originalActionsHTML;
+            // Re-attach action button listeners (onclick attributes are restored via innerHTML)
+            removedNodes.forEach(item => item.parent.appendChild(item.node));
         });
-    });
 
-    const filePills = chatMessage.querySelectorAll('.inline-attachment-pill[data-file="true"]');
-    const dynamicAttachedFiles = [];
-    filePills.forEach(pill => {
-        const fileId = pill.dataset.fileId;
-        const fileData = window.inlineFilesMap && window.inlineFilesMap[fileId];
-        if (fileData) {
-            dynamicAttachedFiles.push(fileData);
-        }
-    });
+        // Send: update bubble text, remove AI history, re-submit
+        sendBtn.addEventListener('click', () => {
+            const newText = ta.value.trim();
+            if (!newText) { return; }
 
-    const messageText = chatMessage.innerText.trim();
+            // Restore bubble to display mode with updated text
+            textSpan.innerHTML = escapeHtml(newText).replace(/\n/g, '<br>');
+            ta.replaceWith(textSpan);
+            userMsgEl.dataset.rawText = encodeURIComponent(newText);
+            actionsDiv.innerHTML = originalActionsHTML;
 
-    // Combine inline files and externally attached files (if any still use the old method)
-    const allFiles = attachedFiles.concat(dynamicAttachedFiles);
+            showLoadingIndicator();
+            toggleSendButton('disabled');
+            sendMessage(CHAT_COMMANDS.CHAT_RETRY, {
+                chat_id: chatLog.dataset.chatId,
+                count: removedCount,
+                userMsgIdx: userMsgIdx >= 0 ? userMsgIdx : undefined,
+                overrideMessage: newText,
+                agentId: activeAgentId
+            });
+        });
 
-    // Update Condition: Check for files too
-    if (messageText || dynamicAttachedImages.length > 0 || allFiles.length > 0) {
-
-        // --- PREPARE PAYLOAD ---
-        const payload = {
-            message: messageText,
-            images: dynamicAttachedImages,
-
-            // CRITICAL: Send the attached files to the backend
-            files: allFiles,
-
-            agentId: activeAgentId,
-
-            chat_id: chatLog.dataset.chatId,
-            timestamp: new Date().toISOString()
-        };
-
-        // --- SEND ---
-        sendMessage(CHAT_COMMANDS.CHAT_REQUEST, payload);
-
-        // --- UI CLEANUP ---
-        hideQuestionBanner(); // #48: Dismiss question banner on reply
-        showLoadingIndicator(); // Show dots while waiting for backend echo
-        toggleSendButton("disabled");
-
-        chatMessage.innerHTML = "";
-
-        // Clear files array
-        attachedFiles = [];
-        // No need to clear attachedImages since they are dynamically populated
-
-        renderAttachments(); // Removes the file pills from the screen
-    }
-});
-
-/**
- * Parses raw message text to separate user message from file attachments.
- * Returns HTML string with collapsible details.
- */
-function processMessageContent(rawText) {
-    const splitMarker = "--- ATTACHED CONTEXT ---";
-
-    // 1. If no attachments, just return formatted text
-    if (!rawText.includes(splitMarker)) {
-        return escapeHtml(rawText).replace(/\n/g, "<br>");
+        scrollToBottom();
     }
 
-    // 2. Split: [User Text, The Big Code Block]
-    const parts = rawText.split(splitMarker);
-    const userMessage = parts[0].trim();
-    const contextBlock = parts[1];
-
-    // 3. Format User Message
-    let html = escapeHtml(userMessage).replace(/\n/g, "<br>");
-
-    // 4. Return just the user message
-    return html;
-}
 
 
-window.addEventListener('DOMContentLoaded', () => {
-    sendMessage("ChatWebviewReady");
-    initGenerateButton();
 
-    const input = document.getElementById("messageInput");
+    // 1. Send Button Click
+    sendButton.addEventListener("click", event => {
+        if (isGenerating) {
+            // Cancel ongoing request
+            vscode.postMessage({
+                command: 'cancelChatRequest',
+                data: { chat_id: chatLog.dataset.chatId }
+            });
+            isGenerating = false;
+            toggleSendButton("off");
+            hideLoadingIndicator();
 
-    input.addEventListener("keydown", (event) => {
-        if (autocompleteActive) {
-            if (event.key === "ArrowDown") {
-                event.preventDefault();
-                selectedIndex = (selectedIndex + 1) % filteredItems.length;
-                renderAutocomplete();
-                return;
+            // Immediate visual feedback: append a stopped badge
+            if (activeStreamNode) {
+                const stopBadge = document.createElement('div');
+                stopBadge.className = 'status-badge status-stopped';
+                stopBadge.style.marginTop = '8px';
+                stopBadge.innerHTML = `■ Generation stopped by user`;
+                activeStreamNode.parentElement.appendChild(stopBadge);
             }
-            if (event.key === "ArrowUp") {
-                event.preventDefault();
-                selectedIndex = (selectedIndex - 1 + filteredItems.length) % filteredItems.length;
-                renderAutocomplete();
-                return;
-            }
-            if (event.key === "Enter" || event.key === "Tab") {
-                event.preventDefault();
-                confirmAutocompleteSelection();
-                return;
-            }
-            if (event.key === "Escape") {
-                event.preventDefault();
-                hideAutocomplete();
-                return;
-            }
+            return;
         }
+        const imagePills = chatMessage.querySelectorAll('.inline-attachment-pill[data-image="true"]');
+        const dynamicAttachedImages = [];
+        const usedNames = new Set();
 
-        if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-            sendButton.click();
+        imagePills.forEach(pill => {
+            let name = pill.dataset.name;
+            let originalName = name;
+            let counter = 1;
+            while (usedNames.has(name)) {
+                const dotRegex = /(.*)(\.[a-zA-Z0-9]+)$/;
+                const match = originalName.match(dotRegex);
+                if (match) {
+                    name = `${match[1]}_${counter}${match[2]}`;
+                } else {
+                    name = `${originalName}_${counter}`;
+                }
+                counter++;
+            }
+            usedNames.add(name);
+
+            if (pill.dataset.name !== name) {
+                pill.dataset.name = name;
+                pill.innerHTML = `[${escapeHtml(name)}]`;
+            }
+
+            dynamicAttachedImages.push({
+                name: name,
+                dataUrl: pill.dataset.url
+            });
+        });
+
+        const filePills = chatMessage.querySelectorAll('.inline-attachment-pill[data-file="true"]');
+        const dynamicAttachedFiles = [];
+        filePills.forEach(pill => {
+            const fileId = pill.dataset.fileId;
+            const fileData = window.inlineFilesMap && window.inlineFilesMap[fileId];
+            if (fileData) {
+                dynamicAttachedFiles.push(fileData);
+            }
+        });
+
+        const messageText = chatMessage.innerText.trim();
+
+        // Combine inline files and externally attached files (if any still use the old method)
+        const allFiles = attachedFiles.concat(dynamicAttachedFiles);
+
+        // Update Condition: Check for files too
+        if (messageText || dynamicAttachedImages.length > 0 || allFiles.length > 0) {
+
+            // --- PREPARE PAYLOAD ---
+            const payload = {
+                message: messageText,
+                images: dynamicAttachedImages,
+
+                // CRITICAL: Send the attached files to the backend
+                files: allFiles,
+
+                agentId: activeAgentId,
+
+                chat_id: chatLog.dataset.chatId,
+                timestamp: new Date().toISOString()
+            };
+
+            // --- SEND ---
+            sendMessage(CHAT_COMMANDS.CHAT_REQUEST, payload);
+
+            // --- UI CLEANUP ---
+            hideQuestionBanner(); // #48: Dismiss question banner on reply
+            showLoadingIndicator(); // Show dots while waiting for backend echo
+            toggleSendButton("disabled");
+
+            chatMessage.innerHTML = "";
+
+            // Clear files array
+            attachedFiles = [];
+            // No need to clear attachedImages since they are dynamically populated
+
+            renderAttachments(); // Removes the file pills from the screen
         }
     });
 
-    input.addEventListener("input", (event) => {
-        const text = input.innerText;
-        const cursorPosition = getCaretPosition(input);
-        const textBeforeCursor = text.substring(0, cursorPosition);
+    /**
+     * Parses raw message text to separate user message from file attachments.
+     * Returns HTML string with collapsible details.
+     */
+    function processMessageContent(rawText) {
+        const splitMarker = "--- ATTACHED CONTEXT ---";
 
-        // Find the last trigger character before the cursor
-        const lastAt = textBeforeCursor.lastIndexOf('@');
-        const lastSlash = textBeforeCursor.lastIndexOf('/');
-        const lastTriggerIdx = Math.max(lastAt, lastSlash);
+        // 1. If no attachments, just return formatted text
+        if (!rawText.includes(splitMarker)) {
+            return escapeHtml(rawText).replace(/\n/g, "<br>");
+        }
 
-        if (lastTriggerIdx !== -1) {
-            const potentialTrigger = textBeforeCursor[lastTriggerIdx];
-            // Check if trigger is at start or preceded by whitespace
-            const charBeforeTrigger = textBeforeCursor[lastTriggerIdx - 1];
-            if (!charBeforeTrigger || /\s/.test(charBeforeTrigger)) {
-                autocompleteType = potentialTrigger;
-                triggerQuery = textBeforeCursor.substring(lastTriggerIdx + 1);
+        // 2. Split: [User Text, The Big Code Block]
+        const parts = rawText.split(splitMarker);
+        const userMessage = parts[0].trim();
+        const contextBlock = parts[1];
 
-                // Query shouldn't contain spaces (if it does, user moved past the command)
-                if (!/\s/.test(triggerQuery)) {
-                    updateAutocompleteItems(triggerQuery);
+        // 3. Format User Message
+        let html = escapeHtml(userMessage).replace(/\n/g, "<br>");
+
+        // 4. Return just the user message
+        return html;
+    }
+
+
+    window.addEventListener('DOMContentLoaded', () => {
+        sendMessage("ChatWebviewReady");
+        initGenerateButton();
+
+        const input = document.getElementById("messageInput");
+
+        input.addEventListener("keydown", (event) => {
+            if (autocompleteActive) {
+                if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    selectedIndex = (selectedIndex + 1) % filteredItems.length;
+                    renderAutocomplete();
+                    return;
+                }
+                if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    selectedIndex = (selectedIndex - 1 + filteredItems.length) % filteredItems.length;
+                    renderAutocomplete();
+                    return;
+                }
+                if (event.key === "Enter" || event.key === "Tab") {
+                    event.preventDefault();
+                    confirmAutocompleteSelection();
+                    return;
+                }
+                if (event.key === "Escape") {
+                    event.preventDefault();
+                    hideAutocomplete();
                     return;
                 }
             }
-        }
 
-        if (autocompleteActive) {
-            hideAutocomplete();
-        }
-    });
+            if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                sendButton.click();
+            }
+        });
 
-    input.addEventListener("focusout", () => {
-        if (!input.textContent.trim().length) {
-            input.textContent = "";
-        }
-    });
+        input.addEventListener("input", (event) => {
+            const text = input.innerText;
+            const cursorPosition = getCaretPosition(input);
+            const textBeforeCursor = text.substring(0, cursorPosition);
+
+            // Find the last trigger character before the cursor
+            const lastAt = textBeforeCursor.lastIndexOf('@');
+            const lastSlash = textBeforeCursor.lastIndexOf('/');
+            const lastTriggerIdx = Math.max(lastAt, lastSlash);
+
+            if (lastTriggerIdx !== -1) {
+                const potentialTrigger = textBeforeCursor[lastTriggerIdx];
+                // Check if trigger is at start or preceded by whitespace
+                const charBeforeTrigger = textBeforeCursor[lastTriggerIdx - 1];
+                if (!charBeforeTrigger || /\s/.test(charBeforeTrigger)) {
+                    autocompleteType = potentialTrigger;
+                    triggerQuery = textBeforeCursor.substring(lastTriggerIdx + 1);
+
+                    // Query shouldn't contain spaces (if it does, user moved past the command)
+                    if (!/\s/.test(triggerQuery)) {
+                        updateAutocompleteItems(triggerQuery);
+                        return;
+                    }
+                }
+            }
+
+            if (autocompleteActive) {
+                hideAutocomplete();
+            }
+        });
+
+        input.addEventListener("focusout", () => {
+            if (!input.textContent.trim().length) {
+                input.textContent = "";
+            }
+        });
 
 
-    input.addEventListener("paste", (event) => {
-        // 1. Stop all native pasting
-        event.preventDefault();
-        const clipboardData = event.clipboardData || window.clipboardData;
+        input.addEventListener("paste", (event) => {
+            // 1. Stop all native pasting
+            event.preventDefault();
+            const clipboardData = event.clipboardData || window.clipboardData;
 
-        // 2. Handle images
-        if (clipboardData.files && clipboardData.files.length > 0) {
-            if (Array.from(clipboardData.files).some(file => file.type.startsWith('image/'))) {
-                handleImageFiles(clipboardData.files, 'paste');
+            // 2. Handle images
+            if (clipboardData.files && clipboardData.files.length > 0) {
+                if (Array.from(clipboardData.files).some(file => file.type.startsWith('image/'))) {
+                    handleImageFiles(clipboardData.files, 'paste');
+                    return;
+                }
+            }
+
+            // 3. Handle Text
+            const text = clipboardData.getData('text/plain');
+            if (!text) { return; };
+
+            // #46: Detect if the pasted text is a URL
+            const urlPattern = /^https?:\/\/[^\s]+$/i;
+            if (urlPattern.test(text.trim())) {
+                const url = text.trim();
+                const urlId = 'url-' + Date.now();
+                const pill = `<span class="inline-attachment-pill url-pill" contenteditable="false" data-url="${url}" data-url-id="${urlId}" title="Click to scrape: ${url}" onclick="handleUrlScrape(this)">◆ ${new URL(url).hostname}${new URL(url).pathname.substring(0, 30)}</span>&nbsp;`;
+
+                // Wrap in setTimeout to avoid "execCommand() ... called recursively" error
+                setTimeout(() => {
+                    document.execCommand('insertHTML', false, pill);
+                    // URL stays as a clickable pill — user can click to scrape manually
+                }, 0);
                 return;
             }
-        }
 
-        // 3. Handle Text
-        const text = clipboardData.getData('text/plain');
-        if (!text) { return; };
+            // 4. Escape the text for HTML
+            const escapedText = text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+            // Note: We don't replace \n with <br> because our CSS
+            // 'white-space: pre-wrap' already handles newlines correctly.
 
-        // #46: Detect if the pasted text is a URL
-        const urlPattern = /^https?:\/\/[^\s]+$/i;
-        if (urlPattern.test(text.trim())) {
-            const url = text.trim();
-            const urlId = 'url-' + Date.now();
-            const pill = `<span class="inline-attachment-pill url-pill" contenteditable="false" data-url="${url}" data-url-id="${urlId}" title="Click to scrape: ${url}" onclick="handleUrlScrape(this)">◆ ${new URL(url).hostname}${new URL(url).pathname.substring(0, 30)}</span>&nbsp;`;
-            
-            // Wrap in setTimeout to avoid "execCommand() ... called recursively" error
+            // 5. Use 'insertHTML'. This command inserts our plain, escaped text
+            //    and correctly adds the action to the undo/redo stack.
             setTimeout(() => {
-                document.execCommand('insertHTML', false, pill);
-                // URL stays as a clickable pill — user can click to scrape manually
-            }, 0);
-            return;
-        }
-
-        // 4. Escape the text for HTML
-        const escapedText = text
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;");
-        // Note: We don't replace \n with <br> because our CSS
-        // 'white-space: pre-wrap' already handles newlines correctly.
-
-        // 5. Use 'insertHTML'. This command inserts our plain, escaped text
-        //    and correctly adds the action to the undo/redo stack.
-        setTimeout(() => {
-            document.execCommand('insertHTML', false, escapedText);
-        }, 50);
-
-    });
-
-
-    imageUploadInput.addEventListener('change', (e) => {
-        if (e.target.files) {
-            handleImageFiles(e.target.files, 'upload');
-            e.target.value = null;
-        }
-    });
-
-
-    // --- End of Listeners ---
-
-    renderAttachments();
-    input.focus();
-
-    // Configure marked
-    marked.setOptions({
-        highlight: function (code, lang) {
-            if (lang && hljs.getLanguage(lang)) {
-                return hljs.highlight(code, { language: lang }).value;
-            }
-            return hljs.highlightAuto(code).value;
-        },
-        langPrefix: 'hljs language-',
-        gfm: true,
-        breaks: true
-    });
-
-
-    // Toggle Menu
-    attachBtn.addEventListener('click', (e) => {
-        e.stopPropagation(); // Prevent immediate closing
-        contextMenu.classList.toggle('hidden');
-        if (modelOptionsMenu) modelOptionsMenu.classList.add('hidden');
-        if (permsOptionsMenu) permsOptionsMenu.classList.add('hidden');
-    });
-
-    // Close when clicking outside
-    document.addEventListener('click', (e) => {
-        if (!contextMenu.contains(e.target) && e.target !== attachBtn) {
-            contextMenu.classList.add('hidden');
-        }
-
-        // Hide autocomplete if clicking outside
-        if (autocompleteActive && !autocompleteMenu.contains(e.target) && e.target !== input) {
-            hideAutocomplete();
-        }
-    });
-
-    // Handle Item Clicks
-    contextMenu.addEventListener('click', (e) => {
-        const item = e.target.closest('.context-item');
-        if (!item) {
-            return;
-        }
-
-        const type = item.dataset.type;
-
-        // 1. Media — open file picker (browser input)
-        if (type === 'media') {
-            imageUploadInput.click();
-        }
-        // 2. Mentions — insert @ into input to trigger autocomplete
-        else if (type === 'mentions') {
-            // Defer to avoid race with document click handler that closes autocomplete
-            setTimeout(() => {
-                chatMessage.focus();
-                document.execCommand('insertText', false, '@');
-                // Directly trigger autocomplete logic
-                autocompleteType = '@';
-                triggerQuery = '';
-                updateAutocompleteItems('');
+                document.execCommand('insertHTML', false, escapedText);
             }, 50);
-        }
 
-        // Close menu
-        contextMenu.classList.add('hidden');
+        });
+
+
+        imageUploadInput.addEventListener('change', (e) => {
+            if (e.target.files) {
+                handleImageFiles(e.target.files, 'upload');
+                e.target.value = null;
+            }
+        });
+
+
+        // --- End of Listeners ---
+
+        renderAttachments();
+        input.focus();
+
+        // Configure marked
+        marked.setOptions({
+            highlight: function (code, lang) {
+                if (lang && hljs.getLanguage(lang)) {
+                    return hljs.highlight(code, { language: lang }).value;
+                }
+                return hljs.highlightAuto(code).value;
+            },
+            langPrefix: 'hljs language-',
+            gfm: true,
+            breaks: true
+        });
+
+
+        // Toggle Menu
+        attachBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent immediate closing
+            contextMenu.classList.toggle('hidden');
+            if (modelOptionsMenu) modelOptionsMenu.classList.add('hidden');
+            if (permsOptionsMenu) permsOptionsMenu.classList.add('hidden');
+        });
+
+        // Close when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!contextMenu.contains(e.target) && e.target !== attachBtn) {
+                contextMenu.classList.add('hidden');
+            }
+
+            // Hide autocomplete if clicking outside
+            if (autocompleteActive && !autocompleteMenu.contains(e.target) && e.target !== input) {
+                hideAutocomplete();
+            }
+        });
+
+        // Handle Item Clicks
+        contextMenu.addEventListener('click', (e) => {
+            const item = e.target.closest('.context-item');
+            if (!item) {
+                return;
+            }
+
+            const type = item.dataset.type;
+
+            // 1. Media — open file picker (browser input)
+            if (type === 'media') {
+                imageUploadInput.click();
+            }
+            // 2. Mentions — insert @ into input to trigger autocomplete
+            else if (type === 'mentions') {
+                // Defer to avoid race with document click handler that closes autocomplete
+                setTimeout(() => {
+                    chatMessage.focus();
+                    document.execCommand('insertText', false, '@');
+                    // Directly trigger autocomplete logic
+                    autocompleteType = '@';
+                    triggerQuery = '';
+                    updateAutocompleteItems('');
+                }, 50);
+            }
+
+            // Close menu
+            contextMenu.classList.add('hidden');
+        });
     });
-});
 
-/**
- * Request the extension to open the image.
- * @param {string} dateUrlOrPath 
- */
-function requestOpenImage(dateUrlOrPath) {
-    // If it's base64, we CAN now send it. The backend will save it to temp.
-    // if (dateUrlOrPath.startsWith('data:')) { ... }
+    /**
+     * Request the extension to open the image.
+     * @param {string} dateUrlOrPath 
+     */
+    function requestOpenImage(dateUrlOrPath) {
+        // If it's base64, we CAN now send it. The backend will save it to temp.
+        // if (dateUrlOrPath.startsWith('data:')) { ... }
 
-    sendMessage(CHAT_COMMANDS.OPEN_IMAGE, { path: dateUrlOrPath });
-}
+        sendMessage(CHAT_COMMANDS.OPEN_IMAGE, { path: dateUrlOrPath });
+    }
 
-function requestOpenFile(fileId) {
-    const fileData = window.inlineFilesMap && window.inlineFilesMap[fileId];
-    if (fileData) {
-        const isUrl = fileData.path && (fileData.path.startsWith('http://') || fileData.path.startsWith('https://'));
-        if (fileData.path && !isUrl) {
-            // Local file — open directly
-            sendMessage('openFile', { path: fileData.path });
-        } else if (isUrl && !fileData.content) {
-            // URL without content (old history) — open URL externally
-            sendMessage('openExternal', { url: fileData.path });
-        } else {
-            // URL with content or virtual file — show in editor
-            sendMessage('openVirtualFile', {
-                name: fileData.name,
-                text: fileData.content,
-                language: fileData.language
-            });
+    function requestOpenFile(fileId) {
+        const fileData = window.inlineFilesMap && window.inlineFilesMap[fileId];
+        if (fileData) {
+            const isUrl = fileData.path && (fileData.path.startsWith('http://') || fileData.path.startsWith('https://'));
+            if (fileData.path && !isUrl) {
+                // Local file — open directly
+                sendMessage('openFile', { path: fileData.path });
+            } else if (isUrl && !fileData.content) {
+                // URL without content (old history) — open URL externally
+                sendMessage('openExternal', { url: fileData.path });
+            } else {
+                // URL with content or virtual file — show in editor
+                sendMessage('openVirtualFile', {
+                    name: fileData.name,
+                    text: fileData.content,
+                    language: fileData.language
+                });
+            }
         }
     }
-}
 
 
-let activeStreamAccumulator = "";
-let activeStreamNode = null;
+    let activeStreamAccumulator = "";
+    let activeStreamNode = null;
 
-// --- EVENT LISTENERS ---
-window.addEventListener('message', event => {
-    const message = event.data;
-    switch (message.command) {
-        case 'searchFilesResult':
-            {
-                if (autocompleteType !== '@') { break; }
-                const fileResults = message.results || [];
-                // Merge: keep any matched commands at the top, then add file results
-                const commandMatches = filteredItems.filter(item => item.label && !item.path);
-                filteredItems = [...commandMatches, ...fileResults];
-                if (filteredItems.length === 0) {
-                    hideAutocomplete();
+    // --- EVENT LISTENERS ---
+    window.addEventListener('message', event => {
+        const message = event.data;
+        switch (message.command) {
+            case 'searchFilesResult':
+                {
+                    if (autocompleteType !== '@') { break; }
+                    const fileResults = message.results || [];
+                    // Merge: keep any matched commands at the top, then add file results
+                    const commandMatches = filteredItems.filter(item => item.label && !item.path);
+                    filteredItems = [...commandMatches, ...fileResults];
+                    if (filteredItems.length === 0) {
+                        hideAutocomplete();
+                        break;
+                    }
+                    selectedIndex = 0;
+                    renderAutocomplete();
                     break;
                 }
-                selectedIndex = 0;
-                renderAutocomplete();
-                break;
-            }
-        case CHAT_COMMANDS.CHAT_REQUEST:
-            hideLoadingIndicator();
-            if (message.role === ROLE.USER) {
-                appendUserMessage(message.content, message.images, message.files);
-                if (!message.isHistory) {
-                    showLoadingIndicator();
-                }
-            } else {
-                if (message.agentSteps && message.agentSteps.length > 0) {
-                    for (const step of message.agentSteps) {
-                        renderAgentStep(step);
+            case CHAT_COMMANDS.CHAT_REQUEST:
+                hideLoadingIndicator();
+                if (message.role === ROLE.USER) {
+                    appendUserMessage(message.content, message.images, message.files);
+                    if (!message.isHistory) {
+                        showLoadingIndicator();
                     }
-                    
-                    // Finalize thinking blocks and groups
-                    document.querySelectorAll('.agent-thinking-block:not([data-finalized="true"])').forEach(thinkingBlock => {
-                        thinkingBlock.dataset.finalized = 'true';
-                        thinkingBlock.classList.remove('streaming');
-                        thinkingBlock.open = false;
-                        const label = thinkingBlock.querySelector('.thinking-label');
-                        if (label && !label.textContent.includes('Thought for')) {
-                            label.textContent = 'Thought process';
+                } else {
+                    if (message.agentSteps && message.agentSteps.length > 0) {
+                        for (const step of message.agentSteps) {
+                            // Tag steps so renderAgentStep knows to skip the live timer
+                            if (message.isHistory) { step._isHistory = true; }
+                            renderAgentStep(step);
                         }
-                    });
 
-                    document.querySelectorAll('details.agent-steps-group:not([data-finalized="true"])').forEach(group => {
+                        // Finalize thinking blocks and groups
+                        document.querySelectorAll('.agent-thinking-block:not([data-finalized="true"])').forEach(thinkingBlock => {
+                            thinkingBlock.dataset.finalized = 'true';
+                            thinkingBlock.classList.remove('streaming');
+                            thinkingBlock.open = false;
+                            const label = thinkingBlock.querySelector('.thinking-label');
+                            if (label && !label.textContent.includes('Thought for')) {
+                                label.textContent = 'Thought process';
+                            }
+                        });
+
+                        document.querySelectorAll('details.agent-steps-group:not([data-finalized="true"])').forEach(group => {
+                            if (group.dataset.timer) {
+                                clearInterval(parseInt(group.dataset.timer));
+                                delete group.dataset.timer;
+                            }
+                            const summaryText = group.querySelector('.summary-text');
+                            if (summaryText) {
+                                if (group.dataset.history) {
+                                    summaryText.textContent = 'Completed steps';
+                                } else {
+                                    const ms = Date.now() - parseInt(group.dataset.startTime);
+                                    const secs = Math.floor(ms / 1000);
+                                    summaryText.textContent = secs === 0 ? 'Completed steps' : `Worked for ${secs}s`;
+                                }
+                            }
+                            group.open = false;
+                            group.dataset.finalized = "true";
+                        });
+                    }
+                    if (message.content) {
+                        appendAIMessage(message.content);
+                    }
+                }
+                // Re-enable send button
+                toggleSendButton("off");
+                break;
+
+            case CHAT_COMMANDS.CHAT_STREAM_START:
+                isGenerating = true;
+                toggleSendButton("generating");
+                activeStreamAccumulator = "";
+                activeStreamNode = null;
+                break;
+
+            case CHAT_COMMANDS.CHAT_STREAM_CHUNK:
+                if (!activeStreamNode) {
+                    hideLoadingIndicator();
+                    appendAIMessage(""); // Create empty blank message
+
+                    // Get reference to the newly created blank message
+                    const aiMessages = chatbox.querySelectorAll('.system-message .message-text');
+                    if (aiMessages.length > 0) {
+                        activeStreamNode = aiMessages[aiMessages.length - 1];
+                    }
+                }
+
+                if (activeStreamNode) {
+                    activeStreamAccumulator += message.content;
+
+                    // Batch markdown re-parse: only once per animation frame
+                    if (!activeStreamNode._renderPending) {
+                        activeStreamNode._renderPending = true;
+                        requestAnimationFrame(() => {
+                            if (activeStreamNode) {
+                                activeStreamNode.innerHTML = marked.parse(activeStreamAccumulator);
+                                activeStreamNode._renderPending = false;
+                                scrollToBottom();
+                            }
+                        });
+                    }
+                }
+
+                // ALWAYS send ACK back — even if rendering failed
+                // Without this, the backend hangs forever waiting for the ACK → deadlock
+                if (message.seq) {
+                    sendMessage(CHAT_COMMANDS.CHAT_CHUNK_ACK, { seq: message.seq });
+                }
+                break;
+
+            case CHAT_COMMANDS.CHAT_STREAM_END:
+                hideLoadingIndicator(); // Always hide loading, even if no chunks arrived
+                clearWaitingIndicator(); // Remove any between-step indicator
+
+                // Finalize open agent groups
+                document.querySelectorAll('details.agent-steps-group').forEach(group => {
+                    const stepsContainer = group.querySelector('.agent-steps-container');
+                    if (stepsContainer && stepsContainer.children.length === 0) {
+                        if (group.dataset.timer) {
+                            clearInterval(parseInt(group.dataset.timer));
+                        }
+                        group.remove();
+                    } else {
                         if (group.dataset.timer) {
                             clearInterval(parseInt(group.dataset.timer));
                             delete group.dataset.timer;
+
                             const ms = Date.now() - parseInt(group.dataset.startTime);
                             const secs = Math.floor(ms / 1000);
                             const summaryText = group.querySelector('.summary-text');
                             if (summaryText) {
-                                // If loaded from history, secs will be 0 because it renders instantly
                                 if (secs === 0) {
                                     summaryText.textContent = `Completed steps`;
                                 } else {
                                     summaryText.textContent = `Worked for ${secs}s`;
                                 }
                             }
-                            group.open = false;
+                            group.open = false; // Close it to keep UI clean
                         }
                         group.dataset.finalized = "true";
-                    });
-                }
-                if (message.content) {
-                    appendAIMessage(message.content);
-                }
-            }
-            // Re-enable send button
-            toggleSendButton("off");
-            break;
+                    }
+                });
 
-        case CHAT_COMMANDS.CHAT_STREAM_START:
-            isGenerating = true;
-            toggleSendButton("generating");
-            activeStreamAccumulator = "";
-            activeStreamNode = null;
-            break;
+                // #44: Finalize any open thinking blocks
+                document.querySelectorAll('.agent-thinking-block:not([data-finalized="true"])').forEach(thinkingBlock => {
+                    thinkingBlock.dataset.finalized = 'true';
+                    thinkingBlock.classList.remove('streaming');
+                    thinkingBlock.open = false;
 
-        case CHAT_COMMANDS.CHAT_STREAM_CHUNK:
-            if (!activeStreamNode) {
-                hideLoadingIndicator();
-                appendAIMessage(""); // Create empty blank message
+                    // Stop elapsed timer
+                    if (thinkingBlock.dataset.thinkTimer) {
+                        clearInterval(parseInt(thinkingBlock.dataset.thinkTimer));
+                    }
 
-                // Get reference to the newly created blank message
-                const aiMessages = chatbox.querySelectorAll('.system-message .message-text');
-                if (aiMessages.length > 0) {
-                    activeStreamNode = aiMessages[aiMessages.length - 1];
-                }
-            }
+                    const label = thinkingBlock.querySelector('.thinking-label');
+                    const tokens = parseInt(thinkingBlock.dataset.tokens || '0', 10);
+                    const startTime = parseInt(thinkingBlock.dataset.thinkStart || '0', 10);
+                    const elapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
 
-            if (activeStreamNode) {
-                activeStreamAccumulator += message.content;
-
-                // Batch markdown re-parse: only once per animation frame
-                if (!activeStreamNode._renderPending) {
-                    activeStreamNode._renderPending = true;
-                    requestAnimationFrame(() => {
-                        if (activeStreamNode) {
-                            activeStreamNode.innerHTML = marked.parse(activeStreamAccumulator);
-                            activeStreamNode._renderPending = false;
-                            scrollToBottom();
+                    if (label) {
+                        let labelText = elapsed > 0 ? `Thought for ${elapsed}s` : 'Thought process';
+                        if (tokens > 0) {
+                            labelText += ` · ${tokens} tokens`;
                         }
-                    });
-                }
-            }
-
-            // ALWAYS send ACK back — even if rendering failed
-            // Without this, the backend hangs forever waiting for the ACK → deadlock
-            if (message.seq) {
-                sendMessage(CHAT_COMMANDS.CHAT_CHUNK_ACK, { seq: message.seq });
-            }
-            break;
-
-        case CHAT_COMMANDS.CHAT_STREAM_END:
-            hideLoadingIndicator(); // Always hide loading, even if no chunks arrived
-            clearWaitingIndicator(); // Remove any between-step indicator
-
-            // Finalize open agent groups
-            document.querySelectorAll('details.agent-steps-group').forEach(group => {
-                const stepsContainer = group.querySelector('.agent-steps-container');
-                if (stepsContainer && stepsContainer.children.length === 0) {
-                    if (group.dataset.timer) {
-                        clearInterval(parseInt(group.dataset.timer));
+                        label.textContent = labelText;
                     }
-                    group.remove();
-                } else {
-                    if (group.dataset.timer) {
-                        clearInterval(parseInt(group.dataset.timer));
-                        delete group.dataset.timer;
+                });
 
-                        const ms = Date.now() - parseInt(group.dataset.startTime);
-                        const secs = Math.floor(ms / 1000);
-                        const summaryText = group.querySelector('.summary-text');
-                        if (summaryText) {
-                            if (secs === 0) {
-                                summaryText.textContent = `Completed steps`;
-                            } else {
-                                summaryText.textContent = `Worked for ${secs}s`;
-                            }
+                if (activeStreamNode) {
+                    if (!activeStreamAccumulator) {
+                        const parentBubble = activeStreamNode.closest('.system-message');
+                        if (parentBubble) {
+                            parentBubble.remove();
                         }
-                        group.open = false; // Close it to keep UI clean
+                    } else {
+                        // Force a final synchronous render before clearing references
+                        activeStreamNode.innerHTML = marked.parse(activeStreamAccumulator);
+                        activeStreamNode._renderPending = false;
+                        setTimeout(() => {
+                            hljs.highlightAll();
+                            addAllCopyButtons();
+                            scrollToBottom(true);
+                        }, 0);
                     }
-                    group.dataset.finalized = "true";
-                }
-            });
-
-            // #44: Finalize any open thinking blocks
-            document.querySelectorAll('.agent-thinking-block:not([data-finalized="true"])').forEach(thinkingBlock => {
-                thinkingBlock.dataset.finalized = 'true';
-                thinkingBlock.classList.remove('streaming');
-                thinkingBlock.open = false;
-
-                // Stop elapsed timer
-                if (thinkingBlock.dataset.thinkTimer) {
-                    clearInterval(parseInt(thinkingBlock.dataset.thinkTimer));
                 }
 
-                const label = thinkingBlock.querySelector('.thinking-label');
-                const tokens = parseInt(thinkingBlock.dataset.tokens || '0', 10);
-                const startTime = parseInt(thinkingBlock.dataset.thinkStart || '0', 10);
-                const elapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
-
-                if (label) {
-                    let labelText = elapsed > 0 ? `Thought for ${elapsed}s` : 'Thought process';
-                    if (tokens > 0) {
-                        labelText += ` · ${tokens} tokens`;
-                    }
-                    label.textContent = labelText;
+                // #48: Check if AI ended with a question
+                if (activeStreamAccumulator && detectsQuestion(activeStreamAccumulator)) {
+                    // Find active agent name
+                    const agentLabel = document.querySelector('.agent-selector-label');
+                    const agentName = agentLabel ? agentLabel.textContent.trim() : 'Agent';
+                    showQuestionBanner(agentName);
                 }
-            });
 
-            if (activeStreamNode) {
-                if (!activeStreamAccumulator) {
-                    const parentBubble = activeStreamNode.closest('.system-message');
-                    if (parentBubble) {
-                        parentBubble.remove();
-                    }
-                } else {
-                    setTimeout(() => {
-                        hljs.highlightAll();
-                        addAllCopyButtons();
-                    }, 0);
-                }
-            }
-            
-            // #48: Check if AI ended with a question
-            if (activeStreamAccumulator && detectsQuestion(activeStreamAccumulator)) {
-                // Find active agent name
-                const agentLabel = document.querySelector('.agent-selector-label');
-                const agentName = agentLabel ? agentLabel.textContent.trim() : 'Agent';
-                showQuestionBanner(agentName);
-            }
-            
-            activeStreamNode = null;
-            activeStreamAccumulator = "";
-            isGenerating = false;
-            toggleSendButton("off");
-            break;
+                activeStreamNode = null;
+                activeStreamAccumulator = "";
+                isGenerating = false;
+                toggleSendButton("off");
+                break;
 
-        case CHAT_COMMANDS.CHAT_CONTINUE_PROMPT:
-            {
-                const { chatId, agentId, extraSteps, stepsUsed } = message.data;
-                // Remove any existing continue banner
-                document.querySelectorAll('.continue-banner').forEach(b => b.remove());
+            case CHAT_COMMANDS.CHAT_CONTINUE_PROMPT:
+                {
+                    const { chatId, agentId, extraSteps, stepsUsed } = message.data;
+                    // Remove any existing continue banner
+                    document.querySelectorAll('.continue-banner').forEach(b => b.remove());
 
-                const banner = document.createElement('div');
-                banner.className = 'continue-banner';
-                banner.innerHTML = `
+                    const banner = document.createElement('div');
+                    banner.className = 'continue-banner';
+                    banner.innerHTML = `
                     <div class="continue-banner-content">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
                         <span>Agent reached the step limit (${stepsUsed} steps). There may be more work to do.</span>
@@ -2829,344 +3070,344 @@ window.addEventListener('message', event => {
                         <button class="continue-dismiss-btn" id="dismissContinueBtn">Dismiss</button>
                     </div>
                 `;
-                document.getElementById('chatLog').appendChild(banner);
-                scrollToBottom();
+                    document.getElementById('chatLog').appendChild(banner);
+                    scrollToBottom();
 
-                document.getElementById('continueAgentBtn').addEventListener('click', () => {
-                    banner.remove();
-                    showLoadingIndicator();
-                    isGenerating = true;
-                    toggleSendButton("on");
-                    sendMessage(CHAT_COMMANDS.CHAT_CONTINUE, {
-                        chatId,
-                        agentId
-                    });
-                });
-
-                document.getElementById('dismissContinueBtn').addEventListener('click', () => {
-                    banner.remove();
-                });
-                break;
-            }
-
-        // Case: Resetting the view / New Chat
-        case CHAT_COMMANDS.CHAT_RESET:
-            resetChat(message.content);
-            break;
-
-        // Backend asks frontend to initiate detach (from VS Code header button)
-        case 'requestDetach':
-            if (isGenerating) {
-                // Show inline warning — can't detach during active generation
-                const warnEl = document.createElement('div');
-                warnEl.className = 'detach-warning';
-                warnEl.textContent = 'Cannot detach while a request is in progress. Please wait or stop the request first.';
-                warnEl.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);background:rgba(220,38,38,0.9);color:#fff;padding:8px 16px;border-radius:8px;font-size:0.82rem;z-index:9999;animation:fadeOut 3s forwards;';
-                document.body.appendChild(warnEl);
-                setTimeout(() => warnEl.remove(), 3000);
-                break;
-            }
-            {
-                const chatId = chatLog?.dataset?.chatId || '';
-                // Only detach if there's an actual conversation
-                if (chatId && chatMessages.children.length > 0) {
-                    sendMessage('detachChat', { chatId });
-                } else {
-                    // Nothing to detach — just open a blank popup
-                    sendMessage('detachChat', {});
-                }
-            }
-            break;
-
-        // Popup: load a conversation by emulating history click
-        case 'loadChatInPopup':
-            if (message.chatId) {
-                sendMessage(CHAT_COMMANDS.CHAT_LOAD, { chatId: message.chatId });
-            }
-            break;
-
-        case CHAT_COMMANDS.HISTORY_LOAD:
-            showHistoryView(message.content); // Call the global function
-            break;
-
-        // TODO: Implement file context handling
-        case CHAT_COMMANDS.FILE_CONTEXT_ADDED:
-            const fileData = message.content;
-            insertInlineFile(fileData.name, fileData.text, fileData.language, fileData.path);
-            break;
-
-        case CHAT_COMMANDS.IMAGE_CONTEXT_ADDED:
-            const imgData = message.content;
-            insertInlineImage(imgData.dataUrl, imgData.name);
-            break;
-
-        case CHAT_COMMANDS.PROBLEM_CONTEXT_ADDED:
-            const problemData = message.content;
-            insertInlineFile(problemData.name, problemData.text, problemData.language, problemData.path);
-            break;
-
-        case CHAT_COMMANDS.CHAT_AGENT_STEP:
-            renderAgentStep(message.content);
-            break;
-
-        case CHAT_COMMANDS.CHAT_APPROVAL_UPDATE:
-            {
-                const { toolCallId, approved } = message.data;
-                updateCardApproval(toolCallId, approved);
-                break;
-            }
-
-        case 'chatStagingUpdate':
-            updateStagingBar(message.content.stagedFilesCount);
-            // Update header pill
-            const reviewPill = document.getElementById('count-reviews');
-            if (reviewPill) {
-                reviewPill.textContent = message.content.stagedFilesCount;
-            }
-            break;
-
-        case 'chatUsageUpdate':
-            const tokenPill = document.getElementById('count-tokens');
-            if (tokenPill && message.usage) {
-                const total = message.usage.totalTokens || 0;
-                tokenPill.textContent = total > 1000 ? (total / 1000).toFixed(1) + 'k' : total;
-            }
-            break;
-
-        case 'reviewHunksData':
-            if (hunkReviewState) {
-                // Update state in place for real-time refresh
-                hunkReviewState.files = (message.content || []).map(f => ({
-                    ...f,
-                    hunks: (f.hunks || []).map(h => ({ ...h, accepted: true }))
-                }));
-                renderHunkReviewPanel();
-            } else if (message.openPanel && message.content && message.content.length > 0) {
-                // Explicit user request to open the panel
-                openHunkReviewPanel(message.content);
-            }
-            break;
-
-        case 'uiSettingsUpdate':
-            applyUISettings(message.ui);
-            break;
-
-        case 'improvedPrompt':
-            {
-                const generateBtn = document.getElementById('generateButton');
-                if (generateBtn) generateBtn.classList.remove('loading');
-                
-                const input = document.getElementById('messageInput');
-                if (input && message.content) {
-                    input.focus();
-                    document.execCommand('selectAll', false, null);
-                    document.execCommand('insertText', false, message.content);
-                }
-            }
-            break;
-
-        case 'suggestPromptsResult':
-            {
-                const generateBtn = document.getElementById('generateButton');
-                if (generateBtn) generateBtn.classList.remove('loading');
-
-                const suggestions = message.suggestions || [];
-                if (suggestions.length > 0) {
-                    // Remove existing chips
-                    const existing = document.querySelector('.prompt-suggestion-chips');
-                    if (existing) existing.remove();
-
-                    const chipsContainer = document.createElement('div');
-                    chipsContainer.className = 'prompt-suggestion-chips';
-
-                    suggestions.forEach(text => {
-                        const chip = document.createElement('button');
-                        chip.className = 'suggestion-chip';
-                        chip.textContent = text;
-                        chip.addEventListener('click', () => {
-                            const input = document.getElementById('messageInput');
-                            if (input) {
-                                input.innerText = text;
-                                input.focus();
-                                const range = document.createRange();
-                                const sel = window.getSelection();
-                                range.selectNodeContents(input);
-                                range.collapse(false);
-                                sel.removeAllRanges();
-                                sel.addRange(range);
-                            }
-                            chipsContainer.remove();
+                    document.getElementById('continueAgentBtn').addEventListener('click', () => {
+                        banner.remove();
+                        showLoadingIndicator();
+                        isGenerating = true;
+                        toggleSendButton("on");
+                        sendMessage(CHAT_COMMANDS.CHAT_CONTINUE, {
+                            chatId,
+                            agentId
                         });
-                        chipsContainer.appendChild(chip);
                     });
 
-                    // Insert chips above the input container
-                    const editorWrapper = document.querySelector('.editor-wrapper');
-                    if (editorWrapper) {
-                        editorWrapper.insertBefore(chipsContainer, editorWrapper.querySelector('.unified-input-container'));
-                    }
+                    document.getElementById('dismissContinueBtn').addEventListener('click', () => {
+                        banner.remove();
+                    });
+                    break;
                 }
-            }
-            break;
 
-        case 'fileSaveStatus':
-            if (hunkReviewState && message.content) {
-                const file = hunkReviewState.files.find(f => f.uri === message.content.uri);
-                if (file) {
-                    file.savedByUser = true;
-                    renderHunkReviewPanel();
-                }
-            }
-            break;
+            // Case: Resetting the view / New Chat
+            case CHAT_COMMANDS.CHAT_RESET:
+                resetChat(message.content);
+                break;
 
-        case 'indexUpdate':
-            {
-                const indexPill = document.getElementById('count-index');
-                if (indexPill && message.content) {
-                    indexPill.textContent = message.content.fileCount || '0';
-                    const pillEl = document.getElementById('pill-index');
-                    if (pillEl) {
-                        pillEl.title = `Workspace Index: ${message.content.fileCount} files — Last updated: ${new Date(message.content.lastUpdated).toLocaleTimeString()} — Click to View`;
+            // Backend asks frontend to initiate detach (from VS Code header button)
+            case 'requestDetach':
+                if (isGenerating) {
+                    // Show inline warning — can't detach during active generation
+                    const warnEl = document.createElement('div');
+                    warnEl.className = 'detach-warning';
+                    warnEl.textContent = 'Cannot detach while a request is in progress. Please wait or stop the request first.';
+                    warnEl.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);background:rgba(220,38,38,0.9);color:#fff;padding:8px 16px;border-radius:8px;font-size:0.82rem;z-index:9999;animation:fadeOut 3s forwards;';
+                    document.body.appendChild(warnEl);
+                    setTimeout(() => warnEl.remove(), 3000);
+                    break;
+                }
+                {
+                    const chatId = chatLog?.dataset?.chatId || '';
+                    // Only detach if there's an actual conversation
+                    if (chatId && chatMessages.children.length > 0) {
+                        sendMessage('detachChat', { chatId });
+                    } else {
+                        // Nothing to detach — just open a blank popup
+                        sendMessage('detachChat', {});
                     }
-                }
-                // Store the file list for the viewer
-                if (message.content && message.content.fileList) {
-                    window._indexedFiles = message.content.fileList;
-                    window._indexLastUpdated = message.content.lastUpdated;
-                }
-                // Open the viewer if requested
-                if (message.content && message.content.showViewer) {
-                    openIndexViewer(message.content.fileList || [], message.content.fileCount, message.content.lastUpdated);
                 }
                 break;
-            }
 
-        case 'agentsUpdate':
-            if (window.VS_CONSTANTS) {
-                window.VS_CONSTANTS.AGENTS = message.agents;
-            }
-            renderAgentDropdown(message.agents);
-            // On first load, auto-select the first active agent instead of "Chat"
-            if (activeAgentId === 'default' && message.agents && message.agents.length > 0) {
-                const firstActive = message.agents.find(a => a.isActive);
-                if (firstActive) {
-                    activeAgentId = firstActive.id;
-                    persistAgentSelection();
+            // Popup: load a conversation by emulating history click
+            case 'loadChatInPopup':
+                if (message.chatId) {
+                    sendMessage(CHAT_COMMANDS.CHAT_LOAD, { chatId: message.chatId });
                 }
-            }
-            updateActiveAgentUI(activeAgentId, message.agents);
-            break;
+                break;
 
-        case 'modelsUpdate':
-            if (message.models) {
+            case CHAT_COMMANDS.HISTORY_LOAD:
+                showHistoryView(message.content); // Call the global function
+                break;
+
+            // TODO: Implement file context handling
+            case CHAT_COMMANDS.FILE_CONTEXT_ADDED:
+                const fileData = message.content;
+                insertInlineFile(fileData.name, fileData.text, fileData.language, fileData.path);
+                break;
+
+            case CHAT_COMMANDS.IMAGE_CONTEXT_ADDED:
+                const imgData = message.content;
+                insertInlineImage(imgData.dataUrl, imgData.name);
+                break;
+
+            case CHAT_COMMANDS.PROBLEM_CONTEXT_ADDED:
+                const problemData = message.content;
+                insertInlineFile(problemData.name, problemData.text, problemData.language, problemData.path);
+                break;
+
+            case CHAT_COMMANDS.CHAT_AGENT_STEP:
+                renderAgentStep(message.content);
+                break;
+
+            case CHAT_COMMANDS.CHAT_APPROVAL_UPDATE:
+                {
+                    const { toolCallId, approved } = message.data;
+                    updateCardApproval(toolCallId, approved);
+                    break;
+                }
+
+            case 'chatStagingUpdate':
+                updateStagingBar(message.content.stagedFilesCount);
+                // Update header pill
+                const reviewPill = document.getElementById('count-reviews');
+                if (reviewPill) {
+                    reviewPill.textContent = message.content.stagedFilesCount;
+                }
+                break;
+
+            case 'chatUsageUpdate':
+                const tokenPill = document.getElementById('count-tokens');
+                if (tokenPill && message.usage) {
+                    const total = message.usage.totalTokens || 0;
+                    tokenPill.textContent = total > 1000 ? (total / 1000).toFixed(1) + 'k' : total;
+                }
+                break;
+
+            case 'reviewHunksData':
+                if (hunkReviewState) {
+                    // Update state in place for real-time refresh
+                    hunkReviewState.files = (message.content || []).map(f => ({
+                        ...f,
+                        hunks: (f.hunks || []).map(h => ({ ...h, accepted: true }))
+                    }));
+                    renderHunkReviewPanel();
+                } else if (message.openPanel && message.content && message.content.length > 0) {
+                    // Explicit user request to open the panel
+                    openHunkReviewPanel(message.content);
+                }
+                break;
+
+            case 'uiSettingsUpdate':
+                applyUISettings(message.ui);
+                break;
+
+            case 'improvedPrompt':
+                {
+                    const generateBtn = document.getElementById('generateButton');
+                    if (generateBtn) generateBtn.classList.remove('loading');
+
+                    const input = document.getElementById('messageInput');
+                    if (input && message.content) {
+                        input.focus();
+                        document.execCommand('selectAll', false, null);
+                        document.execCommand('insertText', false, message.content);
+                    }
+                }
+                break;
+
+            case 'suggestPromptsResult':
+                {
+                    const generateBtn = document.getElementById('generateButton');
+                    if (generateBtn) generateBtn.classList.remove('loading');
+
+                    const suggestions = message.suggestions || [];
+                    if (suggestions.length > 0) {
+                        // Remove existing chips
+                        const existing = document.querySelector('.prompt-suggestion-chips');
+                        if (existing) existing.remove();
+
+                        const chipsContainer = document.createElement('div');
+                        chipsContainer.className = 'prompt-suggestion-chips';
+
+                        suggestions.forEach(text => {
+                            const chip = document.createElement('button');
+                            chip.className = 'suggestion-chip';
+                            chip.textContent = text;
+                            chip.addEventListener('click', () => {
+                                const input = document.getElementById('messageInput');
+                                if (input) {
+                                    input.innerText = text;
+                                    input.focus();
+                                    const range = document.createRange();
+                                    const sel = window.getSelection();
+                                    range.selectNodeContents(input);
+                                    range.collapse(false);
+                                    sel.removeAllRanges();
+                                    sel.addRange(range);
+                                }
+                                chipsContainer.remove();
+                            });
+                            chipsContainer.appendChild(chip);
+                        });
+
+                        // Insert chips above the input container
+                        const editorWrapper = document.querySelector('.editor-wrapper');
+                        if (editorWrapper) {
+                            editorWrapper.insertBefore(chipsContainer, editorWrapper.querySelector('.unified-input-container'));
+                        }
+                    }
+                }
+                break;
+
+            case 'fileSaveStatus':
+                if (hunkReviewState && message.content) {
+                    const file = hunkReviewState.files.find(f => f.uri === message.content.uri);
+                    if (file) {
+                        file.savedByUser = true;
+                        renderHunkReviewPanel();
+                    }
+                }
+                break;
+
+            case 'indexUpdate':
+                {
+                    const indexPill = document.getElementById('count-index');
+                    if (indexPill && message.content) {
+                        indexPill.textContent = message.content.fileCount || '0';
+                        const pillEl = document.getElementById('pill-index');
+                        if (pillEl) {
+                            pillEl.title = `Workspace Index: ${message.content.fileCount} files — Last updated: ${new Date(message.content.lastUpdated).toLocaleTimeString()} — Click to View`;
+                        }
+                    }
+                    // Store the file list for the viewer
+                    if (message.content && message.content.fileList) {
+                        window._indexedFiles = message.content.fileList;
+                        window._indexLastUpdated = message.content.lastUpdated;
+                    }
+                    // Open the viewer if requested
+                    if (message.content && message.content.showViewer) {
+                        openIndexViewer(message.content.fileList || [], message.content.fileCount, message.content.lastUpdated);
+                    }
+                    break;
+                }
+
+            case 'agentsUpdate':
                 if (window.VS_CONSTANTS) {
-                    window.VS_CONSTANTS.MODELS = message.models;
-                    if (message.customModels) {
-                        window.VS_CONSTANTS.CUSTOM_MODELS = message.customModels;
-                    }
-                    if (message.availableModels) {
-                        window.VS_CONSTANTS.AVAILABLE_MODELS = message.availableModels;
+                    window.VS_CONSTANTS.AGENTS = message.agents;
+                }
+                renderAgentDropdown(message.agents);
+                // On first load, auto-select the first active agent instead of "Chat"
+                if (activeAgentId === 'default' && message.agents && message.agents.length > 0) {
+                    const firstActive = message.agents.find(a => a.isActive);
+                    if (firstActive) {
+                        activeAgentId = firstActive.id;
+                        persistAgentSelection();
                     }
                 }
-                MODELS = message.models;
-                initModelDropdown();
-            }
-            break;
+                updateActiveAgentUI(activeAgentId, message.agents);
+                break;
 
-        case CHAT_COMMANDS.CHAT_STATE_REHYDRATE:
-            rehydrateState(message.content);
-            break;
-
-        // Live settings sync — apply all changes immediately from settings panel
-        case 'settingsChanged':
-            {
-                const s = message.settings;
-                if (!s) break;
-
-                // 1. Models + Custom Models
-                if (s.models) {
-                    MODELS = s.models;
+            case 'modelsUpdate':
+                if (message.models) {
                     if (window.VS_CONSTANTS) {
-                        window.VS_CONSTANTS.MODELS = s.models;
+                        window.VS_CONSTANTS.MODELS = message.models;
+                        if (message.customModels) {
+                            window.VS_CONSTANTS.CUSTOM_MODELS = message.customModels;
+                        }
+                        if (message.availableModels) {
+                            window.VS_CONSTANTS.AVAILABLE_MODELS = message.availableModels;
+                        }
                     }
-                }
-                // Always sync customModels (deletions, additions, active toggles)
-                if (window.VS_CONSTANTS) {
-                    window.VS_CONSTANTS.CUSTOM_MODELS = s.customModels || [];
-                }
-                // Refresh model dropdown if we have model data
-                if (s.models) {
+                    MODELS = message.models;
                     initModelDropdown();
                 }
+                break;
 
-                // 2. Permissions
-                if (s.permissions) {
-                    PERMISSIONS = s.permissions;
-                    if (window.VS_CONSTANTS) window.VS_CONSTANTS.PERMISSIONS = s.permissions;
-                    // Refresh permission UI
-                    const isAP = s.permissions.alwaysProceed === true;
-                    if (tbAlwaysProceed) tbAlwaysProceed.checked = isAP;
-                    if (tbReadPerm) {
-                        tbReadPerm.value = isAP ? 'auto' : (s.permissions.readFilesConfirmation ? 'ask' : 'auto');
-                        tbReadPerm.disabled = isAP;
-                        tbReadPerm.style.opacity = isAP ? '0.4' : '1';
+            case CHAT_COMMANDS.CHAT_STATE_REHYDRATE:
+                rehydrateState(message.content);
+                break;
+
+            // Live settings sync — apply all changes immediately from settings panel
+            case 'settingsChanged':
+                {
+                    const s = message.settings;
+                    if (!s) break;
+
+                    // 1. Models + Custom Models
+                    if (s.models) {
+                        MODELS = s.models;
+                        if (window.VS_CONSTANTS) {
+                            window.VS_CONSTANTS.MODELS = s.models;
+                        }
                     }
-                    if (tbWritePerm) {
-                        tbWritePerm.value = isAP ? 'auto' : (s.permissions.writeFilesConfirmation ? 'ask' : 'auto');
-                        tbWritePerm.disabled = isAP;
-                        tbWritePerm.style.opacity = isAP ? '0.4' : '1';
+                    // Always sync customModels (deletions, additions, active toggles)
+                    if (window.VS_CONSTANTS) {
+                        window.VS_CONSTANTS.CUSTOM_MODELS = s.customModels || [];
                     }
-                    if (tbCmdPerm) {
-                        tbCmdPerm.value = isAP ? 'auto' : (s.permissions.runCommandsConfirmation ? 'ask' : 'auto');
-                        tbCmdPerm.disabled = isAP;
-                        tbCmdPerm.style.opacity = isAP ? '0.4' : '1';
+                    // Refresh model dropdown if we have model data
+                    if (s.models) {
+                        initModelDropdown();
+                    }
+
+                    // 2. Permissions
+                    if (s.permissions) {
+                        PERMISSIONS = s.permissions;
+                        if (window.VS_CONSTANTS) window.VS_CONSTANTS.PERMISSIONS = s.permissions;
+                        // Refresh permission UI
+                        const isAP = s.permissions.alwaysProceed === true;
+                        if (tbAlwaysProceed) tbAlwaysProceed.checked = isAP;
+                        if (tbReadPerm) {
+                            tbReadPerm.value = isAP ? 'auto' : (s.permissions.readFilesConfirmation ? 'ask' : 'auto');
+                            tbReadPerm.disabled = isAP;
+                            tbReadPerm.style.opacity = isAP ? '0.4' : '1';
+                        }
+                        if (tbWritePerm) {
+                            tbWritePerm.value = isAP ? 'auto' : (s.permissions.writeFilesConfirmation ? 'ask' : 'auto');
+                            tbWritePerm.disabled = isAP;
+                            tbWritePerm.style.opacity = isAP ? '0.4' : '1';
+                        }
+                        if (tbCmdPerm) {
+                            tbCmdPerm.value = isAP ? 'auto' : (s.permissions.runCommandsConfirmation ? 'ask' : 'auto');
+                            tbCmdPerm.disabled = isAP;
+                            tbCmdPerm.style.opacity = isAP ? '0.4' : '1';
+                        }
+                    }
+
+                    // 3. Agents
+                    if (s.prompts) {
+                        if (window.VS_CONSTANTS) window.VS_CONSTANTS.AGENTS = s.prompts;
+                        renderAgentDropdown(s.prompts);
+                        updateActiveAgentUI(activeAgentId, s.prompts);
+                    }
+
+                    // 4. UI (CSS + allowExternalMedia)
+                    if (s.ui) {
+                        applyUISettings(s.ui);
+                        applyExternalMediaSetting(s.ui.allowExternalMedia);
                     }
                 }
+                break;
 
-                // 3. Agents
-                if (s.prompts) {
-                    if (window.VS_CONSTANTS) window.VS_CONSTANTS.AGENTS = s.prompts;
-                    renderAgentDropdown(s.prompts);
-                    updateActiveAgentUI(activeAgentId, s.prompts);
+            default:
+                console.error('Unknown command:', message.command);
+        }
+    });
+
+    function rehydrateState(data) {
+        const { chatId, messages, stagedFilesCount, agentId } = data;
+
+        // 1. Reset the UI for the chat ID
+        resetChat({ uid: chatId, agentId: agentId });
+
+        // 2. Add all messages
+        if (messages && Array.isArray(messages)) {
+            messages.forEach(msg => {
+                if (msg.role === ROLE.USER) {
+                    appendUserMessage(msg.message, msg.images || [], []);
+                } else {
+                    appendAIMessage(msg.message);
                 }
+            });
+        }
 
-                // 4. UI (CSS + allowExternalMedia)
-                if (s.ui) {
-                    applyUISettings(s.ui);
-                    applyExternalMediaSetting(s.ui.allowExternalMedia);
-                }
-            }
-            break;
+        // 3. Update staging bar
+        updateStagingBar(stagedFilesCount);
 
-        default:
-            console.error('Unknown command:', message.command);
+        // 4. Highlight code
+        setTimeout(() => {
+            if (typeof hljs !== 'undefined') hljs.highlightAll();
+            addAllCopyButtons();
+            scrollToBottom();
+        }, 100);
     }
-});
-
-function rehydrateState(data) {
-    const { chatId, messages, stagedFilesCount, agentId } = data;
-
-    // 1. Reset the UI for the chat ID
-    resetChat({ uid: chatId, agentId: agentId });
-
-    // 2. Add all messages
-    if (messages && Array.isArray(messages)) {
-        messages.forEach(msg => {
-            if (msg.role === ROLE.USER) {
-                appendUserMessage(msg.message, msg.images || [], []);
-            } else {
-                appendAIMessage(msg.message);
-            }
-        });
-    }
-
-    // 3. Update staging bar
-    updateStagingBar(stagedFilesCount);
-
-    // 4. Highlight code
-    setTimeout(() => {
-        if (typeof hljs !== 'undefined') hljs.highlightAll();
-        addAllCopyButtons();
-        scrollToBottom();
-    }, 100);
-}

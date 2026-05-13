@@ -398,11 +398,18 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
             {
                 const chatId = message.data.chat_id;
                 const deleteCount = message.data.count ?? 2;
+                const userMsgIdx = message.data.userMsgIdx;
                 const overrideMessage = message.data.overrideMessage ?? null;
                 const retryAgentId = message.data.agentId || null;
 
                 // 1. Delete messages from history, get the original user text back
-                const lastUserMessage = await historyService.deleteLastMessages(chatId, deleteCount);
+                let lastUserMessage = null;
+                if (userMsgIdx !== undefined) {
+                    lastUserMessage = await historyService.deleteFromUserMessageIndex(chatId, userMsgIdx);
+                } else {
+                    lastUserMessage = await historyService.deleteLastMessages(chatId, deleteCount);
+                }
+                
                 const messageToSend = overrideMessage || lastUserMessage;
                 if (!messageToSend) {
                     // No message recovered — cancel the loading state cleanly
@@ -1124,9 +1131,10 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
 
         case 'refreshIndex':
             {
+                const chatId = message.data?.chatId;
                 const { WorkspaceIndexService } = require('../services/workspace-index');
                 const wsIndex = new WorkspaceIndexService();
-                await wsIndex.refresh();
+                await wsIndex.refresh(chatId);
                 const fileCount = wsIndex.getFileList().length;
                 const fileList = wsIndex.getFileList();
                 outputChannel.appendLine(`[Index] Manual refresh: ${fileCount} files indexed.`);
@@ -1143,9 +1151,10 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
 
         case 'viewIndex':
             {
+                const chatId = message.data?.chatId;
                 const { WorkspaceIndexService } = require('../services/workspace-index');
                 const wsIndex = new WorkspaceIndexService();
-                await wsIndex.refresh();
+                await wsIndex.refresh(chatId);
                 const fileCount = wsIndex.getFileList().length;
                 const fileList = wsIndex.getFileList();
 
@@ -1168,10 +1177,14 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
 
                 const { aiRequest } = require('../api/ai');
                 const appSettings = settingsManager.getSettings();
-                const provider = appSettings.models.provider;
-                const pConfig = appSettings.models.providerSettings?.[provider] || {};
-                const apiKey = pConfig.apiKey || appSettings.models.apiKey || '';
                 const model = appSettings.models.textModel;
+                const customModel = (appSettings.customModels || []).find((cm: any) => cm.name === model);
+
+                const provider = customModel?.provider || appSettings.models.provider;
+                const pConfig = appSettings.models.providerSettings?.[provider] || {};
+
+                const apiKey = customModel?.apiKey || pConfig.apiKey || appSettings.models.apiKey || '';
+                const baseUrl = customModel?.baseUrl || pConfig.baseUrl || '';
 
                 outputChannel.appendLine(`[ImprovePrompt] Optimizing draft: "${userDraft.substring(0, 50)}..."`);
 
@@ -1179,7 +1192,7 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                     const result = await aiRequest([
                         { role: 'system', content: `You are a prompt optimizer. Given a user's draft prompt and their project file tree, rewrite it to be clearer, more specific, and actionable for an AI coding assistant. Output ONLY the improved prompt text, nothing else. Do not use quotes around the output.` },
                         { role: 'user', content: `Draft prompt: "${userDraft}"\n\nProject files:\n${fileTree}` }
-                    ], model, apiKey, 0.7, provider, pConfig.baseUrl || '');
+                    ], model, apiKey, 0.7, provider, baseUrl);
 
                     await post({
                         command: 'improvedPrompt',
@@ -1205,18 +1218,22 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
 
                 const { aiRequest } = require('../api/ai');
                 const appSettings = settingsManager.getSettings();
-                const provider = appSettings.models.provider;
-                const pConfig = appSettings.models.providerSettings?.[provider] || {};
-                const apiKey = pConfig.apiKey || appSettings.models.apiKey || '';
                 const model = appSettings.models.textModel;
+                const customModel = (appSettings.customModels || []).find((cm: any) => cm.name === model);
+
+                const provider = customModel?.provider || appSettings.models.provider;
+                const pConfig = appSettings.models.providerSettings?.[provider] || {};
+
+                const apiKey = customModel?.apiKey || pConfig.apiKey || appSettings.models.apiKey || '';
+                const baseUrl = customModel?.baseUrl || pConfig.baseUrl || '';
 
                 outputChannel.appendLine(`[SuggestPrompts] Generating prompt ideas...`);
 
                 try {
                     const result = await aiRequest([
-                        { role: 'system', content: `You are a prompt idea generator for an AI coding assistant. Given a project's file tree, suggest exactly 3 concise, actionable task prompts that would be useful for the developer. Output ONLY a JSON array of 3 strings. Example: ["Add unit tests for the auth module", "Refactor the API error handling", "Add TypeScript types to utils.js"]. No markdown, no explanation.` },
+                        { role: 'system', content: `You are a prompt optimizer. Analyze the project file tree and suggest 3 short, actionable tasks the user might want to do next. Output ONLY the 3 suggestions as a JSON array of strings.` },
                         { role: 'user', content: `Project files:\n${fileTree}` }
-                    ], model, apiKey, 0.7, provider, pConfig.baseUrl || '');
+                    ], model, apiKey, 0.7, provider, baseUrl);
 
                     let suggestions: string[] = [];
                     try {
