@@ -226,7 +226,7 @@ export class ChatCoreService {
             const providerConfig = appSettings.models.providerSettings?.[activeProvider] || appSettings.models.providerSettings?.[globalProvider];
 
             let apiKey = customModel?.apiKey || providerConfig?.apiKey || appSettings.models.apiKey || '';
-            
+
             // AGGRESSIVE FALLBACK: If the API key is still missing, search for ANY custom model 
             // or provider config that belongs to the same provider and has an API key.
             // This fixes the issue where a user enters their key for "gemini-3.1-flash" but 
@@ -246,7 +246,7 @@ export class ChatCoreService {
                         }
                     }
                 }
-                
+
                 // ULTIMATE FALLBACK: Check VS Code global configuration directly as a last resort
                 if (!apiKey) {
                     const config = vscode.workspace.getConfiguration('aiCompanion');
@@ -283,7 +283,7 @@ export class ChatCoreService {
                 } else {
                     collectedAgentSteps.push(step);
                 }
-                
+
                 // Still fire the event for real-time streaming to the UI
                 if (onAgentStep) {
                     onAgentStep(step);
@@ -326,7 +326,7 @@ export class ChatCoreService {
             if (abortController.signal.aborted) {
                 const isTimeout = (abortController.signal as any)._isTimeout;
                 const msg = isTimeout ? '⚠️ *Agent timed out waiting for API response.*' : '*Agent stopped.*';
-                
+
                 outputChannel.appendLine(`[ChatCore] Request explicitly aborted by user for chatId=${data.chat_id}`);
                 aiResponseText = msg;
                 if (onChunk) { onChunk(`\n\n${msg}`); }
@@ -479,7 +479,7 @@ export class ChatCoreService {
             const fs = require('fs');
             const path = require('path');
             const manifest: string[] = [];
-            
+
             const scanDir = (dirPath: string, scope: string) => {
                 if (fs.existsSync(dirPath)) {
                     try {
@@ -565,6 +565,8 @@ WORKFLOW:
 
 CRITICAL RULES:
 - You are an AUTONOMOUS AGENT. ALWAYS prefer tool calls over text responses.
+- DO NOT EXPLAIN OR NARRATE YOUR ACTIONS. Do not say "I will now do X". Just act using tools.
+- DO NOT ASK UNNECESSARY QUESTIONS. Make reasonable assumptions and proceed autonomously unless blocked by a critical ambiguity.
 - NEVER use run_command for file viewing, searching, or editing (e.g. do not use 'cat', 'ls', 'grep', 'sed'). ALWAYS use the dedicated built-in tools (search_workspace, read_file_skeleton, chunk_replace) first.
 - NEVER output code blocks in chat. Use create_file or chunk_replace to write code DIRECTLY.
 - NEVER give step-by-step instructions. YOU execute the steps yourself using tools.
@@ -1253,7 +1255,7 @@ CRITICAL RULES:
                     summarized[key] = result[key];
                     continue;
                 }
-                
+
                 const val = result[key];
                 if (typeof val === 'string') {
                     // run_command output needs to be longer for the UI terminal snippet
