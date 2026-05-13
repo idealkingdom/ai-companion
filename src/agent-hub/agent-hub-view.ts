@@ -529,6 +529,16 @@ export class AgentHubView {
                     ? `\n\nThe following knowledge sources are linked to this agent:\n\n${linkedContent.join('\n\n---\n\n')}`
                     : '';
 
+                const toolsContext = `
+The agent will have access to the following built-in tools. Please encourage the agent to use these native tools instead of terminal commands when applicable:
+- list_workspace, search_workspace, find_symbol, get_workspace_problems
+- read_file_skeleton, read_line_range
+- create_file, chunk_replace
+- read_artifact, manage_artifact
+- run_command
+- web_search, scrape_url
+- plan_task, update_task_progress, verify_completion`;
+
                 const aiMessages = [
                     {
                         role: 'system',
@@ -536,18 +546,26 @@ export class AgentHubView {
                     },
                     {
                         role: 'user',
-                        content: `Agent name: "${agent5.name}"\nCurrent system prompt: "${agent5.content}"${sourceContext}\n\nGenerate an improved, detailed system prompt for this agent. The prompt should:\n- Define the agent's role and expertise clearly\n- Incorporate knowledge from linked sources if available\n- Be professional and actionable\n- Be 100-500 words`
+                        content: `Agent name: "${agent5.name}"\nCurrent system prompt: "${agent5.content}"${sourceContext}${toolsContext}\n\nGenerate an improved, detailed system prompt for this agent. The prompt should:\n- Define the agent's role and expertise clearly\n- Incorporate knowledge from linked sources if available\n- Be professional and actionable\n- Be 100-500 words`
                     }
                 ];
 
                 try {
-                    const { openAIRequest } = require('../api/ai');
-                    const result = await openAIRequest(
+                    const { aiRequest } = require('../api/ai');
+                    const model = settings5.models.textModel;
+                    const customModel = (settings5.customModels || []).find((cm: any) => cm.name === model);
+                    const provider = customModel?.provider || settings5.models.provider || 'OpenAI';
+                    const pConfig = settings5.models.providerSettings?.[provider] || {};
+                    const apiKey = customModel?.apiKey || pConfig.apiKey || settings5.models.apiKey || '';
+                    const baseUrl = customModel?.baseUrl || pConfig.baseUrl || '';
+
+                    const result = await aiRequest(
                         aiMessages,
-                        settings5.models.textModel,
-                        settings5.models.apiKey,
+                        model,
+                        apiKey,
                         0.7,
-                        settings5.models.baseUrl || undefined
+                        provider,
+                        baseUrl
                     );
 
                     if (result.content) {
@@ -629,10 +647,12 @@ export class AgentHubView {
 
                 try {
                     const { aiRequest } = require('../api/ai');
-                    const providerName = settings.models.provider || 'OpenAI';
-                    const pConfig = settings.models.providerSettings?.[providerName] || {};
-                    const apiKey = pConfig.apiKey || settings.models.apiKey || '';
-                    const baseUrl = pConfig.baseUrl || '';
+                    const model = settings.models.textModel;
+                    const customModel = (settings.customModels || []).find((cm: any) => cm.name === model);
+                    const provider = customModel?.provider || settings.models.provider || 'OpenAI';
+                    const pConfig = settings.models.providerSettings?.[provider] || {};
+                    const apiKey = customModel?.apiKey || pConfig.apiKey || settings.models.apiKey || '';
+                    const baseUrl = customModel?.baseUrl || pConfig.baseUrl || '';
 
                     const result = await aiRequest(
                         [
@@ -645,10 +665,10 @@ export class AgentHubView {
                                 content: `Generate a detailed rule for an AI coding assistant based on this rule name: "${rule.name}".\nCurrent content: "${rule.content || '(empty)'}"\n\nThe rule should:\n- Be specific and actionable\n- Cover edge cases\n- Be 50-200 words\n- Use imperative language`
                             }
                         ],
-                        settings.models.textModel,
+                        model,
                         apiKey,
                         0.7,
-                        providerName,
+                        provider,
                         baseUrl
                     );
 
@@ -685,9 +705,11 @@ export class AgentHubView {
             vscode.Uri.joinPath(this._extensionUri, 'webview', 'agent-hub', 'agent-hub.css')
         );
         const htmlPath = vscode.Uri.joinPath(this._extensionUri, 'webview', 'agent-hub', 'index.html');
+        const logoUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'assets', 'logo.png'));
         let html = fs.readFileSync(htmlPath.fsPath, 'utf8');
         html = html.replace('agent-hub.css', styleUri.toString());
         html = html.replace('agent-hub.js', scriptUri.toString());
+        html = html.replace('{{LOGO_URI}}', logoUri.toString());
         return html;
     }
 }
