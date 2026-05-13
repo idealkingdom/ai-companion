@@ -1499,13 +1499,15 @@ function renderAgentStep(step) {
 
         // All tools now show as "Running" initially. 
         // Write tools will quickly flip to "Done" (Staged) when the result arrives.
+        // History steps render directly as "done" — no pulse animation needed.
+        const initialStatus = step._isHistory ? 'done' : 'running';
         if (isGroupedTool) {
             // Grouped tools: simple inline header, no expand/collapse needed
             stepEl.innerHTML = `
                 <div class="step-header">
                     <span class="step-icon">${icon}</span>
                     <span class="step-tool-name">${displayName}</span>
-                    <span class="step-status running"></span>
+                    <span class="step-status ${initialStatus}"></span>
                 </div>
             `;
         } else {
@@ -1514,7 +1516,7 @@ function renderAgentStep(step) {
                 <summary class="step-header">
                     <span class="step-icon">${icon}</span>
                     <span class="step-tool-name">${displayName}</span>
-                    <span class="step-status running"></span>
+                    <span class="step-status ${initialStatus}"></span>
                     <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                 </summary>
                 <div class="step-content">
@@ -1623,8 +1625,9 @@ function renderAgentStep(step) {
         }
 
         // Schedule the waiting indicator — will show "Analyzing..." if
-        // the model takes >1s to decide its next action
-        scheduleWaitingIndicator();
+        // the model takes >1s to decide its next action.
+        // Skip during history replay — all results are already present.
+        if (!step._isHistory) { scheduleWaitingIndicator(); }
         return;
     }
 
@@ -2289,6 +2292,14 @@ function renderAgentStep(step) {
     }
 
     function resetChat(content) {
+        // Clear any outstanding group timers before wiping the DOM
+        // to prevent leaked setInterval callbacks referencing detached nodes
+        document.querySelectorAll('details.agent-steps-group').forEach(group => {
+            if (group.dataset.timer) {
+                clearInterval(parseInt(group.dataset.timer));
+            }
+        });
+        clearWaitingIndicator();
         chatMessages.innerHTML = '';
         chatLog.dataset.chatId = content.uid;
         isGenerating = false;
@@ -2874,6 +2885,12 @@ function renderAgentStep(step) {
                     renderAutocomplete();
                     break;
                 }
+            case CHAT_COMMANDS.CHAT_ID_UPDATE:
+                // When a new chat is started, backend replies with the assigned UUID
+                // We MUST set this immediately so if the user clicks "Stop Request"
+                // during the first turn, the abort command sends the correct ID.
+                chatLog.dataset.chatId = message.content.uid;
+                break;
             case CHAT_COMMANDS.CHAT_REQUEST:
                 hideLoadingIndicator();
                 if (message.role === ROLE.USER) {

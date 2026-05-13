@@ -574,7 +574,13 @@ CRITICAL RULES:
 - Always verify your changes compile and don't introduce workspace problems after editing.
 - Edits are applied DIRECTLY to the file. The user can review changes inline.
 - Use web_search proactively for external libraries or APIs. Don't guess — search first.
-- When multiple independent tool calls can be made, call them ALL AT ONCE in a single step.${todoInstruction}`;
+- When multiple independent tool calls can be made, call them ALL AT ONCE in a single step.${todoInstruction}
+
+CONTEXT PRIORITY:
+- The LAST user message is your CURRENT TASK. Focus all effort on it.
+- Earlier messages in this conversation are BACKGROUND CONTEXT ONLY — they show what was discussed before.
+- Do NOT re-execute, re-explain, or revisit completed tasks from earlier messages unless the user explicitly asks.
+- Treat prior assistant responses as already-delivered work. Your job is the NEW request.`;
 
 
         // Resolve and inject rules (global + agent-linked)
@@ -1231,6 +1237,23 @@ CRITICAL RULES:
 
                 return msg;
             });
+
+        // --- Pass 4: Inject context boundary marker between WARM and HOT tiers ---
+        // This gives the model a clear visual signal: "everything above is background,
+        // everything below is the active conversation."
+        if (nonSystemIndices.length > HOT_COUNT) {
+            // Find the insertion point: right before the first HOT-tier message
+            const hotStartOrigIdx = nonSystemIndices[nonSystemIndices.length - HOT_COUNT];
+            // Find that message's position in the compacted result array
+            const hotMsg = deduped[hotStartOrigIdx];
+            const insertIdx = result.indexOf(hotMsg);
+            if (insertIdx > 0) {
+                result.splice(insertIdx, 0, {
+                    role: 'system' as const,
+                    content: '--- The messages above are prior conversation context. The messages below are the CURRENT conversation. Focus on the user\'s latest request. ---'
+                });
+            }
+        }
 
         const dropped = nonSystemIndices.length - result.filter(m => m.role !== 'system').length;
         if (dropped > 0 || deduped.length !== messages.length) {
