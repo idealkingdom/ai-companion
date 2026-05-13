@@ -225,12 +225,45 @@ export class ChatCoreService {
             const activeProvider = customModel?.provider || globalProvider;
             const providerConfig = appSettings.models.providerSettings?.[activeProvider] || appSettings.models.providerSettings?.[globalProvider];
 
-            const apiKey = customModel?.apiKey || providerConfig?.apiKey || appSettings.models.apiKey || '';
+            let apiKey = customModel?.apiKey || providerConfig?.apiKey || appSettings.models.apiKey || '';
+            
+            // AGGRESSIVE FALLBACK: If the API key is still missing, search for ANY custom model 
+            // or provider config that belongs to the same provider and has an API key.
+            // This fixes the issue where a user enters their key for "gemini-3.1-flash" but 
+            // switching to "gemini-3.1-pro" creates a new model entry with an empty key.
+            if (!apiKey) {
+                const sameProviderModels = (appSettings.customModels || []).filter((cm: any) => cm.provider === activeProvider && cm.apiKey);
+                if (sameProviderModels.length > 0) {
+                    apiKey = sameProviderModels[0].apiKey;
+                } else if (appSettings.models.providerSettings) {
+                    // Try to find ANY provider that might be the same (e.g. 'Google' vs 'Gemini' aliases)
+                    for (const key of Object.keys(appSettings.models.providerSettings)) {
+                        if (key.toLowerCase().includes(activeProvider.toLowerCase()) || activeProvider.toLowerCase().includes(key.toLowerCase())) {
+                            if (appSettings.models.providerSettings[key].apiKey) {
+                                apiKey = appSettings.models.providerSettings[key].apiKey;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // ULTIMATE FALLBACK: Check VS Code global configuration directly as a last resort
+                if (!apiKey) {
+                    const config = vscode.workspace.getConfiguration('aiCompanion');
+                    const configToken = config.get<string>('accessToken');
+                    if (configToken && configToken.trim() !== '') {
+                        apiKey = configToken;
+                    }
+                }
+            }
+
             const apiBaseUrl = customModel?.baseUrl || providerConfig?.baseUrl || '';
             const apiKeyHeader = customModel?.apiKeyHeader || '';
             const azureStyle = customModel?.azureStyle === true;
 
+            // Exhaustive key tracing — diagnose "API key not valid" once and for all
             outputChannel.appendLine(`[ChatCore] Provider=${activeProvider}, model=${targetModel}, hasApiKey=${!!apiKey}, keyLen=${apiKey.length}, baseUrl=${apiBaseUrl || '(default)'}${apiKeyHeader ? `, apiKeyHeader=${apiKeyHeader}` : ''}${azureStyle ? ', azureStyle=true' : ''}${customModel ? `, source=customModel(${customModel.provider})` : ''}`);
+            outputChannel.appendLine(`[ChatCore] Key trace: customModel.apiKey=${customModel?.apiKey ? customModel.apiKey.length + 'chars' : '(empty)'}, providerConfig[${activeProvider}].apiKey=${providerConfig?.apiKey ? providerConfig.apiKey.length + 'chars' : '(empty)'}, models.apiKey=${appSettings.models.apiKey ? appSettings.models.apiKey.length + 'chars' : '(empty)'}, accessToken(old)=${accessToken ? accessToken.length + 'chars' : '(empty)'}`);
 
 
             // ─── DETERMINE MODE: AGENTIC vs STANDARD ────────────────────────
@@ -291,12 +324,12 @@ export class ChatCoreService {
 
         } catch (error: any) {
             if (abortController.signal.aborted) {
+                const isTimeout = (abortController.signal as any)._isTimeout;
+                const msg = isTimeout ? '⚠️ *Agent timed out waiting for API response.*' : '*Agent stopped.*';
+                
                 outputChannel.appendLine(`[ChatCore] Request explicitly aborted by user for chatId=${data.chat_id}`);
-                aiResponseText = '*Agent stopped.*';
-                if (onAgentStep) {
-                    onAgentStep({ type: 'thinking', text: '-- Agent stopped by user' } as any);
-                }
-                if (onChunk) { onChunk('\n\n*Agent stopped.*'); }
+                aiResponseText = msg;
+                if (onChunk) { onChunk(`\n\n${msg}`); }
                 // Usage is still returned via the result — tokens were consumed
                 outputChannel.appendLine(`[ChatCore] Usage on abort: ${totalUsage ? JSON.stringify(totalUsage) : 'none captured'}`);
             } else {
@@ -316,7 +349,7 @@ export class ChatCoreService {
                 // Render error as a regular chat message (not inside thinking block)
                 aiResponseText = `⚠️ **Error:** ${extractedErrorMsg}`;
                 if (onChunk) {
-                    onChunk(aiResponseText);
+                    await onChunk(aiResponseText);
                 }
             }
             await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText, [], [], data.agentId, collectedAgentSteps);
@@ -532,6 +565,7 @@ WORKFLOW:
 
 CRITICAL RULES:
 - You are an AUTONOMOUS AGENT. ALWAYS prefer tool calls over text responses.
+- NEVER use run_command for file viewing, searching, or editing (e.g. do not use 'cat', 'ls', 'grep', 'sed'). ALWAYS use the dedicated built-in tools (search_workspace, read_file_skeleton, chunk_replace) first.
 - NEVER output code blocks in chat. Use create_file or chunk_replace to write code DIRECTLY.
 - NEVER give step-by-step instructions. YOU execute the steps yourself using tools.
 - When editing, provide the EXACT target text to replace (including whitespace).
@@ -713,6 +747,22 @@ CRITICAL RULES:
                         lastStepHadToolCalls = !!(event.toolCalls && event.toolCalls.length > 0);
                         outputChannel.appendLine(`[Agentic] Step ${stepCount} finished (toolCalls: ${lastStepHadToolCalls})`);
 
+                        // Diagnostic: check for Gemini thinking text in step event
+                        if (event.reasoningText) {
+                            outputChannel.appendLine(`[Agentic] StepFinish.reasoningText: ${event.reasoningText.substring(0, 200)}`);
+                        }
+                        if (event.reasoning && Array.isArray(event.reasoning) && event.reasoning.length > 0) {
+                            outputChannel.appendLine(`[Agentic] StepFinish.reasoning[0]: type=${event.reasoning[0]?.type}, text=${(event.reasoning[0]?.text || '').substring(0, 200)}`);
+                            // Stream any non-streamed reasoning to UI live
+                            if (!streamedReasoning && onAgentStep) {
+                                for (const r of event.reasoning) {
+                                    if (r.text) {
+                                        onAgentStep({ type: 'thinking', text: r.text });
+                                    }
+                                }
+                            }
+                        }
+
                         // Note: The UI handles the "waiting" indicator between steps
                         // via a frontend timer — no need for a backend heartbeat here.
 
@@ -722,30 +772,25 @@ CRITICAL RULES:
                         }
 
                         // Stream tool activity to frontend
-                        // AI SDK v6: event has 'toolCalls' array and 'toolResults' array
-                        if (onAgentStep && event.toolCalls && event.toolCalls.length > 0) {
-                            for (const tc of event.toolCalls) {
-                                onAgentStep({
-                                    type: 'tool_call',
-                                    toolName: tc.toolName,
-                                    args: tc.args,
-                                    toolCallId: tc.toolCallId // CRITICAL FIX
-                                });
-                            }
-                        }
+                        // NOTE: tool_call is emitted from the streaming 'tool-call' part (below),
+                        // which fires BEFORE execution starts (present tense: "Reading File").
+                        // We only emit tool_result here (past tense: "Read File") since the step is done.
 
                         if (onAgentStep && event.toolResults && event.toolResults.length > 0) {
                             for (const tr of event.toolResults) {
+                                const rawResult = tr.result !== undefined ? tr.result : (tr as any).output;
+                                const summarized = this.summarizeToolResult(rawResult);
                                 onAgentStep({
                                     type: 'tool_result',
                                     toolName: tr.toolName,
-                                    result: this.summarizeToolResult(tr.result),
+                                    result: summarized,
                                     toolCallId: tr.toolCallId // CRITICAL FIX
                                 });
 
                                 // Test → Fix cycle: surface retry status in the UI
-                                if (tr.toolName === 'run_command' && tr.result?._testCycle) {
-                                    const cycle = tr.result._testCycle;
+                                const resultForCycle = tr.result !== undefined ? tr.result : (tr as any).output;
+                                if (tr.toolName === 'run_command' && resultForCycle?._testCycle) {
+                                    const cycle = resultForCycle._testCycle;
                                     if (cycle.status === 'failed') {
                                         onAgentStep({
                                             type: 'thinking',
@@ -783,12 +828,12 @@ CRITICAL RULES:
                 if (inactivityTimer) { clearTimeout(inactivityTimer); }
                 inactivityTimer = setTimeout(() => {
                     outputChannel.appendLine(`[Agentic] ⚠ Inactivity timeout: no stream event for ${INACTIVITY_TIMEOUT_MS / 1000}s — aborting`);
-                    if (onAgentStep) {
-                        onAgentStep({ type: 'thinking', text: '⚠ Agent timed out waiting for API response.' });
-                    }
                     // Look up the abort controller from the static map
                     const ctrl = ChatCoreService.activeAbortControllers.get(data.chat_id);
-                    if (ctrl) { ctrl.abort(); }
+                    if (ctrl) {
+                        (ctrl.signal as any)._isTimeout = true;
+                        ctrl.abort();
+                    }
                 }, INACTIVITY_TIMEOUT_MS);
             };
             resetInactivityTimer(); // Start the clock
@@ -892,10 +937,8 @@ CRITICAL RULES:
                         break;
 
                     case 'reasoning-delta':
-                        // Reasoning text is already streamed via onChunk → onReasoningChunk
-                        // Just log here for diagnostics, don't send to UI again (prevents duplication)
-                        const reasoningText = (part as any).delta || (part as any).text || '';
-                        outputChannel.appendLine(`[Agentic] >>> REASONING-DELTA: "${reasoningText.substring(0, 50)}..."`);
+                        // Handled by onReasoningChunk callback in ai.ts — do NOT forward here
+                        // to avoid duplicate thinking text in the UI
                         break;
 
                     case 'reasoning-end':
@@ -904,9 +947,37 @@ CRITICAL RULES:
                         break;
 
                     // ─── Tool streaming ──────────────────────────────
-                    case 'tool-call':
-                        outputChannel.appendLine(`[Agentic] Tool call: ${(part as any).toolName}`);
+                    case 'tool-call-streaming-start': {
+                        const tcToolName = (part as any).toolName;
+                        const tcId = (part as any).toolCallId || `stream-${Date.now()}-${tcToolName}`;
+                        outputChannel.appendLine(`[Agentic] Tool call streaming start: ${tcToolName} (id=${tcId})`);
+                        // Emit EARLY so the UI shows the tool card ("Reading Lines") immediately while arguments stream
+                        if (onAgentStep) {
+                            onAgentStep({
+                                type: 'tool_call',
+                                toolName: tcToolName,
+                                toolCallId: tcId,
+                                args: {} // No args parsed yet
+                            });
+                        }
                         break;
+                    }
+                    case 'tool-call': {
+                        const tcToolName = (part as any).toolName;
+                        const tcId = (part as any).toolCallId || `stream-${Date.now()}-${tcToolName}`;
+                        outputChannel.appendLine(`[Agentic] Tool call: ${tcToolName} (id=${tcId})`);
+                        // Emit EARLY so the UI shows present tense ("Reading File") while executing.
+                        // The finish-step handler will later emit tool_result to flip it to past tense.
+                        if (onAgentStep) {
+                            onAgentStep({
+                                type: 'tool_call',
+                                toolName: tcToolName,
+                                toolCallId: tcId,
+                                args: (part as any).args !== undefined ? (part as any).args : (part as any).input
+                            });
+                        }
+                        break;
+                    }
                     case 'tool-result':
                         outputChannel.appendLine(`[Agentic] Tool result received for: ${(part as any).toolName}`);
                         break;
@@ -978,7 +1049,19 @@ CRITICAL RULES:
 
                     for (const step of steps) {
                         // Diagnostic: log step reasoning data
-                        outputChannel.appendLine(`[Agentic] Step reasoning: reasoningText=${(step.reasoningText || '').length} chars, reasoning=${Array.isArray(step.reasoning) ? step.reasoning.length : 0} parts, usage=${JSON.stringify(step.usage)}`);
+                        const stepKeys = Object.keys(step).filter(k => k.includes('reason') || k.includes('think') || k.includes('thought'));
+                        outputChannel.appendLine(`[Agentic] Step reasoning: reasoningText=${(step.reasoningText || '').length} chars, reasoning=${Array.isArray(step.reasoning) ? step.reasoning.length : 0} parts, usage=${JSON.stringify(step.usage)}, reasoningKeys=[${stepKeys.join(',')}]`);
+                        // Deep inspect: check if reasoning is nested in experimental/provider fields
+                        if ((step as any).experimental_providerMetadata) {
+                            outputChannel.appendLine(`[Agentic] Step providerMetadata keys: ${JSON.stringify(Object.keys((step as any).experimental_providerMetadata))}`);
+                        }
+                        if ((step as any).providerMetadata) {
+                            outputChannel.appendLine(`[Agentic] Step providerMetadata keys: ${JSON.stringify(Object.keys((step as any).providerMetadata))}`);
+                        }
+                        // Log reasoning array contents if present
+                        if (step.reasoning && Array.isArray(step.reasoning) && step.reasoning.length > 0) {
+                            outputChannel.appendLine(`[Agentic] Step reasoning[0] type=${(step.reasoning[0] as any).type}, text=${((step.reasoning[0] as any).text || '').substring(0, 100)}`);
+                        }
 
                         // Count reasoning tokens
                         const stepTokens = (step.usage as any)?.outputTokenDetails?.reasoningTokens
@@ -1161,9 +1244,36 @@ CRITICAL RULES:
     private summarizeToolResult(result: any): any {
         if (!result) { return result; }
 
+        if (typeof result === 'object' && !Array.isArray(result)) {
+            // Preserve object structure but truncate large string values
+            const summarized: any = {};
+            for (const key of Object.keys(result)) {
+                // Pass through special hidden fields
+                if (key.startsWith('_')) {
+                    summarized[key] = result[key];
+                    continue;
+                }
+                
+                const val = result[key];
+                if (typeof val === 'string') {
+                    // run_command output needs to be longer for the UI terminal snippet
+                    // The UI itself truncates at 2000 chars, so we pass up to 2500 here
+                    const limit = key === 'output' ? 2500 : 300;
+                    if (val.length > limit) {
+                        summarized[key] = val.substring(0, limit) + `\n... [truncated for UI]`;
+                    } else {
+                        summarized[key] = val;
+                    }
+                } else {
+                    summarized[key] = val; // keep numbers, booleans, etc
+                }
+            }
+            return summarized;
+        }
+
         const str = typeof result === 'string' ? result : JSON.stringify(result);
-        if (str.length > 300) {
-            return str.substring(0, 300) + '...';
+        if (str.length > 500) {
+            return str.substring(0, 500) + '...';
         }
         return result;
     }
