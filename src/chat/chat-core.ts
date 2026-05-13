@@ -405,7 +405,7 @@ export class ChatCoreService {
 
             const apiPayload = [
                 { role: 'system', content: (step as any).content || step },
-                ...this.compactMessages(contextMessages),
+                ...this.compactMessages(contextMessages, 'full'),
                 { role: 'user', content: pipelineContext }
             ];
 
@@ -614,10 +614,12 @@ CONTEXT PRIORITY:
 
         const finalSystemPrompt = agenticSystemPrompt + rulesSection;
 
+        const contextMode = settings.general?.contextMode || 'compact';
+
         // Build payload
         const messages = [
             { role: 'system' as const, content: finalSystemPrompt },
-            ...this.compactMessages(contextMessages),
+            ...this.compactMessages(contextMessages, contextMode),
             { role: 'user' as const, content: currentMessage }
         ];
 
@@ -1161,11 +1163,15 @@ CONTEXT PRIORITY:
      *   WARM  (msgs 7–20)               → Truncated: assistant=600ch, user=400ch, tool=200ch
      *   COLD  (msgs 21+)                → Dropped entirely
      * 
+     * COMPACT mode (recommended for agentic):
+     *   - Strip ALL tool messages (the agent has tools to re-read anything)
+     *   - Keep last 4 user/assistant messages (2 background + 2 active)
+     *   - Truncate background messages aggressively
+     *   - Inject a boundary marker between background and active
+     * 
      * System messages are always kept (but deduplicated).
      */
-    private compactMessages(messages: any[]): any[] {
-        const HOT_COUNT = 6;
-        const WARM_LIMIT = 20;
+    private compactMessages(messages: any[], mode: 'compact' | 'full' = 'compact'): any[] {
 
         // --- Pass 1: Deduplicate system messages ---
         const seenSystemContents = new Set<string>();
@@ -1179,6 +1185,70 @@ CONTEXT PRIORITY:
             }
             return true;
         });
+
+        // ═══════════════════════════════════════════════════════════════
+        // COMPACT MODE — optimized for agentic workflows
+        // ═══════════════════════════════════════════════════════════════
+        if (mode === 'compact') {
+            // Keep only system + user + assistant messages (drop all tool messages)
+            const conversational = deduped.filter(msg => 
+                msg.role === 'system' || msg.role === 'user' || msg.role === 'assistant'
+            );
+
+            // Separate system messages from conversation messages
+            const systemMsgs = conversational.filter(m => m.role === 'system');
+            const nonSystemMsgs = conversational.filter(m => m.role !== 'system');
+
+            // Keep last 4 non-system messages (2 background context + 2 active)
+            const ACTIVE_COUNT = 2;
+            const CONTEXT_COUNT = 2;
+            const totalKeep = ACTIVE_COUNT + CONTEXT_COUNT;
+
+            const kept = nonSystemMsgs.slice(-totalKeep);
+
+            // Truncate background messages (the older ones)
+            const result: any[] = [...systemMsgs];
+            for (let i = 0; i < kept.length; i++) {
+                const msg = kept[i];
+                const isActive = i >= kept.length - ACTIVE_COUNT;
+
+                if (isActive) {
+                    // Active messages: full content
+                    result.push(msg);
+                } else {
+                    // Background messages: aggressive truncation
+                    if (typeof msg.content === 'string' && msg.content.length > 300) {
+                        result.push({ ...msg, content: msg.content.substring(0, 300) + '\n... [prior context — truncated]' });
+                    } else {
+                        result.push(msg);
+                    }
+                }
+            }
+
+            // Inject boundary marker between background and active
+            if (kept.length > ACTIVE_COUNT) {
+                const activeStartIdx = result.length - ACTIVE_COUNT;
+                if (activeStartIdx > 0) {
+                    result.splice(activeStartIdx, 0, {
+                        role: 'system' as const,
+                        content: '--- The messages above are prior conversation context. The messages below are the CURRENT conversation. Focus on the user\'s latest request. ---'
+                    });
+                }
+            }
+
+            const dropped = nonSystemMsgs.length - kept.length;
+            if (dropped > 0) {
+                outputChannel.appendLine(`[Context] Compact mode: ${messages.length} msgs → ${result.length} sent (${dropped} dropped, ${deduped.length - conversational.length} tool msgs stripped)`);
+            }
+
+            return result;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // FULL MODE — original 3-tier sliding window
+        // ═══════════════════════════════════════════════════════════════
+        const HOT_COUNT = 6;
+        const WARM_LIMIT = 20;
 
         // --- Pass 2: Assign tiers based on reverse non-system index ---
         // Count non-system messages from the end to determine tier placement
@@ -1239,12 +1309,8 @@ CONTEXT PRIORITY:
             });
 
         // --- Pass 4: Inject context boundary marker between WARM and HOT tiers ---
-        // This gives the model a clear visual signal: "everything above is background,
-        // everything below is the active conversation."
         if (nonSystemIndices.length > HOT_COUNT) {
-            // Find the insertion point: right before the first HOT-tier message
             const hotStartOrigIdx = nonSystemIndices[nonSystemIndices.length - HOT_COUNT];
-            // Find that message's position in the compacted result array
             const hotMsg = deduped[hotStartOrigIdx];
             const insertIdx = result.indexOf(hotMsg);
             if (insertIdx > 0) {
@@ -1257,7 +1323,7 @@ CONTEXT PRIORITY:
 
         const dropped = nonSystemIndices.length - result.filter(m => m.role !== 'system').length;
         if (dropped > 0 || deduped.length !== messages.length) {
-            outputChannel.appendLine(`[Context] Sliding window: ${messages.length} msgs → ${result.length} sent (${dropped} cold-dropped, ${messages.length - deduped.length} system-deduped)`);
+            outputChannel.appendLine(`[Context] Full mode: ${messages.length} msgs → ${result.length} sent (${dropped} cold-dropped, ${messages.length - deduped.length} system-deduped)`);
         }
 
         return result;

@@ -27,6 +27,7 @@ export interface AppSettings {
         systemPrompt: string;
         temperature: number;
         theme: string;
+        contextMode?: 'compact' | 'full';
     };
     models: {
         textModel: string;
