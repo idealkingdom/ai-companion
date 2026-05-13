@@ -4,7 +4,7 @@ const vscode = acquireVsCodeApi();
 
 // --- STATE ---
 let currentSettings = {
-    general: { aggressiveAgentic: false, systemPrompt: '' },
+    general: { aggressiveAgentic: false, systemPrompt: '', contextMode: 'compact' },
     models: {
         textModel: 'gpt-4o', imageModel: 'gpt-4o-mini', baseUrl: '', apiKey: '', provider: 'OpenAI',
         providerSettings: {}
@@ -134,6 +134,7 @@ const showKeyToggleBtn = document.getElementById('showKeyToggleBtn');
 const saveTemplateBtn = document.getElementById('saveTemplateBtn');
 const deleteTemplateBtn = document.getElementById('deleteTemplateBtn');
 const allowExternalMediaToggle = document.getElementById('allowExternalMedia');
+const contextModeSelect = document.getElementById('contextMode');
 let isKeyVisible = false;
 
 // External media toggle handler
@@ -800,6 +801,10 @@ function populateForm() {
         aggressiveAgenticInput.checked = general.aggressiveAgentic || false;
     }
 
+    if (contextModeSelect) {
+        contextModeSelect.value = general.contextMode || 'compact';
+    }
+
 
     // UI
     if (ui) {
@@ -865,6 +870,9 @@ function updateDeleteButtonVisibility() {
 function collectSettings() {
     if (aggressiveAgenticInput) {
         currentSettings.general.aggressiveAgentic = aggressiveAgenticInput.checked;
+    }
+    if (contextModeSelect) {
+        currentSettings.general.contextMode = contextModeSelect.value;
     }
 
     

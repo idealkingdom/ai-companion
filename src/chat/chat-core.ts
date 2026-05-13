@@ -109,8 +109,6 @@ export class ChatCoreService {
         // #49: Use smart defaults instead of user-configurable temperature/context
         const maxContext = (appSettings.general as any)?.maxContextMessages ?? 20;
         const currentProvider = appSettings.models.provider;
-        const pSettings = appSettings.models.providerSettings?.[currentProvider] || {};
-        const accessToken = pSettings.apiKey || '';
         const temperature = 0.5; // Balanced: focused but not robotic
 
         let aiResponseText = "";
@@ -261,9 +259,8 @@ export class ChatCoreService {
             const apiKeyHeader = customModel?.apiKeyHeader || '';
             const azureStyle = customModel?.azureStyle === true;
 
-            // Exhaustive key tracing — diagnose "API key not valid" once and for all
             outputChannel.appendLine(`[ChatCore] Provider=${activeProvider}, model=${targetModel}, hasApiKey=${!!apiKey}, keyLen=${apiKey.length}, baseUrl=${apiBaseUrl || '(default)'}${apiKeyHeader ? `, apiKeyHeader=${apiKeyHeader}` : ''}${azureStyle ? ', azureStyle=true' : ''}${customModel ? `, source=customModel(${customModel.provider})` : ''}`);
-            outputChannel.appendLine(`[ChatCore] Key trace: customModel.apiKey=${customModel?.apiKey ? customModel.apiKey.length + 'chars' : '(empty)'}, providerConfig[${activeProvider}].apiKey=${providerConfig?.apiKey ? providerConfig.apiKey.length + 'chars' : '(empty)'}, models.apiKey=${appSettings.models.apiKey ? appSettings.models.apiKey.length + 'chars' : '(empty)'}, accessToken(old)=${accessToken ? accessToken.length + 'chars' : '(empty)'}`);
+            outputChannel.appendLine(`[ChatCore] Key trace: customModel.apiKey=${customModel?.apiKey ? customModel.apiKey.length + 'chars' : '(empty)'}, providerConfig[${activeProvider}].apiKey=${providerConfig?.apiKey ? providerConfig.apiKey.length + 'chars' : '(empty)'}, models.apiKey=${appSettings.models.apiKey ? appSettings.models.apiKey.length + 'chars' : '(empty)'}`);
 
 
             // ─── DETERMINE MODE: AGENTIC vs STANDARD ────────────────────────
@@ -293,7 +290,7 @@ export class ChatCoreService {
             if (isAgenticMode) {
                 const response = await this.processAgenticRequest(
                     data, finalContextMessages, finalCurrentMessage,
-                    targetModel, apiKey || accessToken, temperature, apiBaseUrl,
+                    targetModel, apiKey, temperature, apiBaseUrl,
                     appSettings, onChunk, trackingOnAgentStep, abortController.signal,
                     apiKeyHeader,
                     (usage) => { totalUsage = usage; },
@@ -308,7 +305,7 @@ export class ChatCoreService {
             } else {
                 const response = await this.processStandardRequest(
                     data, finalContextMessages, finalCurrentMessage,
-                    targetModel, apiKey || accessToken, temperature, apiBaseUrl,
+                    targetModel, apiKey, temperature, apiBaseUrl,
                     appSettings, onChunk, abortController.signal,
                     apiKeyHeader,
                     (usage) => { totalUsage = usage; },
