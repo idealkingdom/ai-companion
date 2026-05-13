@@ -152,11 +152,18 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
         try {
             // Auto-format: use VS Code's built-in document formatter (LSP-backed)
             const doc = await vscode.workspace.openTextDocument(fileUri);
-            const edits: vscode.TextEdit[] | undefined = await vscode.commands.executeCommand(
+            
+            // Promise.race to prevent infinite hang if formatter triggers a UI prompt (e.g., "Multiple formatters installed")
+            const formatPromise = vscode.commands.executeCommand(
                 'vscode.executeFormatDocumentProvider',
                 fileUri,
                 { tabSize: 2, insertSpaces: true } as vscode.FormattingOptions
-            );
+            ) as Promise<vscode.TextEdit[] | undefined>;
+            
+            const timeoutPromise = new Promise<undefined>((_, reject) => setTimeout(() => reject(new Error('Formatter timeout')), 2000));
+            
+            const edits = await Promise.race([formatPromise, timeoutPromise]);
+            
             if (edits && edits.length > 0) {
                 const wsEdit = new vscode.WorkspaceEdit();
                 for (const edit of edits) {
