@@ -23,7 +23,7 @@ function sanitizeUrl(url?: string): string | undefined {
 function resolveModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string, azureStyle?: boolean) {
     baseUrl = sanitizeUrl(baseUrl);
     if (provider === 'Gemini') {
-        const google = createGoogleGenerativeAI({ 
+        const google = createGoogleGenerativeAI({
             apiKey,
             baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined
         });
@@ -199,7 +199,7 @@ function createAnthropicGatewayFetch(baseUrl: string) {
 function resolveAgenticModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string, azureStyle?: boolean) {
     baseUrl = sanitizeUrl(baseUrl);
     if (provider === 'Gemini') {
-        const google = createGoogleGenerativeAI({ 
+        const google = createGoogleGenerativeAI({
             apiKey,
             baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined
         });
@@ -335,9 +335,23 @@ export async function aiAgenticRequest(
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
+            // #44: Force Gemini to output its thoughts as text to prevent hidden reasoning tokens
+            let activeMessages = [...messages];
+            if (options.enableThinking && provider === 'Gemini') {
+                const sysIndex = activeMessages.findIndex(m => m.role === 'system');
+                const thinkPrompt = '\n\nIMPORTANT: You must think step-by-step and show your reasoning before providing a final answer or calling tools.';
+                if (sysIndex >= 0) {
+                    if (!activeMessages[sysIndex].content.includes('step-by-step reasoning')) {
+                        activeMessages[sysIndex] = { ...activeMessages[sysIndex], content: activeMessages[sysIndex].content + thinkPrompt };
+                    }
+                } else {
+                    activeMessages.unshift({ role: 'system', content: thinkPrompt.trim() });
+                }
+            }
+
             const streamOptions: any = {
                 model: resolvedModel,
-                messages: messages,
+                messages: activeMessages,
                 tools: tools,
                 stopWhen: stepCountIs(options.maxSteps || 15),
                 temperature: temperature,
@@ -394,20 +408,27 @@ export async function aiAgenticRequest(
                     // Detect Gemini model generation for correct thinking config
                     const isGemini3x = model.includes('gemini-3');
                     outputChannel.appendLine(`[Agentic] Gemini model detection: model="${model}", isGemini3x=${isGemini3x}`);
-                    
+
                     if (isGemini3x) {
-                        // Gemini 3.x: just enable thought visibility, let the model decide depth
+                        // Gemini 3.x: enable thought visibility and set level to high
+                        // to ensure reasoning tokens are generated even on "Lite" variants.
                         streamOptions.providerOptions = {
-                            google: { 
-                                thinkingConfig: { 
-                                    includeThoughts: true
-                                } 
+                            google: {
+                                thinkingConfig: {
+                                    includeThoughts: true,
+                                    thinkingLevel: 'high'
+                                }
                             }
                         };
                     } else {
                         // Gemini 2.5 and earlier: thinkingBudget -1 = dynamic/auto
                         streamOptions.providerOptions = {
-                            google: { thinkingConfig: { thinkingBudget: -1 } }
+                            google: {
+                                thinkingConfig: {
+                                    thinkingBudget: -1,
+                                    includeThoughts: true
+                                }
+                            }
                         };
                     }
                 } else if (provider === 'Anthropic') {

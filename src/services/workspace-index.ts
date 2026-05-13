@@ -51,7 +51,7 @@ export class WorkspaceIndexService {
      * Excludes: caches, virtual envs, binaries, lock files, IDE configs, etc.
      * Only indexes source code, config, and documentation files.
      */
-    public async refresh(): Promise<void> {
+    public async refresh(currentChatId?: string): Promise<void> {
         // Comprehensive glob exclusion — covers all major ecosystems
         const excludeGlob = [
             '**/node_modules/**',
@@ -148,6 +148,14 @@ export class WorkspaceIndexService {
 
                 // Skip binary files
                 if (binaryExtensions.has(ext)) { return false; }
+
+                // Exclude artifacts from OTHER sessions
+                if (rel.includes('.ai-companion/artifacts/sessions/')) {
+                    if (!currentChatId) return false; // If no active session, exclude all session artifacts
+                    if (!rel.includes(`.ai-companion/artifacts/sessions/${currentChatId}/`)) {
+                        return false; 
+                    }
+                }
 
                 // Allow known config files with no extension
                 if (!ext || ext === fileName.toLowerCase()) {

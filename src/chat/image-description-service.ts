@@ -14,13 +14,17 @@ export class ImageDescriptionService {
     public async describeImage(base64Image: string): Promise<string> {
         try {
             const appSettings = this.settingsManager.getSettings();
-            const currentProvider = appSettings.models.provider || 'OpenAI';
-            const pSettings = appSettings.models.providerSettings?.[currentProvider] || {};
-            const accessToken = pSettings.apiKey || '';
-            const baseUrl = pSettings.baseUrl || '';
 
             // Use the configured image model for vision (falls back to text model)
             const visionModel = appSettings.models.imageModel || appSettings.models.textModel;
+
+            // #71: Resolve custom model config — custom model's own apiKey/baseUrl take priority
+            const customModel = (appSettings.customModels || []).find((cm: any) => cm.name === visionModel);
+            const currentProvider = customModel?.provider || appSettings.models.provider || 'OpenAI';
+            const pSettings = appSettings.models.providerSettings?.[currentProvider] || {};
+
+            const accessToken = customModel?.apiKey || pSettings.apiKey || appSettings.models.apiKey || '';
+            const baseUrl = customModel?.baseUrl || pSettings.baseUrl || '';
 
             const messages = [
                 {

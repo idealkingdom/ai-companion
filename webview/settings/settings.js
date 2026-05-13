@@ -548,8 +548,8 @@ providerSelect.addEventListener('change', (e) => {
     // Update active state
     currentSettings.models.apiKey = defaults.apiKey;
     currentSettings.models.baseUrl = defaults.baseUrl;
-    currentSettings.models.textModel = textModelInput.value;
     currentSettings.models.imageModel = imageModelInput.value;
+    persistSettings();
 });
 
 // Real-time updates for Model Inputs to persist to providerSettings
@@ -586,6 +586,7 @@ modelInputs.forEach(input => {
             imageModelInput.value = input.value;
         }
         if (input === imageModelInput) { currentSettings.models.imageModel = input.value; }
+        persistSettings();
     });
 });
 
@@ -1518,39 +1519,16 @@ const addModelCloseBtn = document.getElementById('addModelCloseBtn');
 const addModelSubmitBtn = document.getElementById('addModelSubmitBtn');
 const addModelProvider = document.getElementById('addModelProvider');
 const addModelName = document.getElementById('addModelName');
-const addModelApiKey = document.getElementById('addModelApiKey');
-const addModelBaseUrl = document.getElementById('addModelBaseUrl');
-const addModelApiKeyHeader = document.getElementById('addModelApiKeyHeader');
-const addModelHeaderGroup = document.getElementById('addModelHeaderGroup');
 const addModelAzureGroup = document.getElementById('addModelAzureGroup');
 const addModelAzureStyle = document.getElementById('addModelAzureStyle');
 
-// Show/hide the custom API key header field based on provider selection
-if (addModelProvider && addModelHeaderGroup) {
-    addModelProvider.addEventListener('change', () => {
-        const val = addModelProvider.value;
-        const isCustom = val === 'Custom';
-        const isAzure = val === 'Azure OpenAI';
-        const isAnthropic = val === 'Anthropic';
-        addModelHeaderGroup.style.display = (isCustom || isAnthropic) ? 'block' : 'none';
-        // For Azure OpenAI / Anthropic, make Base URL required by updating placeholder
-        if (addModelBaseUrl) {
-            addModelBaseUrl.placeholder = (isAzure || isAnthropic)
-                ? 'Required — corporate gateway endpoint URL'
-                : 'e.g., https://api.openai.com/v1/chat/completions';
-        }
-    });
-}
+
 
 function openAddModelModal() {
     if (!addModelModal) return;
     // Reset fields
     if (addModelProvider) addModelProvider.value = '';
     if (addModelName) addModelName.value = '';
-    if (addModelApiKey) addModelApiKey.value = '';
-    if (addModelBaseUrl) { addModelBaseUrl.value = ''; addModelBaseUrl.placeholder = 'e.g., https://api.openai.com/v1/chat/completions'; }
-    if (addModelApiKeyHeader) addModelApiKeyHeader.value = '';
-    if (addModelHeaderGroup) addModelHeaderGroup.style.display = 'none';
     addModelModal.classList.remove('hidden');
 }
 
@@ -1571,20 +1549,11 @@ if (addModelSubmitBtn) {
     addModelSubmitBtn.addEventListener('click', () => {
         const provider = addModelProvider?.value;
         const name = addModelName?.value?.trim();
-        const apiKey = addModelApiKey?.value?.trim();
-        const baseUrl = addModelBaseUrl?.value?.trim();
 
-        if (!provider || !name || !apiKey) {
+        if (!provider || !name) {
             // Flash the missing fields
             if (!provider && addModelProvider) { addModelProvider.style.borderColor = 'var(--danger-color)'; setTimeout(() => { addModelProvider.style.borderColor = ''; }, 1500); }
             if (!name && addModelName) { addModelName.style.borderColor = 'var(--danger-color)'; setTimeout(() => { addModelName.style.borderColor = ''; }, 1500); }
-            if (!apiKey && addModelApiKey) { addModelApiKey.style.borderColor = 'var(--danger-color)'; setTimeout(() => { addModelApiKey.style.borderColor = ''; }, 1500); }
-            return;
-        }
-
-        // Azure OpenAI / Anthropic require a base URL
-        if ((provider === 'Azure OpenAI' || provider === 'Anthropic') && !baseUrl) {
-            if (addModelBaseUrl) { addModelBaseUrl.style.borderColor = 'var(--danger-color)'; setTimeout(() => { addModelBaseUrl.style.borderColor = ''; }, 1500); }
             return;
         }
 
@@ -1594,17 +1563,15 @@ if (addModelSubmitBtn) {
         const isKnownReasoningModel = lowerName.includes('gemini') || lowerName.includes('gpt-5') || lowerName.includes('o1') || lowerName.includes('o3') || lowerName.includes('thinking') || lowerName.includes('claude') || lowerName.includes('sonnet') || lowerName.includes('opus');
         const supportsImage = lowerName.includes('gemini') || lowerName.includes('gpt-5') || lowerName.includes('vision') || lowerName.includes('claude') || lowerName.includes('sonnet') || lowerName.includes('opus');
         const supportsReasoning = isKnownReasoningModel;
-        const apiKeyHeader = addModelApiKeyHeader?.value?.trim() || '';
         const isAzure = provider === 'Azure OpenAI';
         const newModel = {
             id: Date.now().toString(),
             name,
             provider,
-            apiKey,
-            baseUrl: baseUrl || '',
+            apiKey: '',
+            baseUrl: '',
             supportsImage,
             supportsReasoning,
-            apiKeyHeader: apiKeyHeader || undefined,
             azureStyle: isAzure || undefined
         };
 
@@ -1615,8 +1582,8 @@ if (addModelSubmitBtn) {
         if (!currentSettings.models.providerSettings) currentSettings.models.providerSettings = {};
         if (!currentSettings.models.providerSettings[provider]) {
             currentSettings.models.providerSettings[provider] = {
-                apiKey: apiKey,
-                baseUrl: baseUrl || '',
+                apiKey: '',
+                baseUrl: '',
                 textModel: name,
                 imageModel: name
             };

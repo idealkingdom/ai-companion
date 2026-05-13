@@ -290,21 +290,7 @@
                     <label><span class="required-mark">*</span> Model</label>
                     <input type="text" id="addModelName" class="styled-input" placeholder="e.g. gpt-4o, llama-3.1-70b">
                 </div>
-                <div class="form-group">
-                    <label><span class="required-mark">*</span> API Key</label>
-                    <input type="password" id="addModelApiKey" class="styled-input" placeholder="Fill API Key here">
-                </div>
-                <div class="form-group">
-                    <label>Custom Request URL <span class="hint-text hint-icon" title="Leave blank to use the default endpoint for the selected provider">ⓘ</span></label>
-                    <input type="text" id="addModelBaseUrl" class="styled-input default-ph"
-                        placeholder="e.g., https://api.openai.com/v1/chat/completions">
-                </div>
-                <div class="form-group" id="addModelHeaderGroup" style="display: none;">
-                    <label>API Key Header <span class="hint-text hint-icon" title="Custom header name for the API key. Leave blank for standard Authorization: Bearer header.">ⓘ</span></label>
-                    <input type="text" id="addModelApiKeyHeader" class="styled-input default-ph"
-                        placeholder="e.g., x-api-key">
-                    <p class="hint-text hint-block">Some providers use non-standard headers (e.g., <code>x-api-key</code>). Leave blank for standard <code>Authorization: Bearer</code>.</p>
-                </div>
+
             <div class="modal-footer">
                 <button id="addModelSubmitBtn" class="primary-btn modal-submit-btn">Add Model</button>
             </div>

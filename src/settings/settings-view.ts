@@ -61,11 +61,14 @@ export class SettingsView {
                     case 'generateTheme':
                         try {
                             const appSettings = this._settingsManager.getSettings();
-                            const provider = appSettings.models.provider || 'OpenAI';
-                            const pConfig = appSettings.models.providerSettings?.[provider] || {};
-                            const apiKey = pConfig.apiKey || appSettings.models.apiKey || '';
-                            const baseUrl = pConfig.baseUrl || '';
                             const model = appSettings.models.textModel || 'gpt-4o';
+                            const customModel = (appSettings.customModels || []).find((cm: any) => cm.name === model);
+
+                            const provider = customModel?.provider || appSettings.models.provider || 'OpenAI';
+                            const pConfig = appSettings.models.providerSettings?.[provider] || {};
+
+                            const apiKey = customModel?.apiKey || pConfig.apiKey || appSettings.models.apiKey || '';
+                            const baseUrl = customModel?.baseUrl || pConfig.baseUrl || '';
 
                             if (!apiKey) {
                                 this._panel.webview.postMessage({
