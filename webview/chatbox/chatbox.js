@@ -764,16 +764,12 @@ function getCurrentDate() {
 
 let _scrollTimeout = null;
 let _isUserScrolledUp = false;
-let _programmaticScroll = false;
 
 chatLog.addEventListener('scroll', () => {
-    // Skip detection when we ourselves triggered the scroll
-    if (_programmaticScroll) return;
-
-    // A buffer of ~300px: if user is within 300px of bottom, consider them "at bottom"
-    // Increased from 150px to prevent chunk-loading from accidentally tripping the "user scrolled up" state
+    // If user is within 50px of the bottom, we consider them "at the bottom"
+    // This perfectly pauses auto-scroll if they scroll up, and resumes it when they hit the bottom.
     const distanceToBottom = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight;
-    _isUserScrolledUp = distanceToBottom > 300;
+    _isUserScrolledUp = distanceToBottom > 50;
 });
 
 function scrollToBottom(force = false) {
@@ -784,10 +780,7 @@ function scrollToBottom(force = false) {
     if (_scrollTimeout) return;
     _scrollTimeout = requestAnimationFrame(() => {
         _scrollTimeout = null;
-        _programmaticScroll = true;
         chatLog.scrollTop = chatLog.scrollHeight;
-        // Reset flag after a tick so the scroll event from this assignment is ignored
-        requestAnimationFrame(() => { _programmaticScroll = false; });
     });
 }
 

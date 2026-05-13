@@ -174,7 +174,6 @@ span.logo svg{
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  scroll-behavior: smooth;
   padding: 1rem;
   background: var(--chat-bg);
   position: relative; 
