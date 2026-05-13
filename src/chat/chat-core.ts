@@ -1227,8 +1227,8 @@ CONTEXT PRIORITY:
                 const activeStartIdx = result.length - ACTIVE_COUNT;
                 if (activeStartIdx > 0) {
                     result.splice(activeStartIdx, 0, {
-                        role: 'system' as const,
-                        content: '--- The messages above are prior conversation context. The messages below are the CURRENT conversation. Focus on the user\'s latest request. ---'
+                        role: 'user' as const,
+                        content: '[CONTEXT BOUNDARY] The messages above are prior conversation context. The messages below are the CURRENT conversation. Focus on the latest request only.'
                     });
                 }
             }
@@ -1312,8 +1312,8 @@ CONTEXT PRIORITY:
             const insertIdx = result.indexOf(hotMsg);
             if (insertIdx > 0) {
                 result.splice(insertIdx, 0, {
-                    role: 'system' as const,
-                    content: '--- The messages above are prior conversation context. The messages below are the CURRENT conversation. Focus on the user\'s latest request. ---'
+                    role: 'user' as const,
+                    content: '[CONTEXT BOUNDARY] The messages above are prior conversation context. The messages below are the CURRENT conversation. Focus on the latest request only.'
                 });
             }
         }
