@@ -33,7 +33,7 @@ export class ImageDescriptionService {
                         { type: "text", text: "Describe this image in detail for a coding assistant context. Focus on code, errors, UI elements, or diagrams visible." },
                         {
                             type: "image",
-                            image: new URL(base64Image)
+                            image: base64Image
                         }
                     ]
                 }

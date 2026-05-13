@@ -136,7 +136,7 @@ export class ChatCoreService {
                     storedImageDescriptions.push(desc);
                     aiImagePayload.push({
                         type: "image",
-                        image: new URL(img.dataUrl)
+                        image: img.dataUrl
                     });
                 });
                 await Promise.all(descriptionPromises);
