@@ -1072,7 +1072,7 @@ function showLoadingIndicator() {
     const loadingDiv = document.createElement('div');
     loadingDiv.className = 'loading-indicator';
     loadingDiv.innerHTML = `<div class="generating-text" style="opacity: 0.5; font-size: 0.9em; margin-bottom: 8px;">Generating...</div>`;
-    getActiveTurn().appendChild(loadingDiv);
+    chatLog.appendChild(loadingDiv);
     scrollToBottom();
 }
 
@@ -2936,7 +2936,6 @@ function renderAgentStep(step) {
 
             case CHAT_COMMANDS.CHAT_STREAM_CHUNK:
                 if (!activeStreamNode) {
-                    hideLoadingIndicator();
                     appendAIMessage(""); // Create empty blank message
 
                     // Get reference to the newly created blank message
