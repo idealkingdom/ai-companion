@@ -32,10 +32,8 @@ export class ImageDescriptionService {
                     content: [
                         { type: "text", text: "Describe this image in detail for a coding assistant context. Focus on code, errors, UI elements, or diagrams visible." },
                         {
-                            type: "image_url",
-                            image_url: {
-                                "url": base64Image,
-                            },
+                            type: "image",
+                            image: new URL(base64Image)
                         }
                     ]
                 }
