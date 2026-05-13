@@ -1473,12 +1473,24 @@ function renderAgentStep(step) {
         
         let argsPreview = step.args ? JSON.stringify(step.args).substring(0, 120) : '';
         if (step.args) {
-            // Attempt to extract a filename to append to the display name for transparency
-            const filePath = step.args.TargetFile || step.args.AbsolutePath || step.args.SearchPath || step.args.DirectoryPath;
-            if (typeof filePath === 'string') {
-                const basename = filePath.split(/[\\/]/).pop();
-                if (basename) {
-                    displayName += ` - ${basename}`;
+            // Attempt to extract a target name to append to the display name for transparency
+            let targetName = null;
+            const pathArg = step.args.filePath || step.args.directory || step.args.TargetFile || step.args.AbsolutePath || step.args.SearchPath || step.args.DirectoryPath;
+            
+            if (typeof pathArg === 'string' && pathArg.trim() !== '') {
+                targetName = pathArg.split(/[\\/]/).pop();
+                if (!targetName || targetName === '.' || targetName === '..') {
+                    targetName = 'Root';
+                }
+            } else if (step.toolName === 'list_workspace') {
+                targetName = 'Root';
+            }
+
+            if (targetName) {
+                if (step.toolName === 'list_workspace') {
+                    displayName += ` (${targetName})`;
+                } else {
+                    displayName += ` - ${targetName}`;
                 }
             }
             if (step.toolName === 'web_search' && step.args.query) {

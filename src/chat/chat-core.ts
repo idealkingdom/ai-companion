@@ -673,7 +673,7 @@ CRITICAL RULES:
         // - Code/task agents: 0.2 for precision (0.1 causes repetition loops in some models)
         // - Research/planning agents: 0.5 for creative analysis while staying grounded
         const agentName = (agent?.name || '').toLowerCase();
-        const isResearchAgent = agentName.includes('research') || agentName.includes('planner') || agentName.includes('analyst') || agentName.includes('advisor');
+        const isResearchAgent = agentName.includes('research') || agentName.includes('planner') || agentName.includes('analyst') || agentName.includes('advisor') || agentName.includes('architect');
         const agentTemp = isResearchAgent ? 0.5 : 0.2;
         outputChannel.appendLine(`[Agentic] Temperature: ${agentTemp} (${isResearchAgent ? 'research/planning' : 'code/task'})`);
 
