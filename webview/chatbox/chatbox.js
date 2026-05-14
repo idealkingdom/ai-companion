@@ -766,11 +766,26 @@ let _scrollTimeout = null;
 let _isUserScrolledUp = false;
 let _isProgrammaticScroll = false;
 
+let _lastScrollTop = 0;
+
 chatLog.addEventListener('scroll', () => {
-    if (_isProgrammaticScroll) return; // Ignore programmatic scrolls
-    // If user is within 100px of the bottom, we consider them "at the bottom"
+    if (_isProgrammaticScroll) {
+        _lastScrollTop = chatLog.scrollTop;
+        return; 
+    }
+    
     const distanceToBottom = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight;
-    _isUserScrolledUp = distanceToBottom > 100;
+    
+    // If user manually reached the bottom, re-enable auto-scroll
+    if (distanceToBottom <= 100) {
+        _isUserScrolledUp = false;
+    } 
+    // If user scrolled UP (scrollTop decreased) and is no longer at the bottom, pause auto-scroll
+    else if (chatLog.scrollTop < _lastScrollTop) {
+        _isUserScrolledUp = true;
+    }
+    
+    _lastScrollTop = chatLog.scrollTop;
 });
 
 function scrollToBottom(force = false) {
