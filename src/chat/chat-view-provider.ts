@@ -166,6 +166,24 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         ChatViewProvider._view = webviewView;
         this.setupWebview(webviewView.webview);
         
+        // Listen for visibility changes to auto-focus the input
+        webviewView.onDidChangeVisibility(() => {
+            if (webviewView.visible) {
+                webviewView.webview.postMessage({ command: 'focus' });
+            }
+        });
+
+        // Listen for VS Code window focus changes (e.g. Alt-Tab)
+        this.context.subscriptions.push(
+            vscode.window.onDidChangeWindowState((e) => {
+                if (e.focused && webviewView.visible) {
+                    setTimeout(() => {
+                        webviewView.webview.postMessage({ command: 'focus' });
+                    }, 100);
+                }
+            })
+        );
+
         // Remove from active list when disposed
         webviewView.onDidDispose(() => {
             ChatViewProvider._activeWebviews.delete(webviewView.webview);

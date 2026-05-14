@@ -2871,20 +2871,22 @@ function renderAgentStep(step) {
     let activeStreamNode = null;
 
     // --- EVENT LISTENERS ---
-    window.addEventListener('focus', () => {
-        // Only autofocus if the user isn't using another input (like search)
-        if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
-            setTimeout(() => {
-                if (chatMessage && !chatMessage.disabled) {
-                    chatMessage.focus();
-                }
-            }, 50);
-        }
-    });
-
     window.addEventListener('message', event => {
         const message = event.data;
         switch (message.command) {
+            case 'focus':
+                // Only autofocus if the user isn't using another input (like search)
+                if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+                    if (chatMessage && !chatMessage.disabled) {
+                        chatMessage.focus();
+                    }
+                    setTimeout(() => {
+                        if (chatMessage && !chatMessage.disabled) {
+                            chatMessage.focus();
+                        }
+                    }, 100);
+                }
+                break;
             case 'searchFilesResult':
                 {
                     if (autocompleteType !== '@') { break; }
@@ -3446,7 +3448,18 @@ function renderAgentStep(step) {
             addAllCopyButtons();
             
             // Force scroll to bottom when loading history
+            _isUserScrolledUp = false;
             scrollToBottom(true);
-            setTimeout(() => scrollToBottom(true), 150); // double-check after layout shift
-        }, 100);
+            
+            // Double-check after layout shifts (images, code blocks, mathjax)
+            let scrollAttempts = 0;
+            const scrollInterval = setInterval(() => {
+                _isUserScrolledUp = false;
+                scrollToBottom(true);
+                scrollAttempts++;
+                if (scrollAttempts >= 5) { // Try 5 times over 500ms
+                    clearInterval(scrollInterval);
+                }
+            }, 100);
+        }, 50);
     }
