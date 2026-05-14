@@ -762,45 +762,25 @@ function getCurrentDate() {
     return now.toLocaleString('en-US', options);
 }
 
-let _scrollTimeout = null;
-let _isUserScrolledUp = false;
-let _isProgrammaticScroll = false;
+// --- SCROLL MANAGEMENT ---
+// Simplest correct implementation: just measure distance-to-bottom on user scroll events.
+// "isAtBottom" is only set to false when the user physically scrolls up away from bottom.
+// scrollToBottom() directly sets scrollTop — no throttle/rAF that can silently drop calls.
+// force=true resets the flag and always scrolls (used for new chats and history loads).
 
-let _lastScrollTop = 0;
+let _isAtBottom = true; // Start assuming we're at the bottom
 
 chatLog.addEventListener('scroll', () => {
-    if (_isProgrammaticScroll) {
-        _lastScrollTop = chatLog.scrollTop;
-        return; 
-    }
-    
     const distanceToBottom = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight;
-    
-    // If user manually reached the bottom, re-enable auto-scroll
-    if (distanceToBottom <= 100) {
-        _isUserScrolledUp = false;
-    } 
-    // If user scrolled UP (scrollTop decreased) and is no longer at the bottom, pause auto-scroll
-    else if (chatLog.scrollTop < _lastScrollTop) {
-        _isUserScrolledUp = true;
-    }
-    
-    _lastScrollTop = chatLog.scrollTop;
+    _isAtBottom = distanceToBottom <= 50;
 });
 
 function scrollToBottom(force = false) {
-    if (!force && _isUserScrolledUp) {
+    if (!force && !_isAtBottom) {
         return;
     }
-    // Throttle to one scroll per animation frame — prevents layout thrashing
-    if (_scrollTimeout) return;
-    _scrollTimeout = requestAnimationFrame(() => {
-        _scrollTimeout = null;
-        _isProgrammaticScroll = true;
-        chatLog.scrollTop = chatLog.scrollHeight;
-        // Allow time for the scroll event to fire before clearing the flag
-        setTimeout(() => _isProgrammaticScroll = false, 50);
-    });
+    _isAtBottom = true;
+    chatLog.scrollTop = chatLog.scrollHeight;
 }
 
 
