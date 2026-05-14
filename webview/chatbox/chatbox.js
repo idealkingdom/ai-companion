@@ -1080,7 +1080,7 @@ function showLoadingIndicator() {
 
 function appendUserMessage(message, images = [], files = []) {
     // Force scroll lock when user sends a new message
-    _isUserScrolledUp = false;
+    _isAtBottom = true; // Re-enable auto-scroll when user sends
 
     let finalHTML = processMessageContent(message);
 
@@ -1160,8 +1160,6 @@ function appendUserMessage(message, images = [], files = []) {
             addAllCopyButtons();
         }, 0);
     }
-
-    _isUserScrolledUp = false;
     scrollToBottom(true);
 }
 
@@ -3441,18 +3439,18 @@ function renderAgentStep(step) {
         setTimeout(() => {
             if (typeof hljs !== 'undefined') hljs.highlightAll();
             addAllCopyButtons();
-            
+
             // Force scroll to bottom when loading history
-            _isUserScrolledUp = false;
+            _isAtBottom = true;
             scrollToBottom(true);
-            
-            // Double-check after layout shifts (images, code blocks, mathjax)
+
+            // Double-check after layout shifts (images, code blocks)
             let scrollAttempts = 0;
             const scrollInterval = setInterval(() => {
-                _isUserScrolledUp = false;
+                _isAtBottom = true;
                 scrollToBottom(true);
                 scrollAttempts++;
-                if (scrollAttempts >= 5) { // Try 5 times over 500ms
+                if (scrollAttempts >= 5) {
                     clearInterval(scrollInterval);
                 }
             }, 100);
