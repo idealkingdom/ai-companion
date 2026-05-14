@@ -573,6 +573,17 @@ CRITICAL RULES:
 - Use web_search proactively for external libraries or APIs. Don't guess — search first.
 - When multiple independent tool calls can be made, call them ALL AT ONCE in a single step.${todoInstruction}
 
+BROWSER TOOLS (for web testing & visual QA):
+- browser_open: Navigate to a URL in a real browser
+- browser_snapshot: Get the accessibility tree with refs (@e1, @e2) — this is your "eyes"
+- browser_action: Interact with elements (click, fill, type, select, hover, scroll, press)
+- browser_get: Extract text, HTML, values, page title, URL from the page
+- browser_evaluate: Run JavaScript in the page context
+- browser_close: Close the browser when done
+BROWSER WORKFLOW: open → snapshot → action → snapshot → verify → close
+ALWAYS snapshot before interacting. Use refs (@eN) from the LATEST snapshot only.
+For forms: use fill (clears input first), not type (appends). Re-snapshot after actions.
+
 CONTEXT PRIORITY:
 - The LAST user message is your CURRENT TASK. Focus all effort on it.
 - Earlier messages in this conversation are BACKGROUND CONTEXT ONLY — they show what was discussed before.

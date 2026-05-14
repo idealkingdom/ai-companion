@@ -4,6 +4,7 @@ import { createSysTools, clearTestRetryTracker } from './sys-tools';
 import { createWebTools } from './web-tools';
 import { createCognitiveTools, ModelTier } from './cognitive-tools';
 import { createArtifactTools } from './artifact-tools';
+import { createBrowserTools } from './browser-tools';
 import { ApprovalService } from '../chat/approval-service';
 import { ReviewManager } from '../chat/review-manager';
 import * as path from 'path';
@@ -33,17 +34,20 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
     const cognitiveTools = createCognitiveTools(options?.tier || 'mid', options?.chatId);
     const artifactTools = createArtifactTools(options?.chatId || 'unknown_chat');
 
+    const browserTools = createBrowserTools();
+
     const allTools = {
         ...fileTools,
         ...sysTools,
         ...webTools,
         ...cognitiveTools,
-        ...artifactTools
+        ...artifactTools,
+        ...browserTools
     };
 
     const readTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol', 'search_workspace', 'scrape_url', 'web_search', 'get_workspace_problems', 'read_artifact'];
     const writeTools = ['chunk_replace', 'create_file', 'manage_artifact'];
-    const commandTools = ['run_command'];
+    const commandTools = ['run_command', 'browser_action', 'browser_evaluate'];
 
     // Wrap all execute functions
     Object.keys(allTools).forEach((key) => {
