@@ -18,13 +18,12 @@ export class BrowserService {
     private static isInstalled: boolean | null = null;
 
     /**
-     * Check if agent-browser is available. Caches the result after first check.
+     * Check if agent-browser is available.
+     * On first miss, shows a VS Code notification offering auto-install.
      */
     static async ensureInstalled(): Promise<{ installed: boolean; message?: string }> {
-        if (BrowserService.installChecked && BrowserService.isInstalled !== null) {
-            return BrowserService.isInstalled
-                ? { installed: true }
-                : { installed: false, message: BrowserService.getInstallInstructions() };
+        if (BrowserService.installChecked && BrowserService.isInstalled === true) {
+            return { installed: true };
         }
 
         try {
@@ -37,10 +36,37 @@ export class BrowserService {
             outputChannel.appendLine(`[Browser] agent-browser detected: ${version}`);
             return { installed: true };
         } catch {
-            BrowserService.isInstalled = false;
             BrowserService.installChecked = true;
-            outputChannel.appendLine('[Browser] agent-browser not found');
-            return { installed: false, message: BrowserService.getInstallInstructions() };
+            BrowserService.isInstalled = false;
+            outputChannel.appendLine('[Browser] agent-browser not found — offering install');
+
+            // Show interactive VS Code notification
+            const choice = await vscode.window.showWarningMessage(
+                'Browser automation requires agent-browser (by Vercel Labs). Install it now?',
+                'Install Now',
+                'Not Now'
+            );
+
+            if (choice === 'Install Now') {
+                // Run install in a visible terminal so user sees progress
+                const terminal = vscode.window.createTerminal('agent-browser install');
+                terminal.show();
+                terminal.sendText('npm install -g agent-browser && agent-browser install');
+                
+                // Reset cache so next tool call re-checks
+                BrowserService.installChecked = false;
+                BrowserService.isInstalled = null;
+                
+                return {
+                    installed: false,
+                    message: 'Installing agent-browser... Please wait for the terminal to finish, then try again.'
+                };
+            }
+
+            return {
+                installed: false,
+                message: 'Browser tools require agent-browser. Run: npm install -g agent-browser && agent-browser install'
+            };
         }
     }
 
