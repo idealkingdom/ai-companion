@@ -3,7 +3,7 @@
   "displayName": "kdAina",
   "publisher": "idealkingdom",
   "description": "The Autonomous AI Companion for Builders",
-  "version": "0.0.33",
+  "version": "0.0.34",
   "icon": "resources/logo_128.png",
   "repository": {
     "type": "git",
