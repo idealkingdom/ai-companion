@@ -107,8 +107,10 @@ export class ReviewManager {
 
             // Try exact match first, then normalized match
             let matchTarget = targetContent;
+            let matchReplacement = replacementContent;
             if (!fullText.includes(targetContent) && fullText.includes(normTarget)) {
                 matchTarget = normTarget;
+                matchReplacement = normReplacement;
             }
 
             if (!fullText.includes(matchTarget)) {
@@ -133,7 +135,7 @@ export class ReviewManager {
 
             // Apply the edit via WorkspaceEdit
             const edit = new vscode.WorkspaceEdit();
-            edit.replace(uri, new vscode.Range(startPos, endPos), replacementContent);
+            edit.replace(uri, new vscode.Range(startPos, endPos), matchReplacement);
             const success = await vscode.workspace.applyEdit(edit);
 
             if (!success) {
@@ -152,10 +154,10 @@ export class ReviewManager {
             }
 
             // Track the pending edit for CodeLens/decoration
-            const newLineCount = replacementContent.split('\n').length;
+            const newLineCount = matchReplacement.split('\n').length;
             const pendingEdit: PendingEdit = {
-                originalContent: targetContent,
-                newContent: replacementContent,
+                originalContent: matchTarget,
+                newContent: matchReplacement,
                 startLine: startPos.line,
                 endLine: startPos.line + newLineCount - 1,
                 toolName,
@@ -274,14 +276,21 @@ export class ReviewManager {
             const doc = await vscode.workspace.openTextDocument(uri);
             const fullText = doc.getText();
 
-            if (fullText.includes(edit.newContent)) {
+            let matchNewContent = edit.newContent;
+            let matchOriginalContent = edit.originalContent;
+            if (!fullText.includes(matchNewContent) && fullText.includes(edit.newContent.replace(/\r\n/g, '\n'))) {
+                matchNewContent = edit.newContent.replace(/\r\n/g, '\n');
+                matchOriginalContent = edit.originalContent.replace(/\r\n/g, '\n');
+            }
+
+            if (fullText.includes(matchNewContent)) {
                 const wsEdit = new vscode.WorkspaceEdit();
-                const startOffset = fullText.indexOf(edit.newContent);
-                const endOffset = startOffset + edit.newContent.length;
+                const startOffset = fullText.indexOf(matchNewContent);
+                const endOffset = startOffset + matchNewContent.length;
                 wsEdit.replace(uri, new vscode.Range(
                     doc.positionAt(startOffset),
                     doc.positionAt(endOffset)
-                ), edit.originalContent);
+                ), matchOriginalContent);
                 
                 const success = await vscode.workspace.applyEdit(wsEdit);
                 if (success) {
