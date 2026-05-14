@@ -772,6 +772,17 @@ CONTEXT PRIORITY:
                         const remaining = maxSteps - stepCount;
                         outputChannel.appendLine(`[Agentic] Step ${stepCount}/${maxSteps} finished (toolCalls: ${lastStepHadToolCalls}, remaining: ${remaining})`);
 
+                        // Periodic checkpoint: every 10 steps, nudge the model to save progress
+                        if (stepCount > 0 && stepCount % 10 === 0 && lastStepHadToolCalls) {
+                            outputChannel.appendLine(`[Agentic] Periodic checkpoint at step ${stepCount} — nudging save`);
+                            if (onAgentStep) {
+                                onAgentStep({
+                                    type: 'thinking',
+                                    text: `📌 Step ${stepCount}/${maxSteps} checkpoint. Saving progress...`
+                                });
+                            }
+                        }
+
                         // When < 5 steps remain, inject urgency to save progress
                         if (remaining <= 5 && remaining > 0 && lastStepHadToolCalls) {
                             outputChannel.appendLine(`[Agentic] Low steps warning: ${remaining} steps remaining — triggering save`);
@@ -781,9 +792,6 @@ CONTEXT PRIORITY:
                                     text: `⚠️ ${remaining} steps remaining. Saving progress...`
                                 });
                             }
-                            // Inject a system-level hint into the conversation via the step event
-                            // The AI SDK's onStepFinish doesn't allow message injection, but we
-                            // log this so the model sees it in the next reasoning step
                         }
 
                         // Diagnostic: check for Gemini thinking text in step event
