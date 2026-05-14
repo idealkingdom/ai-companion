@@ -91,10 +91,13 @@
 
                         <div class="setting-item">
                             <div class="setting-item-content">
-                                <div class="setting-item-label">Context Mode</div>
-                                <p class="setting-item-desc">Controls how much conversation history is sent to the AI. <strong>Compact</strong> strips tool results and keeps only 4 recent messages — ideal for agentic workflows. <strong>Full</strong> sends up to 20 messages with tiered truncation.</p>
+                                <div class="setting-item-label">Compact Context Mode</div>
+                                <p class="setting-item-desc">When enabled, strips tool results and keeps only 4 recent messages — ideal for agentic workflows. When disabled, sends up to 20 messages with tiered truncation.</p>
                             </div>
-                            <button id="contextModeBtn" class="action-btn toggle-switch-btn" data-mode="compact" style="width: 140px; padding: 6px 12px; border-radius: 4px; font-weight: 500; font-family: var(--font-primary);">⚡ Compact</button>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="contextModeToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
                         </div>
 
                         <div class="setting-item">
