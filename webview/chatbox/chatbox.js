@@ -764,12 +764,13 @@ function getCurrentDate() {
 
 let _scrollTimeout = null;
 let _isUserScrolledUp = false;
+let _isProgrammaticScroll = false;
 
 chatLog.addEventListener('scroll', () => {
-    // If user is within 50px of the bottom, we consider them "at the bottom"
-    // This perfectly pauses auto-scroll if they scroll up, and resumes it when they hit the bottom.
+    if (_isProgrammaticScroll) return; // Ignore programmatic scrolls
+    // If user is within 100px of the bottom, we consider them "at the bottom"
     const distanceToBottom = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight;
-    _isUserScrolledUp = distanceToBottom > 50;
+    _isUserScrolledUp = distanceToBottom > 100;
 });
 
 function scrollToBottom(force = false) {
@@ -780,7 +781,10 @@ function scrollToBottom(force = false) {
     if (_scrollTimeout) return;
     _scrollTimeout = requestAnimationFrame(() => {
         _scrollTimeout = null;
+        _isProgrammaticScroll = true;
         chatLog.scrollTop = chatLog.scrollHeight;
+        // Allow time for the scroll event to fire before clearing the flag
+        setTimeout(() => _isProgrammaticScroll = false, 50);
     });
 }
 
@@ -2867,6 +2871,17 @@ function renderAgentStep(step) {
     let activeStreamNode = null;
 
     // --- EVENT LISTENERS ---
+    window.addEventListener('focus', () => {
+        // Only autofocus if the user isn't using another input (like search)
+        if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+            setTimeout(() => {
+                if (chatMessage && !chatMessage.disabled) {
+                    chatMessage.focus();
+                }
+            }, 50);
+        }
+    });
+
     window.addEventListener('message', event => {
         const message = event.data;
         switch (message.command) {
@@ -3429,6 +3444,9 @@ function renderAgentStep(step) {
         setTimeout(() => {
             if (typeof hljs !== 'undefined') hljs.highlightAll();
             addAllCopyButtons();
-            scrollToBottom();
+            
+            // Force scroll to bottom when loading history
+            scrollToBottom(true);
+            setTimeout(() => scrollToBottom(true), 150); // double-check after layout shift
         }, 100);
     }

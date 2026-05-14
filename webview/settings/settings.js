@@ -134,7 +134,7 @@ const showKeyToggleBtn = document.getElementById('showKeyToggleBtn');
 const saveTemplateBtn = document.getElementById('saveTemplateBtn');
 const deleteTemplateBtn = document.getElementById('deleteTemplateBtn');
 const allowExternalMediaToggle = document.getElementById('allowExternalMedia');
-const contextModeSelect = document.getElementById('contextMode');
+const contextModeBtn = document.getElementById('contextModeBtn');
 let isKeyVisible = false;
 
 // External media toggle handler
@@ -801,8 +801,17 @@ function populateForm() {
         aggressiveAgenticInput.checked = general.aggressiveAgentic || false;
     }
 
-    if (contextModeSelect) {
-        contextModeSelect.value = general.contextMode || 'compact';
+    if (contextModeBtn) {
+        const mode = general.contextMode || 'compact';
+        contextModeBtn.dataset.mode = mode;
+        contextModeBtn.innerHTML = mode === 'compact' ? '⚡ Compact' : '📋 Full';
+        contextModeBtn.onclick = () => {
+            const newMode = contextModeBtn.dataset.mode === 'compact' ? 'full' : 'compact';
+            contextModeBtn.dataset.mode = newMode;
+            contextModeBtn.innerHTML = newMode === 'compact' ? '⚡ Compact' : '📋 Full';
+            currentSettings.general.contextMode = newMode;
+            persistSettings();
+        };
     }
 
 
@@ -871,8 +880,8 @@ function collectSettings() {
     if (aggressiveAgenticInput) {
         currentSettings.general.aggressiveAgentic = aggressiveAgenticInput.checked;
     }
-    if (contextModeSelect) {
-        currentSettings.general.contextMode = contextModeSelect.value;
+    if (contextModeBtn) {
+        currentSettings.general.contextMode = contextModeBtn.dataset.mode || 'compact';
     }
 
     
