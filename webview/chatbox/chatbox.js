@@ -763,24 +763,33 @@ function getCurrentDate() {
 }
 
 // --- SCROLL MANAGEMENT ---
-// Simplest correct implementation: just measure distance-to-bottom on user scroll events.
-// "isAtBottom" is only set to false when the user physically scrolls up away from bottom.
-// scrollToBottom() directly sets scrollTop — no throttle/rAF that can silently drop calls.
-// force=true resets the flag and always scrolls (used for new chats and history loads).
+let isAtBottom = true;
 
-let _isAtBottom = true; // Start assuming we're at the bottom
+// Instead of listening to the unreliable 'scroll' event (which fires asynchronously 
+// and causes race conditions during programmatic scrolling), we ONLY check if the user 
+// is at the bottom when they physically interact with the chat log.
+const checkBottom = () => {
+    setTimeout(() => {
+        isAtBottom = Math.ceil(chatLog.scrollTop + chatLog.clientHeight) >= chatLog.scrollHeight - 50;
+    }, 50);
+};
 
-chatLog.addEventListener('scroll', () => {
-    const distanceToBottom = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight;
-    _isAtBottom = distanceToBottom <= 50;
+['wheel', 'touchmove', 'keydown'].forEach(evt => {
+    chatLog.addEventListener(evt, checkBottom, { passive: true });
 });
+window.addEventListener('mouseup', checkBottom, { passive: true });
+window.addEventListener('touchend', checkBottom, { passive: true });
+
+// Automatically scroll whenever DOM mutates if we were already at the bottom
+new MutationObserver(() => {
+    if (isAtBottom) chatLog.scrollTop = chatLog.scrollHeight;
+}).observe(chatLog, { childList: true, subtree: true, characterData: true });
 
 function scrollToBottom(force = false) {
-    if (!force && !_isAtBottom) {
-        return;
+    if (force || isAtBottom) {
+        isAtBottom = true;
+        chatLog.scrollTop = chatLog.scrollHeight;
     }
-    _isAtBottom = true;
-    chatLog.scrollTop = chatLog.scrollHeight;
 }
 
 
@@ -1080,7 +1089,7 @@ function showLoadingIndicator() {
 
 function appendUserMessage(message, images = [], files = []) {
     // Force scroll lock when user sends a new message
-    _isAtBottom = true; // Re-enable auto-scroll when user sends
+    isAtBottom = true; // Re-enable auto-scroll when user sends
 
     let finalHTML = processMessageContent(message);
 
@@ -3441,13 +3450,13 @@ function renderAgentStep(step) {
             addAllCopyButtons();
 
             // Force scroll to bottom when loading history
-            _isAtBottom = true;
+            isAtBottom = true;
             scrollToBottom(true);
 
             // Double-check after layout shifts (images, code blocks)
             let scrollAttempts = 0;
             const scrollInterval = setInterval(() => {
-                _isAtBottom = true;
+                isAtBottom = true;
                 scrollToBottom(true);
                 scrollAttempts++;
                 if (scrollAttempts >= 5) {
