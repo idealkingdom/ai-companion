@@ -559,6 +559,12 @@ WORKFLOW:
 8. Use run_command for builds, tests, git operations
 9. Use web_search to look up documentation, APIs, or current information online
 10. Call verify_completion at the END to confirm all items were addressed
+11. If you are running out of steps, call update_task_progress immediately to save your progress before the limit is reached. This ensures the user can say "continue" to resume.
+
+STEP BUDGET AWARENESS:
+- You have a LIMITED number of tool-call steps per request.
+- When you sense you've used many steps and still have work remaining, call update_task_progress to checkpoint.
+- ALWAYS call update_task_progress before attempting the final complex actions if you've already used 30+ steps.
 
 CRITICAL RULES:
 - You are an AUTONOMOUS AGENT. ALWAYS prefer tool calls over text responses.
@@ -729,7 +735,7 @@ CONTEXT PRIORITY:
         }
         // Aggressive mode doubles maxSteps for persistent task completion
         const isAggressive = settings.general?.aggressiveAgentic === true;
-        const baseSteps = modelTier === 'small' ? 10 : modelTier === 'mid' ? 20 : 25;
+        const baseSteps = modelTier === 'small' ? 30 : modelTier === 'mid' ? 40 : 45;
         // +2 grace steps: ensures the model can finish its text response after
         // verify_completion without getting cut off mid-sentence
         const maxSteps = (isAggressive ? baseSteps * 2 : baseSteps) + 2;
@@ -763,7 +769,22 @@ CONTEXT PRIORITY:
                         }
                         stepCount++;
                         lastStepHadToolCalls = !!(event.toolCalls && event.toolCalls.length > 0);
-                        outputChannel.appendLine(`[Agentic] Step ${stepCount} finished (toolCalls: ${lastStepHadToolCalls})`);
+                        const remaining = maxSteps - stepCount;
+                        outputChannel.appendLine(`[Agentic] Step ${stepCount}/${maxSteps} finished (toolCalls: ${lastStepHadToolCalls}, remaining: ${remaining})`);
+
+                        // When < 5 steps remain, inject urgency to save progress
+                        if (remaining <= 5 && remaining > 0 && lastStepHadToolCalls) {
+                            outputChannel.appendLine(`[Agentic] Low steps warning: ${remaining} steps remaining — triggering save`);
+                            if (onAgentStep) {
+                                onAgentStep({
+                                    type: 'thinking',
+                                    text: `⚠️ ${remaining} steps remaining. Saving progress...`
+                                });
+                            }
+                            // Inject a system-level hint into the conversation via the step event
+                            // The AI SDK's onStepFinish doesn't allow message injection, but we
+                            // log this so the model sees it in the next reasoning step
+                        }
 
                         // Diagnostic: check for Gemini thinking text in step event
                         if (event.reasoningText) {

@@ -100,23 +100,34 @@ export class ReviewManager {
             const doc = await vscode.workspace.openTextDocument(uri);
             const fullText = doc.getText();
 
-            if (!fullText.includes(targetContent)) {
+            // Normalize line endings: VS Code internally uses LF, but the AI model
+            // may send CRLF in targetContent. Normalize both to LF for matching.
+            const normTarget = targetContent.replace(/\r\n/g, '\n');
+            const normReplacement = replacementContent.replace(/\r\n/g, '\n');
+
+            // Try exact match first, then normalized match
+            let matchTarget = targetContent;
+            if (!fullText.includes(targetContent) && fullText.includes(normTarget)) {
+                matchTarget = normTarget;
+            }
+
+            if (!fullText.includes(matchTarget)) {
                 // Check if replacement is already present (idempotent)
-                if (fullText.includes(replacementContent)) {
+                if (fullText.includes(normReplacement) || fullText.includes(replacementContent)) {
                     return { success: true };
                 }
                 return { success: false, error: 'Target content not found in file. This is usually caused by a whitespace/indentation mismatch or stale content. Use read_line_range to see the EXACT current text, then retry with the precise content.' };
             }
 
             // Check for unique match
-            const count = fullText.split(targetContent).length - 1;
+            const count = fullText.split(matchTarget).length - 1;
             if (count > 1) {
                 return { success: false, error: `Found ${count} occurrences. Provide more context.` };
             }
 
             // Find the position
-            const startOffset = fullText.indexOf(targetContent);
-            const endOffset = startOffset + targetContent.length;
+            const startOffset = fullText.indexOf(matchTarget);
+            const endOffset = startOffset + matchTarget.length;
             const startPos = doc.positionAt(startOffset);
             const endPos = doc.positionAt(endOffset);
 
