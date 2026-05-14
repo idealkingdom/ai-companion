@@ -655,12 +655,16 @@ CONTEXT PRIORITY:
         }
         outputChannel.appendLine(`[Agentic] Model tier: ${modelTier} (${activeProvider}/${model})`);
 
+        // Shared mutable step counter — tool-registry reads this to inject budget info into tool results
+        const stepBudget = { current: 0, max: 0 }; // max is set after we compute maxSteps
+
         // Apply alwaysProceed override — if enabled, skip all confirmation dialogs
         const alwaysProceed = settings.permissions?.alwaysProceed === true;
         const tools = createToolRegistry(this.workspaceIndex, {
             chatId: data.chat_id,
             abortSignal: abortSignal,
             tier: modelTier,
+            stepBudget: stepBudget,
             readFilesConfirmation: alwaysProceed ? false : (settings.permissions?.readFilesConfirmation ?? false),
             writeFilesConfirmation: alwaysProceed ? false : (settings.permissions?.writeFilesConfirmation ?? true),
             runCommandsConfirmation: alwaysProceed ? false : (settings.permissions?.runCommandsConfirmation ?? true),
@@ -739,6 +743,7 @@ CONTEXT PRIORITY:
         // +2 grace steps: ensures the model can finish its text response after
         // verify_completion without getting cut off mid-sentence
         const maxSteps = (isAggressive ? baseSteps * 2 : baseSteps) + 2;
+        stepBudget.max = maxSteps; // populate the shared counter
         outputChannel.appendLine(`[Agentic] maxSteps=${maxSteps}${isAggressive ? ' (aggressive)' : ''}`);
 
         let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
@@ -768,31 +773,10 @@ CONTEXT PRIORITY:
                             return;
                         }
                         stepCount++;
+                        stepBudget.current = stepCount; // sync shared counter for tool-registry
                         lastStepHadToolCalls = !!(event.toolCalls && event.toolCalls.length > 0);
                         const remaining = maxSteps - stepCount;
                         outputChannel.appendLine(`[Agentic] Step ${stepCount}/${maxSteps} finished (toolCalls: ${lastStepHadToolCalls}, remaining: ${remaining})`);
-
-                        // Periodic checkpoint: every 10 steps, nudge the model to save progress
-                        if (stepCount > 0 && stepCount % 10 === 0 && lastStepHadToolCalls) {
-                            outputChannel.appendLine(`[Agentic] Periodic checkpoint at step ${stepCount} — nudging save`);
-                            if (onAgentStep) {
-                                onAgentStep({
-                                    type: 'thinking',
-                                    text: `📌 Step ${stepCount}/${maxSteps} checkpoint. Saving progress...`
-                                });
-                            }
-                        }
-
-                        // When < 5 steps remain, inject urgency to save progress
-                        if (remaining <= 5 && remaining > 0 && lastStepHadToolCalls) {
-                            outputChannel.appendLine(`[Agentic] Low steps warning: ${remaining} steps remaining — triggering save`);
-                            if (onAgentStep) {
-                                onAgentStep({
-                                    type: 'thinking',
-                                    text: `⚠️ ${remaining} steps remaining. Saving progress...`
-                                });
-                            }
-                        }
 
                         // Diagnostic: check for Gemini thinking text in step event
                         if (event.reasoningText) {

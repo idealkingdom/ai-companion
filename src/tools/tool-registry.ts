@@ -18,6 +18,8 @@ export interface ToolRegistryOptions {
     tier?: ModelTier;
     onApprovalRequest?: (toolCallId: string, toolName: string, args: any, options: { diffReviewRequired?: boolean }) => Promise<void>;
     abortSignal?: AbortSignal;
+    /** Shared mutable counter — chat-core increments this, tool-registry reads it */
+    stepBudget?: { current: number; max: number };
 }
 
 /**
@@ -95,12 +97,36 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
                     }
                 }
 
-                return originalExecute(params, { toolCallId });
+                return originalExecute(params, { toolCallId }).then((result: any) => {
+                    return appendStepBudget(result, options?.stepBudget);
+                });
             };
         }
     });
 
     return allTools;
+}
+
+/**
+ * Append step budget info to tool results so the model knows its remaining steps.
+ * Only triggers after 10+ steps and every 10 steps, or when < 5 remain.
+ */
+function appendStepBudget(result: any, budget?: { current: number; max: number }): any {
+    if (!budget || budget.current < 10) { return result; }
+    
+    const remaining = budget.max - budget.current;
+    
+    // Inject at periodic checkpoints (every 10 steps) or when < 5 remain
+    if (budget.current % 10 === 0 || remaining <= 5) {
+        if (typeof result === 'object' && result !== null) {
+            if (remaining <= 5) {
+                result._stepBudget = `⚠️ URGENT: ${remaining} steps remaining out of ${budget.max}. Call update_task_progress NOW to save your progress before the limit is reached.`;
+            } else {
+                result._stepBudget = `Step ${budget.current}/${budget.max} (${remaining} remaining). Consider calling update_task_progress to checkpoint.`;
+            }
+        }
+    }
+    return result;
 }
 
 export type ToolRegistry = ReturnType<typeof createToolRegistry>;
