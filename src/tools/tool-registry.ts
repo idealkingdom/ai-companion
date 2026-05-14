@@ -83,7 +83,7 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
                             await options.onApprovalRequest(toolCallId, key, params, { diffReviewRequired });
                         }
                         
-                        return result;
+                        return appendStepBudget(result, options?.stepBudget);
                     } else {
                         // For non-diff tools (like run_command), we still block and wait for approval
                         if (options?.onApprovalRequest) {
@@ -93,7 +93,8 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
                         if (!approved) {
                             return { error: `Execution denied by user. Tool '${key}' was not executed.` };
                         }
-                        return originalExecute(params, { toolCallId });
+                        const result = await originalExecute(params, { toolCallId });
+                        return appendStepBudget(result, options?.stepBudget);
                     }
                 }
 
