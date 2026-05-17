@@ -40,7 +40,10 @@ const AGENT_ICONS = {
     'scrape_url': '◉',
     'web_search': '⌕',
     'manage_artifact': '🗄',
-    'read_artifact': '🗎'
+    'read_artifact': '🗎',
+    'list_background_processes': '▦',
+    'stop_background_process': '■',
+    'get_background_output': '▥'
 };
 
 const AGENT_TOOL_LABELS = {
@@ -55,7 +58,10 @@ const AGENT_TOOL_LABELS = {
     'scrape_url': { running: 'Scraping URL', done: 'Scraped URL' },
     'web_search': { running: 'Searching Web', done: 'Searched Web' },
     'manage_artifact': { running: 'Managing Artifact', done: 'Managed Artifact' },
-    'read_artifact': { running: 'Reading Artifact', done: 'Read Artifact' }
+    'read_artifact': { running: 'Reading Artifact', done: 'Read Artifact' },
+    'list_background_processes': { running: 'Listing Processes', done: 'Listed Processes' },
+    'stop_background_process': { running: 'Stopping Process', done: 'Stopped Process' },
+    'get_background_output': { running: 'Reading Output', done: 'Read Output' }
 };
 
 /**
@@ -213,14 +219,17 @@ function renderAgentStep(step) {
     // Tools that go inside category groups don't need expand/collapse — use a simple div
     const groupedTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol',
         'search_workspace', 'get_workspace_problems', 'read_artifact', 'chunk_replace',
-        'create_file', 'manage_artifact', 'scrape_url', 'web_search'];
+        'create_file', 'manage_artifact', 'scrape_url', 'web_search',
+        'list_background_processes', 'stop_background_process', 'get_background_output'];
     const isGroupedTool = groupedTools.includes(step.toolName);
 
     let stepEl = null;
     if (step.toolCallId) {
         stepEl = stepsContainer.querySelector(`[data-tool-call-id="${step.toolCallId}"]`);
     }
-    if (!stepEl && step.toolName) {
+    // Only use toolName fallback when there's NO toolCallId (streaming preview).
+    // If toolCallId exists but didn't match, the card is new — don't reuse another.
+    if (!stepEl && !step.toolCallId && step.toolName) {
         const candidates = stepsContainer.querySelectorAll(`[data-tool-name="${step.toolName}"] .step-status.running`);
         if (candidates.length > 0) {
             stepEl = candidates[candidates.length - 1].closest('.agent-step-card');
@@ -399,6 +408,52 @@ function renderAgentStep(step) {
                 targetCard.open = true;
                 
                 // Clear any inline styles that might hide the details content
+                if (targetCard.style.display === 'none') {
+                    targetCard.style.display = '';
+                }
+
+                const contentDiv = targetCard.querySelector('.step-content') || targetCard;
+                contentDiv.appendChild(terminalSnippet);
+            }
+
+            // get_background_output: render a premium purple-themed terminal log snippet
+            if (targetCard && step.toolName === 'get_background_output' && step.result && typeof step.result.output === 'string') {
+                const escapeHtml = (s) => s ? s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : '';
+                const safeLabel = escapeHtml(step.result.label || 'unknown');
+                const safeSearch = escapeHtml(step.args?.search);
+                const searchArg = safeSearch ? ` | grep -i &quot;${safeSearch}&quot;` : '';
+                const linesArg = step.args?.lines || 50;
+                
+                const terminalSnippet = document.createElement('div');
+                terminalSnippet.className = 'terminal-snippet';
+                terminalSnippet.style.borderLeft = '2px solid var(--vscode-charts-purple, #8e44ad)';
+
+                let outputText = step.result.output.trim();
+                if (outputText.length > 2000) {
+                    outputText = outputText.substring(0, 2000) + '\n... (output truncated)';
+                }
+                if (!outputText) {
+                    outputText = '(no output)';
+                }
+
+                const escapedOutput = outputText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+                terminalSnippet.innerHTML = `
+                    <div class="terminal-prompt" style="color: var(--vscode-charts-purple, #8e44ad); font-weight: 500;">
+                        <span class="terminal-cwd" style="color: var(--vscode-charts-purple, #8e44ad);">[Logs: ${safeLabel}]</span> $ tail -n ${linesArg}${searchArg}
+                    </div>
+                    <div class="terminal-output" style="color: var(--vscode-terminal-ansiBrightWhite, #ffffff); opacity: 0.9;">${escapedOutput}</div>
+                `;
+                
+                // Style the parent card
+                targetCard.style.borderLeft = '3px solid var(--vscode-charts-purple, #8e44ad)';
+                targetCard.style.background = 'rgba(142, 68, 173, 0.03)';
+                const header = targetCard.querySelector('.step-header');
+                if (header) {
+                    header.style.color = 'var(--vscode-charts-purple, #8e44ad)';
+                }
+
+                targetCard.open = true;
                 if (targetCard.style.display === 'none') {
                     targetCard.style.display = '';
                 }

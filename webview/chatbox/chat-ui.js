@@ -205,6 +205,8 @@ function initModelDropdown() {
         }
     });
 
+    let activeDisplayName = initialModel;
+
     availableModels.forEach(modelObj => {
         const m = modelObj.name;
         const displayName = modelObj.alias || m;
@@ -212,7 +214,7 @@ function initModelDropdown() {
         // Ensure initialModel is valid
         if (m === initialModel) {
             isValidModel = true;
-            currentModelLabel.textContent = displayName;
+            activeDisplayName = displayName;
         }
 
         const btn = document.createElement('button');
@@ -244,6 +246,7 @@ function initModelDropdown() {
 
     if (!isValidModel && availableModels.length > 0) {
         initialModel = availableModels[0].name;
+        activeDisplayName = availableModels[0].alias || initialModel;
         MODELS.provider = availableModels[0].provider;
         const pSettings = MODELS.providerSettings || {};
         if (!pSettings[MODELS.provider]) pSettings[MODELS.provider] = {};
@@ -258,7 +261,7 @@ function initModelDropdown() {
             }
         });
     }
-    currentModelLabel.textContent = initialModel || 'Unknown';
+    currentModelLabel.textContent = activeDisplayName || 'Unknown';
 }
 
 if (MODELS && currentModelLabel && modelOptionsMenu) {
