@@ -134,14 +134,14 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                 // Send initial workspace index stats
                 try {
                     const { WorkspaceIndexService } = require('../services/workspace-index');
-                    const wsIndex = new WorkspaceIndexService();
+                    const wsIndex = WorkspaceIndexService.getInstance();
                     await wsIndex.refresh();
                     const fileCount = wsIndex.getFileList().length;
                     await post({
                         command: 'indexUpdate',
                         content: { fileCount, lastUpdated: new Date().toISOString() }
                     });
-                    wsIndex.dispose();
+                    // Do not dispose the singleton
                 } catch (e) {
                     outputChannel.appendLine(`[Index] Initial index failed: ${e}`);
                 }
@@ -312,60 +312,69 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
 
                 post({ command: CHAT_COMMANDS.CHAT_STREAM_START });
 
-                const { text: aiResponse, usage, hitStepLimit, continuationMaxSteps } = await coreService.processChatRequest(
-                    aiData,
-                    // onChunk — stream text to frontend
-                    async (chunk) => {
-                        const seq = ++nextSeq;
-                        const ackPromise = new Promise(resolve => {
-                            chunkAcks.set(seq.toString(), resolve);
-                        });
+                try {
+                    const { text: aiResponse, usage, hitStepLimit, continuationMaxSteps } = await coreService.processChatRequest(
+                        aiData,
+                        // onChunk — stream text to frontend
+                        async (chunk) => {
+                            const seq = ++nextSeq;
+                            const ackPromise = new Promise(resolve => {
+                                chunkAcks.set(seq.toString(), resolve);
+                            });
 
-                        await post({
-                            command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
-                            content: chunk,
-                            seq: seq
-                        });
+                            await post({
+                                command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
+                                content: chunk,
+                                seq: seq
+                            });
 
-                        // Wait for webview ACK with timeout safety net
-                        // If webview is disconnected/crashed, don't hang forever
-                        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 10000));
-                        await Promise.race([ackPromise, timeoutPromise]);
-                        chunkAcks.delete(seq.toString()); // Clean up if timed out
-                    },
-                    // onAgentStep — stream tool telemetry to frontend
-                    async (step) => {
-                        await post({
-                            command: CHAT_COMMANDS.CHAT_AGENT_STEP,
-                            content: step
+                            // Wait for webview ACK with timeout safety net
+                            // If webview is disconnected/crashed, don't hang forever
+                            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 10000));
+                            await Promise.race([ackPromise, timeoutPromise]);
+                            chunkAcks.delete(seq.toString()); // Clean up if timed out
+                        },
+                        // onAgentStep — stream tool telemetry to frontend
+                        async (step) => {
+                            await post({
+                                command: CHAT_COMMANDS.CHAT_AGENT_STEP,
+                                content: step
+                            });
+                        }
+                    );
+
+                    if (usage) {
+                        post({
+                            command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
+                            usage: usage
                         });
                     }
-                );
 
-                if (usage) {
                     post({
-                        command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
-                        usage: usage
+                        command: CHAT_COMMANDS.CHAT_STREAM_END,
+                        content: aiResponse,
+                        role: ROLE.BOT
                     });
-                }
 
-                post({
-                    command: CHAT_COMMANDS.CHAT_STREAM_END,
-                    content: aiResponse,
-                    role: ROLE.BOT
-                });
-
-                // If the agent hit the step limit, offer continuation
-                if (hitStepLimit) {
-                    const extraSteps = Math.max(5, Math.floor((continuationMaxSteps || 20) / 2));
+                    // If the agent hit the step limit, offer continuation
+                    if (hitStepLimit) {
+                        const extraSteps = Math.max(5, Math.floor((continuationMaxSteps || 20) / 2));
+                        post({
+                            command: CHAT_COMMANDS.CHAT_CONTINUE_PROMPT,
+                            data: {
+                                chatId: aiData.chat_id,
+                                agentId: aiData.agentId,
+                                extraSteps,
+                                stepsUsed: continuationMaxSteps
+                            }
+                        });
+                    }
+                } catch (error: any) {
+                    outputChannel.appendLine(`[ChatRequest] Unhandled error: ${error?.message || error}`);
                     post({
-                        command: CHAT_COMMANDS.CHAT_CONTINUE_PROMPT,
-                        data: {
-                            chatId: aiData.chat_id,
-                            agentId: aiData.agentId,
-                            extraSteps,
-                            stepsUsed: continuationMaxSteps
-                        }
+                        command: CHAT_COMMANDS.CHAT_STREAM_END,
+                        content: `\n\n[System] Request failed: ${error?.message || 'Unknown error'}`,
+                        role: ROLE.BOT
                     });
                 }
                 break;
@@ -579,6 +588,13 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                             sanitizedAgentSteps = coalesced;
                         }
 
+                        // Debug log for history loading
+                        if (sanitizedAgentSteps) {
+                            outputChannel.appendLine(`[History Load] Found ${sanitizedAgentSteps.length} agent steps for msg ${msg.message_id}`);
+                        } else {
+                            outputChannel.appendLine(`[History Load] No agent steps found for msg ${msg.message_id}`);
+                        }
+
                         await post({
                             command: CHAT_COMMANDS.CHAT_REQUEST,
                             content: msg.message,
@@ -660,6 +676,27 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                 if (!path) { return; }
                 const uri = vscode.Uri.file(path);
                 vscode.commands.executeCommand('vscode.open', uri);
+                break;
+            }
+
+        case 'openArtifact':
+            {
+                const artifactName = message.data.name;
+                if (!artifactName) { return; }
+                const chatId = ChatViewProvider.getCurrentSessionId() || message.data.chatId;
+                const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+                if (workspaceRoot && chatId) {
+                    const artifactPath = path.join(workspaceRoot, '.ai-companion', 'artifacts', 'sessions', chatId, artifactName);
+                    const artifactPathMd = path.join(workspaceRoot, '.ai-companion', 'artifacts', 'sessions', chatId, artifactName.endsWith('.md') ? artifactName : `${artifactName}.md`);
+                    
+                    if (fs.existsSync(artifactPath)) {
+                        vscode.commands.executeCommand('vscode.open', vscode.Uri.file(artifactPath));
+                    } else if (fs.existsSync(artifactPathMd)) {
+                        vscode.commands.executeCommand('vscode.open', vscode.Uri.file(artifactPathMd));
+                    } else {
+                        vscode.window.showInformationMessage(`Artifact ${artifactName} not found.`);
+                    }
+                }
                 break;
             }
 
@@ -1133,7 +1170,7 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
             {
                 const chatId = message.data?.chatId;
                 const { WorkspaceIndexService } = require('../services/workspace-index');
-                const wsIndex = new WorkspaceIndexService();
+                const wsIndex = WorkspaceIndexService.getInstance();
                 await wsIndex.refresh(chatId);
                 const fileCount = wsIndex.getFileList().length;
                 const fileList = wsIndex.getFileList();
@@ -1145,7 +1182,7 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                 });
                 
                 vscode.window.showInformationMessage(`Workspace index refreshed: ${fileCount} files indexed.`);
-                wsIndex.dispose();
+                // Do not dispose the singleton
                 break;
             }
 
@@ -1153,7 +1190,7 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
             {
                 const chatId = message.data?.chatId;
                 const { WorkspaceIndexService } = require('../services/workspace-index');
-                const wsIndex = new WorkspaceIndexService();
+                const wsIndex = WorkspaceIndexService.getInstance();
                 await wsIndex.refresh(chatId);
                 const fileCount = wsIndex.getFileList().length;
                 const fileList = wsIndex.getFileList();
@@ -1162,7 +1199,7 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                     command: 'indexUpdate',
                     content: { fileCount, lastUpdated: new Date().toISOString(), fileList, showViewer: true }
                 });
-                wsIndex.dispose();
+                // Do not dispose the singleton
                 break;
             }
 
@@ -1170,10 +1207,10 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
             {
                 const userDraft = message.data.prompt;
                 const { WorkspaceIndexService } = require('../services/workspace-index');
-                const wsIndex = new WorkspaceIndexService();
+                const wsIndex = WorkspaceIndexService.getInstance();
                 await wsIndex.refresh();
                 const fileTree = wsIndex.getCompactTreeString().substring(0, 3000);
-                wsIndex.dispose();
+                // Do not dispose the singleton
 
                 const { aiRequest } = require('../api/ai');
                 const appSettings = settingsManager.getSettings();
@@ -1211,10 +1248,10 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
         case 'suggestPrompts':
             {
                 const { WorkspaceIndexService } = require('../services/workspace-index');
-                const wsIndex = new WorkspaceIndexService();
+                const wsIndex = WorkspaceIndexService.getInstance();
                 await wsIndex.refresh();
                 const fileTree = wsIndex.getCompactTreeString().substring(0, 3000);
-                wsIndex.dispose();
+                // Do not dispose the singleton
 
                 const { aiRequest } = require('../api/ai');
                 const appSettings = settingsManager.getSettings();

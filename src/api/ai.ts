@@ -2,7 +2,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createAzure } from '@ai-sdk/azure';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { generateText, streamText, stepCountIs } from 'ai';
+import { generateText, streamText, stepCountIs, wrapLanguageModel, extractReasoningMiddleware } from 'ai';
 import { outputChannel } from '../logger';
 import * as vscode from 'vscode';
 
@@ -54,7 +54,9 @@ function resolveModel(provider: string, model: string, apiKey: string, baseUrl?:
     }
 
     const openai = createOpenAI(opts);
-    return openai(model);
+    // Explicitly use .chat() to force the /chat/completions endpoint
+    // Otherwise Vercel AI SDK defaults to the /responses API which most proxies do not support
+    return openai.chat(model);
 }
 
 /**
@@ -196,6 +198,100 @@ function createAnthropicGatewayFetch(baseUrl: string) {
     };
 }
 
+/**
+ * Fetch interceptor for OpenAI-compatible providers that use non-standard reasoning fields.
+ * DeepInfra (Kimi 2.6) uses "reasoning_content" instead of "reasoning" or <think> tags.
+ * This intercepts the SSE stream and renames "reasoning_content" to "reasoning" so the Vercel AI SDK parses it correctly.
+ */
+function createOpenAIReasoningFetch() {
+    return async (url: string | Request | URL, requestInit?: any) => {
+        const response = await fetch(url, requestInit);
+
+        if (response.body && response.headers.get('content-type')?.includes('text/event-stream')) {
+            let buffer = '';
+            let isReasoning = false;
+            
+            const transform = new TransformStream({
+                transform(chunk, controller) {
+                    buffer += new TextDecoder().decode(chunk);
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    let newChunk = '';
+                    for (const line of lines) {
+                        if (line.startsWith('data: ') && line.trim() !== 'data: [DONE]') {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                if (data.choices?.[0]?.delta) {
+                                    const delta = data.choices[0].delta;
+                                    const hasReasoning = 'reasoning_content' in delta;
+                                    const reasoningVal = delta.reasoning_content;
+                                    const hasContent = delta.content !== undefined && delta.content !== null && delta.content !== '';
+
+                                    if (hasReasoning) {
+                                        // There's a reasoning_content field — could be string or null
+                                        if (typeof reasoningVal === 'string' && reasoningVal.length > 0) {
+                                            // Valid reasoning text — inject into content
+                                            if (!isReasoning) {
+                                                isReasoning = true;
+                                                delta.content = '<think>\n' + reasoningVal;
+                                            } else {
+                                                delta.content = reasoningVal;
+                                            }
+                                        } else {
+                                            // reasoning_content is null/empty — this means reasoning phase ended
+                                            if (isReasoning) {
+                                                isReasoning = false;
+                                                // Close the think block. Prepend to real content if present.
+                                                delta.content = '\n</think>\n' + (hasContent ? delta.content : '');
+                                            } else {
+                                                // Never started reasoning — just pass content as-is (or skip if no content)
+                                                if (!hasContent) {
+                                                    delta.content = '';
+                                                }
+                                            }
+                                        }
+                                        delete delta.reasoning_content;
+                                    } else if (isReasoning && hasContent) {
+                                        // No reasoning_content key at all, but we were reasoning — close the block
+                                        isReasoning = false;
+                                        delta.content = '\n</think>\n' + delta.content;
+                                    }
+                                }
+                                newChunk += 'data: ' + JSON.stringify(data) + '\n';
+                            } catch (e) {
+                                newChunk += line + '\n';
+                            }
+                        } else {
+                            newChunk += line + '\n';
+                        }
+                    }
+                    if (newChunk) {
+                        controller.enqueue(new TextEncoder().encode(newChunk));
+                    }
+                },
+                flush(controller) {
+                    // If reasoning was never closed (model cut off), close it now
+                    let closing = '';
+                    if (isReasoning) {
+                        closing = 'data: {"choices":[{"delta":{"content":"\\n</think>\\n","role":"assistant"},"index":0}]}\n\n';
+                    }
+                    if (buffer || closing) {
+                        controller.enqueue(new TextEncoder().encode(closing + buffer));
+                    }
+                }
+            });
+
+            return new Response(response.body.pipeThrough(transform), {
+                headers: response.headers,
+                status: response.status,
+                statusText: response.statusText
+            });
+        }
+        return response;
+    };
+}
+
 function resolveAgenticModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string, azureStyle?: boolean) {
     baseUrl = sanitizeUrl(baseUrl);
     if (provider === 'Gemini') {
@@ -218,6 +314,7 @@ function resolveAgenticModel(provider: string, model: string, apiKey: string, ba
     const opts: any = {
         baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
         compatibility: 'strict',
+        fetch: createOpenAIReasoningFetch()
     };
 
     if (apiKeyHeader && apiKeyHeader.trim()) {
@@ -228,7 +325,15 @@ function resolveAgenticModel(provider: string, model: string, apiKey: string, ba
     }
 
     const openai = createOpenAI(opts);
-    return openai(model);
+    const resolved = openai.chat(model);
+    
+    // Most third-party open reasoning models (DeepSeek R1, Kimi, etc.) 
+    // output their reasoning inside <think> tags. We use the middleware 
+    // to automatically parse this into native reasoning-delta events.
+    return wrapLanguageModel({
+        model: resolved,
+        middleware: extractReasoningMiddleware({ tagName: 'think' })
+    });
 }
 
 // ─── PUBLIC API ─────────────────────────────────────────────────────────────
@@ -249,10 +354,26 @@ export async function aiRequest(
 
     const resolvedModel = resolveModel(provider, model, accessToken, baseUrl, apiKeyHeader, azureStyle);
 
+    let activeMessages = [...messages];
+    if (provider === 'Anthropic') {
+        const sysIndex = activeMessages.findIndex(m => m.role === 'system');
+        if (sysIndex >= 0) {
+            const sysMsg = activeMessages[sysIndex];
+            if (typeof sysMsg.content === 'string') {
+                activeMessages[sysIndex] = {
+                    ...sysMsg,
+                    content: [
+                        { type: 'text', text: sysMsg.content, providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } } }
+                    ]
+                };
+            }
+        }
+    }
+
     try {
         const { text } = await generateText({
             model: resolvedModel,
-            messages: messages,
+            messages: activeMessages,
             temperature: temperature,
             providerOptions: {
                 anthropic: { thinking: { type: 'disabled' } }
@@ -283,10 +404,26 @@ export async function aiStreamRequest(
 ) {
     const resolvedModel = resolveModel(provider, model, accessToken, baseUrl, apiKeyHeader, azureStyle);
 
+    let activeMessages = [...messages];
+    if (provider === 'Anthropic') {
+        const sysIndex = activeMessages.findIndex(m => m.role === 'system');
+        if (sysIndex >= 0) {
+            const sysMsg = activeMessages[sysIndex];
+            if (typeof sysMsg.content === 'string') {
+                activeMessages[sysIndex] = {
+                    ...sysMsg,
+                    content: [
+                        { type: 'text', text: sysMsg.content, providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } } }
+                    ]
+                };
+            }
+        }
+    }
+
     try {
         const result = await streamText({
             model: resolvedModel,
-            messages: messages,
+            messages: activeMessages,
             temperature: temperature,
             abortSignal: abortSignal,
             onFinish: onFinish,
@@ -322,6 +459,7 @@ export async function aiAgenticRequest(
         apiKeyHeader?: string;
         onFinish?: (event: any) => void;
         azureStyle?: boolean;
+        modelTier?: string;
     } = {}
 ) {
     const resolvedModel = resolveAgenticModel(provider, model, accessToken, options.baseUrl, options.apiKeyHeader, options.azureStyle);
@@ -341,11 +479,33 @@ export async function aiAgenticRequest(
                 const sysIndex = activeMessages.findIndex(m => m.role === 'system');
                 const thinkPrompt = '\n\nIMPORTANT: You must think step-by-step and show your reasoning before providing a final answer or calling tools.';
                 if (sysIndex >= 0) {
-                    if (!activeMessages[sysIndex].content.includes('step-by-step reasoning')) {
+                    if (typeof activeMessages[sysIndex].content === 'string' && !activeMessages[sysIndex].content.includes('step-by-step reasoning')) {
                         activeMessages[sysIndex] = { ...activeMessages[sysIndex], content: activeMessages[sysIndex].content + thinkPrompt };
                     }
                 } else {
                     activeMessages.unshift({ role: 'system', content: thinkPrompt.trim() });
+                }
+            }
+
+            // Enable Prompt Caching for Anthropic
+            if (provider === 'Anthropic') {
+                const sysIndex = activeMessages.findIndex(m => m.role === 'system');
+                if (sysIndex >= 0) {
+                    const sysMsg = activeMessages[sysIndex];
+                    if (typeof sysMsg.content === 'string') {
+                        activeMessages[sysIndex] = {
+                            ...sysMsg,
+                            content: [
+                                { 
+                                    type: 'text', 
+                                    text: sysMsg.content,
+                                    providerOptions: {
+                                        anthropic: { cacheControl: { type: 'ephemeral' } }
+                                    }
+                                }
+                            ]
+                        };
+                    }
                 }
             }
 
@@ -445,8 +605,9 @@ export async function aiAgenticRequest(
                     outputChannel.appendLine(`[Agentic] Skipping reasoning params for Azure OpenAI (gateway does not support)`);
                 } else {
                     // OpenAI-compatible providers
+                    const effort = (options.modelTier === 'pro' || options.modelTier === 'frontier') ? 'high' : 'medium';
                     streamOptions.providerOptions = {
-                        openai: { reasoningEffort: 'medium', reasoningSummary: 'detailed' }
+                        openai: { reasoningEffort: effort, reasoningSummary: 'detailed' }
                     };
                 }
                 outputChannel.appendLine(`[Agentic] Thinking ENABLED: provider=${provider}, model=${model}, providerOptions=${JSON.stringify(streamOptions.providerOptions)}`);

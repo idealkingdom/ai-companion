@@ -61,7 +61,7 @@ export class ChatCoreService {
         private readonly settingsManager: SettingsManager,
         private readonly descriptionService: ImageDescriptionService = new ImageDescriptionService(settingsManager)
     ) {
-        this.workspaceIndex = new WorkspaceIndexService();
+        this.workspaceIndex = WorkspaceIndexService.getInstance();
     }
 
     /**
@@ -98,7 +98,7 @@ export class ChatCoreService {
         files?: any[],
         images?: any[],
         agentId?: string
-    }, onChunk?: (text: string) => void,
+    }, onChunk?: (text: string) => Promise<void> | void,
         onAgentStep?: (step: AgentStepEvent) => void): Promise<{ text: string, usage?: any, hitStepLimit?: boolean, continuationMaxSteps?: number }> {
 
         const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
@@ -326,7 +326,7 @@ export class ChatCoreService {
 
                 outputChannel.appendLine(`[ChatCore] Request explicitly aborted by user for chatId=${data.chat_id}`);
                 aiResponseText = msg;
-                if (onChunk) { onChunk(`\n\n${msg}`); }
+                if (onChunk) { await onChunk(`\n\n${msg}`); }
                 // Usage is still returned via the result — tokens were consumed
                 outputChannel.appendLine(`[ChatCore] Usage on abort: ${totalUsage ? JSON.stringify(totalUsage) : 'none captured'}`);
             } else {
@@ -757,6 +757,7 @@ CONTEXT PRIORITY:
                     enableThinking: supportsReasoning,
                     apiKeyHeader: apiKeyHeader,
                     azureStyle: azureStyle,
+                    modelTier: modelTier,
                     onFinish: (event: any) => {
                         const usage = event.usage || event.totalUsage;
                         if (onUsageUpdate && usage) onUsageUpdate(usage);
@@ -811,6 +812,12 @@ CONTEXT PRIORITY:
                             for (const tr of event.toolResults) {
                                 const rawResult = tr.result !== undefined ? tr.result : (tr as any).output;
                                 const summarized = this.summarizeToolResult(rawResult);
+
+                                // #CRITICAL: Ensure command is saved in result for history load
+                                if (tr.toolName === 'run_command' && tr.args?.command) {
+                                    summarized._commandExecuted = tr.args.command;
+                                }
+
                                 onAgentStep({
                                     type: 'tool_result',
                                     toolName: tr.toolName,
@@ -968,8 +975,11 @@ CONTEXT PRIORITY:
                         break;
 
                     case 'reasoning-delta':
-                        // Handled by onReasoningChunk callback in ai.ts — do NOT forward here
-                        // to avoid duplicate thinking text in the UI
+                        // Forward the thinking text to the UI
+                        const delta = (part as any).textDelta;
+                        if (delta && onAgentStep) {
+                            onAgentStep({ type: 'thinking', text: delta });
+                        }
                         break;
 
                     case 'reasoning-end':
