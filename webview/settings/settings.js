@@ -13,7 +13,7 @@ let currentSettings = {
     permissions: {
         readFilesConfirmation: false,
         writeFilesConfirmation: true,
-        runCommandsConfirmation: true,
+        commandSafetyMode: 'smart',
         alwaysProceed: false
     },
     ui: {
@@ -133,6 +133,7 @@ const themeTemplateSelect = document.getElementById('themeTemplateSelect');
 const showKeyToggleBtn = document.getElementById('showKeyToggleBtn');
 const saveTemplateBtn = document.getElementById('saveTemplateBtn');
 const deleteTemplateBtn = document.getElementById('deleteTemplateBtn');
+const commandSafetyMode = document.getElementById('commandSafetyMode');
 const allowExternalMediaToggle = document.getElementById('allowExternalMedia');
 const contextModeToggle = document.getElementById('contextModeToggle');
 let isKeyVisible = false;
@@ -142,11 +143,25 @@ if (allowExternalMediaToggle) {
     allowExternalMediaToggle.addEventListener('change', (e) => {
         if (!currentSettings.ui) currentSettings.ui = {};
         currentSettings.ui.allowExternalMedia = e.target.checked;
+        
         persistSettings();
-        // Broadcast to chatbox
+        
         vscode.postMessage({
-            command: 'updateNestedSetting',
+            command: 'saveSetting',
             data: { category: 'ui', key: 'allowExternalMedia', value: e.target.checked }
+        });
+    });
+}
+
+if (commandSafetyMode) {
+    commandSafetyMode.addEventListener('change', (e) => {
+        if (!currentSettings.permissions) currentSettings.permissions = {};
+        currentSettings.permissions.commandSafetyMode = e.target.value;
+        persistSettings();
+        
+        vscode.postMessage({
+            command: 'saveSetting',
+            data: { category: 'permissions', key: 'commandSafetyMode', value: e.target.value }
         });
     });
 }
@@ -554,8 +569,9 @@ providerSelect.addEventListener('change', (e) => {
 });
 
 // Real-time updates for Model Inputs to persist to providerSettings
-const modelInputs = [apiKeyInput, baseUrlInput, textModelInput, imageModelInput];
-modelInputs.forEach(input => {
+// Note: imageModelInput is handled separately below (it's a global setting, not per-provider)
+const providerModelInputs = [apiKeyInput, baseUrlInput, textModelInput];
+providerModelInputs.forEach(input => {
     input.addEventListener('input', () => {
         const provider = currentSettings.models.provider;
 
@@ -572,24 +588,19 @@ modelInputs.forEach(input => {
         if (input === baseUrlInput) { currentSettings.models.providerSettings[provider].baseUrl = input.value; }
         if (input === textModelInput) {
             currentSettings.models.providerSettings[provider].textModel = input.value;
-            // Auto-sync image model with text model
-            currentSettings.models.providerSettings[provider].imageModel = input.value;
         }
-        if (input === imageModelInput) { currentSettings.models.providerSettings[provider].imageModel = input.value; }
 
         // Also update the top-level active key for backward compatibility/immediate use
         if (input === apiKeyInput) { currentSettings.models.apiKey = input.value; }
         if (input === baseUrlInput) { currentSettings.models.baseUrl = input.value; }
         if (input === textModelInput) {
             currentSettings.models.textModel = input.value;
-            // Auto-sync image model with text model
-            currentSettings.models.imageModel = input.value;
-            imageModelInput.value = input.value;
         }
-        if (input === imageModelInput) { currentSettings.models.imageModel = input.value; }
         persistSettings();
     });
 });
+
+// We will handle the fallback image model via the inline checkboxes
 
 // --- EVENT LISTENERS ---
 
@@ -817,6 +828,10 @@ function populateForm() {
         }
         if (allowExternalMediaToggle) {
             allowExternalMediaToggle.checked = ui.allowExternalMedia !== false; // default true
+        }
+
+        if (commandSafetyMode) {
+            commandSafetyMode.value = currentSettings.permissions.commandSafetyMode || 'smart';
         }
 
         // Auto-detect template if it matches exactly
@@ -1098,15 +1113,24 @@ function populateModelDropdowns(provider, selectedText, selectedImage) {
     }
 
     let textList = [...source.text];
-    let imageList = [...source.image];
+    // Gather ALL image models across all providers (deduplicated)
+    let imageSet = new Set();
+    for (const [key, pData] of Object.entries(DEFAULT_MODELS)) {
+        const pSource = pData.models || pData;
+        if (pSource && pSource.image) {
+            pSource.image.forEach(m => imageSet.add(m));
+        }
+    }
+    let imageList = [...imageSet];
 
-    // Add custom models matching the active provider
+    // Add custom models
     const customModels = currentSettings.customModels || [];
     for (const cm of customModels) {
         if (cm.provider === provider || cm.provider === 'Custom') {
             if (!textList.includes(cm.name)) textList.push(cm.name);
-            if (!imageList.includes(cm.name)) imageList.push(cm.name);
         }
+        // Add ALL custom models to the image list (so they can be used as global fallbacks)
+        if (!imageList.includes(cm.name)) imageList.push(cm.name);
     }
 
     // If selected model is not in default list, add it (preserves previously fetched selection)
@@ -1245,6 +1269,13 @@ function renderModelTable() {
                             <span class="config-toggle-label">Image</span>
                             <label class="toggle-switch">
                                 <input id="${imageToggleId}" type="checkbox" ${supportsImage ? 'checked' : ''} ${!isCustom ? 'disabled' : ''} onchange="toggleModelImage('${customId || ''}', this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </label>
+                        <label class="config-toggle-item">
+                            <span class="config-toggle-label" title="Set this model as the global fallback image service">Img Fallback</span>
+                            <label class="toggle-switch">
+                                <input type="checkbox" class="vision-fallback-checkbox" data-model-name="${escapeHtml(modelName)}" ${currentSettings.models.imageModel === modelName ? 'checked' : ''} onchange="setVisionFallback('${escapeHtml(modelName)}', this.checked)">
                                 <span class="toggle-slider"></span>
                             </label>
                         </label>
@@ -1541,6 +1572,28 @@ window.toggleModelImage = function(customId, supportsImage) {
             persistSettings();
         }
     }
+};
+
+// Set this model as the global fallback image service
+window.setVisionFallback = function(modelName, isChecked) {
+    if (isChecked) {
+        currentSettings.models.imageModel = modelName;
+    } else {
+        // If they uncheck the current one, we clear it (defaults to text model)
+        if (currentSettings.models.imageModel === modelName) {
+            currentSettings.models.imageModel = "";
+        }
+    }
+    
+    // Update the DOM for mutual exclusivity without a full re-render
+    const checkboxes = document.querySelectorAll('.vision-fallback-checkbox');
+    checkboxes.forEach(cb => {
+        if (cb.dataset.modelName !== modelName) {
+            cb.checked = false;
+        }
+    });
+
+    persistSettings();
 };
 
 // ═══════════════════════════════════════════════════════════════════════

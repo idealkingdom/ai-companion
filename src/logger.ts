@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import { EXTENSION_NAME } from './constants';
+import { DISPLAY_NAME } from './constants';
 
 
-const outputChannel = vscode.window.createOutputChannel(EXTENSION_NAME);
+const outputChannel = vscode.window.createOutputChannel(DISPLAY_NAME);
 
 
 // MODIFIED THE output channel to accept multiple arguments, too lazy to append informations.

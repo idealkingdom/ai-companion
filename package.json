@@ -7,7 +7,7 @@
   "icon": "resources/logo_128.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/idealkingdom/ai-companion.git"
+    "url": "https://github.com/idealkingdom/kdaina.git"
   },
   "engines": {
     "vscode": "^1.101.0"
@@ -21,7 +21,7 @@
     "configuration": {
       "title": "kdAina Settings",
       "properties": {
-        "aiCompanion.modelProvider": {
+        "kdaina.modelProvider": {
           "type": "string",
           "default": "OpenAI",
           "enum": [
@@ -33,21 +33,21 @@
           ],
           "description": "API endpoint for the AI model"
         },
-        "aiCompanion.accessToken": {
+        "kdaina.accessToken": {
           "type": "string",
           "default": "",
           "description": "Access token for authentication",
           "markdownDescription": "Access token (e.g., Bearer token for OpenAI or similar services)",
           "password": true
         },
-        "aiCompanion.temperature": {
+        "kdaina.temperature": {
           "type": "number",
           "default": 1,
           "minimum": 0,
           "maximum": 2,
           "description": "Sampling temperature (0 = deterministic, 2 = more random)"
         },
-        "aiCompanion.disableSslVerification": {
+        "kdaina.disableSslVerification": {
           "type": "boolean",
           "default": false,
           "description": "Bypass SSL certificate validation (useful for corporate VPNs or custom proxy endpoints)",
@@ -57,73 +57,73 @@
     },
     "commands": [
       {
-        "command": "ai-companion.loadHistory",
+        "command": "kdaina.loadHistory",
         "category": "kdAina",
         "title": "Open History",
         "icon": "$(history)"
       },
       {
-        "command": "ai-companion.resetChat",
+        "command": "kdaina.resetChat",
         "category": "kdAina",
         "title": "New Chat",
         "icon": "$(plus)"
       },
       {
-        "command": "ai-companion.openSettings",
+        "command": "kdaina.openSettings",
         "category": "kdAina",
         "title": "Settings",
         "icon": "$(settings-gear)"
       },
       {
-        "command": "ai-companion.prevDiff",
+        "command": "kdaina.prevDiff",
         "category": "kdAina",
         "title": "Previous File",
         "icon": "$(chevron-left)"
       },
       {
-        "command": "ai-companion.nextDiff",
+        "command": "kdaina.nextDiff",
         "category": "kdAina",
         "title": "Next File",
         "icon": "$(chevron-right)"
       },
       {
-        "command": "ai-companion.acceptCurrent",
+        "command": "kdaina.acceptCurrent",
         "category": "kdAina",
         "title": "Accept",
         "icon": "$(check)"
       },
       {
-        "command": "ai-companion.rejectCurrent",
+        "command": "kdaina.rejectCurrent",
         "category": "kdAina",
         "title": "Reject",
         "icon": "$(x)"
       },
       {
-        "command": "ai-companion.acceptAll",
+        "command": "kdaina.acceptAll",
         "category": "kdAina",
         "title": "Accept All",
         "icon": "$(check-all)"
       },
       {
-        "command": "ai-companion.rejectAll",
+        "command": "kdaina.rejectAll",
         "category": "kdAina",
         "title": "Reject All",
         "icon": "$(clear-all)"
       },
       {
-        "command": "ai-companion.togglePopup",
+        "command": "kdaina.togglePopup",
         "category": "kdAina",
         "title": "Detach Chat",
         "icon": "$(link-external)"
       },
       {
-        "command": "ai-companion.openAgentHub",
+        "command": "kdaina.openAgentHub",
         "category": "kdAina",
         "title": "Agent Hub",
         "icon": "$(database)"
       },
       {
-        "command": "ai-companion.resetAllData",
+        "command": "kdaina.resetAllData",
         "category": "kdAina",
         "title": "Reset All Data (Dev)"
       }
@@ -131,17 +131,17 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "ai-companion",
+          "id": "kdaina",
           "title": "kdAina",
           "icon": "resources/logo_128.png"
         }
       ]
     },
     "views": {
-      "ai-companion": [
+      "kdaina": [
         {
           "type": "webview",
-          "id": "ai-companion",
+          "id": "kdaina",
           "name": "Chat",
           "icon": "resources/logo_128.png"
         }
@@ -150,60 +150,60 @@
     "menus": {
       "view/title": [
         {
-          "command": "ai-companion.togglePopup",
-          "when": "view == ai-companion",
+          "command": "kdaina.togglePopup",
+          "when": "view == kdaina",
           "group": "navigation@0"
         },
         {
-          "command": "ai-companion.resetChat",
-          "when": "view == ai-companion",
+          "command": "kdaina.resetChat",
+          "when": "view == kdaina",
           "group": "navigation@1"
         },
         {
-          "command": "ai-companion.loadHistory",
-          "when": "view == ai-companion",
+          "command": "kdaina.loadHistory",
+          "when": "view == kdaina",
           "group": "navigation"
         },
         {
-          "command": "ai-companion.openSettings",
-          "when": "view == ai-companion",
+          "command": "kdaina.openSettings",
+          "when": "view == kdaina",
           "group": "navigation"
         },
         {
-          "command": "ai-companion.openAgentHub",
-          "when": "view == ai-companion",
+          "command": "kdaina.openAgentHub",
+          "when": "view == kdaina",
           "group": "navigation"
         }
       ],
       "editor/title": [
         {
-          "command": "ai-companion.prevDiff",
-          "when": "ai-companion.reviewPending",
+          "command": "kdaina.prevDiff",
+          "when": "kdaina.reviewPending",
           "group": "navigation@1"
         },
         {
-          "command": "ai-companion.nextDiff",
-          "when": "ai-companion.reviewPending",
+          "command": "kdaina.nextDiff",
+          "when": "kdaina.reviewPending",
           "group": "navigation@2"
         },
         {
-          "command": "ai-companion.acceptCurrent",
-          "when": "ai-companion.reviewPending",
+          "command": "kdaina.acceptCurrent",
+          "when": "kdaina.reviewPending",
           "group": "navigation@3"
         },
         {
-          "command": "ai-companion.rejectCurrent",
-          "when": "ai-companion.reviewPending",
+          "command": "kdaina.rejectCurrent",
+          "when": "kdaina.reviewPending",
           "group": "navigation@4"
         },
         {
-          "command": "ai-companion.acceptAll",
-          "when": "ai-companion.reviewPending",
+          "command": "kdaina.acceptAll",
+          "when": "kdaina.reviewPending",
           "group": "navigation@5"
         },
         {
-          "command": "ai-companion.rejectAll",
-          "when": "ai-companion.reviewPending",
+          "command": "kdaina.rejectAll",
+          "when": "kdaina.reviewPending",
           "group": "navigation@6"
         }
       ]

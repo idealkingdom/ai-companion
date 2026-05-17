@@ -1,7 +1,6 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 
 
 // import output channel for logging errors
@@ -33,6 +32,31 @@ export function activate(context: vscode.ExtensionContext) {
     outputChannel.show();
     outputChannel.appendLine(`Congratulations, your extension ${EXTENSION_NAME} is now active!`);
 
+    // ── Migration: rename legacy .ai-companion → .kdaina ──────────────
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (workspaceRoot) {
+        const legacyDir = path.join(workspaceRoot, '.ai-companion');
+        const newDir = path.join(workspaceRoot, '.kdaina');
+        if (fs.existsSync(legacyDir) && !fs.existsSync(newDir)) {
+            try {
+                fs.renameSync(legacyDir, newDir);
+                outputChannel.appendLine(`[Migration] Renamed .ai-companion → .kdaina`);
+            } catch (e) {
+                outputChannel.appendLine(`[Migration] Failed to rename .ai-companion: ${e}`);
+            }
+        }
+    }
+
+    // Migrate settings storage key
+    const legacyKey = 'aiCompanion.customSettings';
+    const newKey = 'kdaina.customSettings';
+    const legacySettings = context.globalState.get(legacyKey);
+    if (legacySettings && !context.globalState.get(newKey)) {
+        context.globalState.update(newKey, legacySettings);
+        context.globalState.update(legacyKey, undefined);
+        outputChannel.appendLine(`[Migration] Migrated settings from ${legacyKey} → ${newKey}`);
+    }
+
     // 2. Initialize the Webview Provider
     // The Provider now handles the Services (History/Core) internally
     const provider = ChatViewProvider.getInstance(context);
@@ -55,7 +79,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Apply SSL Verification Setting
     const applySslConfig = () => {
-        const config = vscode.workspace.getConfiguration('aiCompanion');
+        const config = vscode.workspace.getConfiguration('kdaina');
         const disableSsl = config.get<boolean>('disableSslVerification');
         if (disableSsl) {
             process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -70,7 +94,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration(e => {
-            if (e.affectsConfiguration('aiCompanion.disableSslVerification')) {
+            if (e.affectsConfiguration('kdaina.disableSslVerification')) {
                 applySslConfig();
             }
         })
@@ -167,17 +191,17 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('ai-companion.acceptEdit', async (uriStr: string, editIndex: number) => {
+        vscode.commands.registerCommand('kdaina.acceptEdit', async (uriStr: string, editIndex: number) => {
             reviewManager.acceptEdit(uriStr, editIndex);
             vscode.window.showInformationMessage('Change accepted.');
             await syncReviewToWebview();
         }),
-        vscode.commands.registerCommand('ai-companion.revertEdit', async (uriStr: string, editIndex: number) => {
+        vscode.commands.registerCommand('kdaina.revertEdit', async (uriStr: string, editIndex: number) => {
             await reviewManager.revertEdit(uriStr, editIndex);
             vscode.window.showInformationMessage('Change reverted.');
             await syncReviewToWebview();
         }),
-        vscode.commands.registerCommand('ai-companion.acceptAll', async (uriStr?: string) => {
+        vscode.commands.registerCommand('kdaina.acceptAll', async (uriStr?: string) => {
             if (uriStr) {
                 reviewManager.acceptAllForFile(uriStr);
             } else {
@@ -186,7 +210,7 @@ export function activate(context: vscode.ExtensionContext) {
             vscode.window.showInformationMessage('All changes accepted.');
             await syncReviewToWebview();
         }),
-        vscode.commands.registerCommand('ai-companion.rejectAll', async (uriStr?: string) => {
+        vscode.commands.registerCommand('kdaina.rejectAll', async (uriStr?: string) => {
             if (uriStr) {
                 await reviewManager.revertAllForFile(uriStr);
             } else {
@@ -239,7 +263,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register Popup Toggle (Detach Chat)
     context.subscriptions.push(
-        vscode.commands.registerCommand('ai-companion.togglePopup', () => {
+        vscode.commands.registerCommand('kdaina.togglePopup', () => {
             // Ask the sidebar frontend to initiate the detach
             // (it checks isGenerating and handles the flow)
             const view = ChatViewProvider.getView();
@@ -251,14 +275,14 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register Agent Hub
     context.subscriptions.push(
-        vscode.commands.registerCommand('ai-companion.openAgentHub', () => {
+        vscode.commands.registerCommand('kdaina.openAgentHub', () => {
             AgentHubView.createOrShow(context);
         })
     );
 
     // DEV: Reset all stored data to simulate a fresh install
     context.subscriptions.push(
-        vscode.commands.registerCommand('ai-companion.resetAllData', async () => {
+        vscode.commands.registerCommand('kdaina.resetAllData', async () => {
             const confirm = await vscode.window.showWarningMessage(
                 'This will wipe ALL kdAina data (settings, chat history, agents). Continue?',
                 { modal: true },

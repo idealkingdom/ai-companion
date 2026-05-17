@@ -113,6 +113,24 @@
                     </div>
 
                     <div class="panel-section" style="margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 24px;">
+                        <h3>Safety & Permissions</h3>
+                        <p class="section-desc">Control what the agent is allowed to execute on your system automatically.</p>
+
+                        <div class="setting-item">
+                            <div class="setting-item-content">
+                                <div class="setting-item-label">Command Safety Mode</div>
+                                <p class="setting-item-desc">Defines how kdAina handles terminal command execution.</p>
+                            </div>
+                            <select id="commandSafetyMode" class="styled-input" style="width: auto; min-width: 200px; flex-shrink: 0;">
+                                <option value="smart">Smart (Auto-approve safe, ask for dangerous)</option>
+                                <option value="all">Ask for all commands</option>
+                                <option value="dangerous">Ask for dangerous only (Auto-approve safe/moderate)</option>
+                                <option value="none">Auto-approve all (Blocklist still active)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="panel-section" style="margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 24px;">
                         <h3>Network</h3>
                         <p class="section-desc">Configure connection and proxy settings.</p>
 
@@ -304,6 +322,7 @@
                 <div class="form-group">
                     <label>Alias (Optional)</label>
                     <input type="text" id="addModelAlias" class="styled-input" placeholder="Name to display in dropdown">
+                </div>
                 </div>
 
             <div class="modal-footer">

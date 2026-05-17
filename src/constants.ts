@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-export const EXTENSION_NAME = 'ai-companion';
+export const EXTENSION_NAME = 'kdaina';
+export const DISPLAY_NAME = 'kdAina';
 
 export enum MODEL_PROVIDER {
     OPEN_AI = 'OpenAI',
@@ -19,6 +20,8 @@ export interface PromptDef {
     order?: number;
     linkedSources?: string[];
     linkedRules?: string[];
+    /** Per-agent temperature override (0.0–1.0). Defaults to 0.15 for code agents. */
+    temperature?: number;
     [key: string]: any;
 }
 
@@ -46,7 +49,7 @@ export interface AppSettings {
     permissions: {
         readFilesConfirmation: boolean;
         writeFilesConfirmation: boolean;
-        runCommandsConfirmation: boolean;
+        commandSafetyMode: 'all' | 'smart' | 'dangerous' | 'none';
         alwaysProceed?: boolean;
     };
     ui: {

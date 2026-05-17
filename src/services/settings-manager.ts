@@ -45,7 +45,7 @@ export const DEFAULT_SETTINGS: AppSettings = (() => {
         permissions: {
             readFilesConfirmation: true,
             writeFilesConfirmation: true,
-            runCommandsConfirmation: true,
+            commandSafetyMode: 'smart',
             alwaysProceed: false
         },
         ui: {
@@ -99,7 +99,8 @@ COMMUNICATION
 - Do not explain basics. The user is a developer. Be precise and brief.`,
                 isDefault: true,
                 isActive: true,
-                order: 1
+                order: 1,
+                temperature: 0.3
             },
             {
                 id: 'action',
@@ -130,7 +131,8 @@ COMMUNICATION
 - Be brief. State what you changed and where. No explanations unless something unexpected happened.`,
                 isDefault: true,
                 isActive: true,
-                order: 2
+                order: 2,
+                temperature: 0.15
             }
         ],
         customTemplates: [],
@@ -183,7 +185,7 @@ COMMUNICATION
 })();
 
 export class SettingsManager {
-    private static readonly KEY = 'aiCompanion.customSettings';
+    private static readonly KEY = 'kdaina.customSettings';
     private static readonly _onDidUpdateSettings = new vscode.EventEmitter<AppSettings>();
     public static readonly onDidUpdateSettings = SettingsManager._onDidUpdateSettings.event;
 
@@ -224,6 +226,16 @@ export class SettingsManager {
             rules: finalRules
         };
 
+        // Migration from runCommandsConfirmation to commandSafetyMode
+        if (stored.permissions && 'runCommandsConfirmation' in stored.permissions) {
+            const oldVal = (stored.permissions as any).runCommandsConfirmation;
+            if (oldVal === true) {
+                merged.permissions.commandSafetyMode = 'smart';
+            } else if (oldVal === false) {
+                merged.permissions.commandSafetyMode = 'none';
+            }
+        }
+
         if (!merged.models.providerSettings) {
             merged.models.providerSettings = DEFAULT_SETTINGS.models.providerSettings;
         } else {
@@ -234,7 +246,7 @@ export class SettingsManager {
         }
 
         // Sync with VS Code official settings (#52)
-        const config = vscode.workspace.getConfiguration('aiCompanion');
+        const config = vscode.workspace.getConfiguration('kdaina');
         const configProvider = config.get<string>('modelProvider');
         const configToken = config.get<string>('accessToken');
 

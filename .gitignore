@@ -4,5 +4,5 @@ node_modules
 .vscode-test/
 *.vsix
 .env
-.ai-companion/
+.kdaina/
 .continue/
