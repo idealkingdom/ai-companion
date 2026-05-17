@@ -24,7 +24,7 @@ export interface PromptHistoryEntry {
 }
 
 export class SmartGenerateService {
-    private static readonly HISTORY_KEY = 'aiCompanion.promptHistory';
+    private static readonly HISTORY_KEY = 'kdaina.promptHistory';
     private context: vscode.ExtensionContext;
     private sourceIndex: SourceIndexService;
     private settingsManager: SettingsManager;

@@ -27,7 +27,7 @@ function persistProgress(chatId: string, content: string) {
     if (!workspaceRoot || chatId === 'unknown_chat') { return; }
 
     try {
-        const dir = path.join(workspaceRoot, '.ai-companion', 'artifacts', 'sessions', chatId);
+        const dir = path.join(workspaceRoot, '.kdaina', 'artifacts', 'sessions', chatId);
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
         }

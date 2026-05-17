@@ -9,11 +9,11 @@ import { outputChannel } from '../logger';
 export function createArtifactTools(chatId: string) {
 
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
-    const baseDir = path.join(workspaceRoot, '.ai-companion', 'artifacts');
+    const baseDir = path.join(workspaceRoot, '.kdaina', 'artifacts');
 
     // ─── TOOL: manage_artifact ──────────────────────────────────────────
     const manage_artifact = tool({
-        description: 'Create or update a structured document artifact (e.g., Architecture, Walkthrough, Checklist). Artifacts are saved to a dedicated .ai-companion/artifacts folder. Use this instead of outputting long plans in chat.',
+        description: 'Create or update a structured document artifact (e.g., Architecture, Walkthrough, Checklist). Artifacts are saved to a dedicated .kdaina/artifacts folder. Use this instead of outputting long plans in chat.',
         inputSchema: z.object({
             name: z.string().describe('Filename of the artifact (must end in .md, e.g., checklist.md)'),
             scope: z.enum(['global', 'session']).describe('global: persists across all chats in the workspace. session: ephemeral to this specific chat.'),

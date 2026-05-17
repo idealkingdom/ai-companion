@@ -161,10 +161,10 @@ export class WorkspaceIndexService {
                 if (binaryExtensions.has(ext)) { return false; }
 
                 // Exclude artifacts from OTHER sessions
-                if (rel.includes('.ai-companion/artifacts/sessions/')) {
-                    if (!currentChatId) return false; // If no active session, exclude all session artifacts
-                    if (!rel.includes(`.ai-companion/artifacts/sessions/${currentChatId}/`)) {
-                        return false; 
+                if (rel.includes('.kdaina/artifacts/sessions/')) {
+                    if (!currentChatId) { return false; } // If no active session, exclude all session artifacts
+                    if (!rel.includes(`.kdaina/artifacts/sessions/${currentChatId}/`)) {
+                        return false;
                     }
                 }
 
@@ -296,7 +296,7 @@ export class WorkspaceIndexService {
                     const ext = relPath.split('.').pop()?.toLowerCase() || '';
                     exts.set(ext, (exts.get(ext) || 0) + 1);
                 }
-                
+
                 const extSummary = Array.from(exts.entries())
                     .sort((a, b) => b[1] - a[1])
                     .slice(0, 4)
@@ -462,7 +462,7 @@ export class WorkspaceIndexService {
             const indent = '  '.repeat(depth);
             const kindName = vscode.SymbolKind[sym.kind] || 'Unknown';
             const lineNum = sym.range.start.line + 1;
-            
+
             out.push(`L${lineNum}: ${indent}[${kindName}] ${sym.name}`);
 
             if (sym.children && sym.children.length > 0) {

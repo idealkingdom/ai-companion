@@ -1,6 +1,6 @@
 import { WorkspaceIndexService } from '../services/workspace-index';
 import { createFileTools } from './file-tools';
-import { createSysTools, clearTestRetryTracker } from './sys-tools';
+import { createSysTools, clearTestRetryTracker, classifyCommandRisk } from './sys-tools';
 import { createWebTools } from './web-tools';
 import { createCognitiveTools, ModelTier } from './cognitive-tools';
 import { createArtifactTools } from './artifact-tools';
@@ -14,7 +14,7 @@ export interface ToolRegistryOptions {
     chatId?: string;
     readFilesConfirmation: boolean;
     writeFilesConfirmation: boolean;
-    runCommandsConfirmation: boolean;
+    commandSafetyMode: 'all' | 'smart' | 'dangerous' | 'none';
     tier?: ModelTier;
     onApprovalRequest?: (toolCallId: string, toolName: string, args: any, options: { diffReviewRequired?: boolean }) => Promise<void>;
     abortSignal?: AbortSignal;
@@ -31,7 +31,7 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
     clearTestRetryTracker();
 
     const fileTools = createFileTools(workspaceIndex);
-    const sysTools = createSysTools();
+    const sysTools = createSysTools(options?.chatId);
     const webTools = createWebTools();
     const cognitiveTools = createCognitiveTools(options?.tier || 'mid', options?.chatId);
     const artifactTools = createArtifactTools(options?.chatId || 'unknown_chat');
@@ -47,9 +47,12 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
         ...browserTools
     };
 
-    const readTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol', 'search_workspace', 'scrape_url', 'web_search', 'get_workspace_problems', 'read_artifact'];
+    const readTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol', 'search_workspace', 'scrape_url', 'web_search', 'get_workspace_problems', 'read_artifact', 'list_background_processes', 'get_background_output'];
     const writeTools = ['chunk_replace', 'create_file', 'manage_artifact'];
-    const commandTools = ['run_command', 'browser_action', 'browser_evaluate'];
+    const commandTools = ['run_command', 'stop_background_process'];
+    // Browser interaction tools operate in an isolated sandbox — they should NOT go through shell
+    // command risk classification. They auto-approve; they don't execute system commands. (#79)
+    const browserInteractionTools = ['browser_action', 'browser_evaluate'];
 
     // Wrap all execute functions
     Object.keys(allTools).forEach((key) => {
@@ -69,8 +72,35 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
                 } else if (writeTools.includes(key)) {
                     requireConfirmation = options?.writeFilesConfirmation ?? true;
                     diffReviewRequired = true;
+                } else if (browserInteractionTools.includes(key)) {
+                    // #79: Browser tools run in an isolated sandbox — no shell risk classification.
+                    // Auto-approve; they don't execute system commands.
+                    requireConfirmation = false;
                 } else if (commandTools.includes(key)) {
-                    requireConfirmation = options?.runCommandsConfirmation ?? true;
+                    const mode = options?.commandSafetyMode || 'smart';
+                    if (mode === 'all') {
+                        requireConfirmation = true;
+                    } else if (mode === 'none') {
+                        requireConfirmation = false;
+                    } else {
+                        // smart or dangerous
+                        const risk = classifyCommandRisk(params?.command || '');
+                        if (risk === 'dangerous') {
+                            requireConfirmation = true;
+                        } else if (risk === 'moderate') {
+                            requireConfirmation = mode === 'smart';
+                        } else {
+                            // safe
+                            requireConfirmation = false;
+                        }
+                    }
+                    
+                    // Inject _autoApproved flag into params so sys-tools knows whether to apply ulimit
+                    if (!requireConfirmation) {
+                        (params as any)._autoApproved = true;
+                    } else {
+                        (params as any)._autoApproved = false;
+                    }
                 }
 
                 if (requireConfirmation) {
@@ -120,10 +150,12 @@ function appendStepBudget(result: any, budget?: { current: number; max: number }
     // Inject at periodic checkpoints (every 10 steps) or when < 5 remain
     if (budget.current % 10 === 0 || remaining <= 5) {
         if (typeof result === 'object' && result !== null) {
-            if (remaining <= 5) {
-                result._stepBudget = `⚠️ URGENT: ${remaining} steps remaining out of ${budget.max}. Call update_task_progress NOW to save your progress before the limit is reached.`;
+            if (remaining <= 3) {
+                result._stepBudget = `[!!] CRITICAL: Only ${remaining} steps remaining out of ${budget.max}. You MUST call verify_completion on your NEXT step to summarize what was done. Do NOT make any more tool calls except verify_completion.`;
+            } else if (remaining <= 5) {
+                result._stepBudget = `[!] URGENT: ${remaining} steps remaining out of ${budget.max}. Wrap up NOW — call update_task_progress to save progress, then call verify_completion.`;
             } else {
-                result._stepBudget = `Step ${budget.current}/${budget.max} (${remaining} remaining). Consider calling update_task_progress to checkpoint.`;
+                result._stepBudget = `[i] Step ${budget.current}/${budget.max} (${remaining} remaining). Consider calling update_task_progress to checkpoint.`;
             }
         }
     }

@@ -32,7 +32,7 @@ export class PopupManager {
      */
     public static async openPopup(context: vscode.ExtensionContext, chatState?: { chatId?: string }) {
         const panel = vscode.window.createWebviewPanel(
-            'aiCompanionChatPopup',
+            'kdainaChatPopup',
             'kdAina Chat',
             vscode.ViewColumn.Beside,
             {

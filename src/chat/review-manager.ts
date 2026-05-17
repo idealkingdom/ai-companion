@@ -94,7 +94,7 @@ export class ReviewManager {
     public startTurn() {
         this.pendingEdits.clear();
         this.originalSnapshots.clear();
-        vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', false);
+        vscode.commands.executeCommand('setContext', 'kdaina.reviewPending', false);
         this._onDidUpdateStaging.fire(0);
     }
 
@@ -154,7 +154,19 @@ export class ReviewManager {
                 if (fullText.includes(normReplacement) || fullText.includes(replacementContent)) {
                     return { success: true };
                 }
-                return { success: false, error: 'Target content not found in file. This is usually caused by a whitespace/indentation mismatch or stale content. Use read_line_range to see the EXACT current text, then retry with the precise content.' };
+
+                // ─── FUZZY WHITESPACE MATCHING ──────────────────────────
+                // AI models frequently get indentation wrong (tabs vs spaces,
+                // 4 spaces vs 6 spaces, trailing whitespace). Try matching by
+                // normalizing leading whitespace on each line.
+                const fuzzyResult = this.fuzzyWhitespaceMatch(fullText, normTarget);
+                if (fuzzyResult) {
+                    // Found via fuzzy match — use the actual file content range
+                    matchTarget = fuzzyResult.matchedText;
+                    matchReplacement = normReplacement;
+                } else {
+                    return { success: false, error: 'Target content not found in file. This is usually caused by a whitespace/indentation mismatch or stale content. Use read_line_range to see the EXACT current text, then retry with the precise content.' };
+                }
             }
 
             // Check for unique match
@@ -205,7 +217,7 @@ export class ReviewManager {
             }
             this.pendingEdits.get(key)!.push(pendingEdit);
 
-            vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', true);
+            vscode.commands.executeCommand('setContext', 'kdaina.reviewPending', true);
             this._onDidUpdateStaging.fire(this.getTotalPendingCount());
 
             // Refresh decorations on the active editor
@@ -262,7 +274,7 @@ export class ReviewManager {
             }
             this.pendingEdits.get(key)!.push(pendingEdit);
 
-            vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', true);
+            vscode.commands.executeCommand('setContext', 'kdaina.reviewPending', true);
             this._onDidUpdateStaging.fire(this.getTotalPendingCount());
 
             return { success: true };
@@ -292,7 +304,7 @@ export class ReviewManager {
         }
         this.pendingEdits.get(key)!.push(pendingEdit);
 
-        vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', true);
+        vscode.commands.executeCommand('setContext', 'kdaina.reviewPending', true);
         this._onDidUpdateStaging.fire(this.getTotalPendingCount());
     }
 
@@ -317,7 +329,7 @@ export class ReviewManager {
         }
         
         if (this.getTotalPendingCount() === 0) {
-            vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', false);
+            vscode.commands.executeCommand('setContext', 'kdaina.reviewPending', false);
         }
         this._onDidUpdateStaging.fire(this.getTotalPendingCount());
         this.refreshActiveDecorations();
@@ -370,7 +382,7 @@ export class ReviewManager {
         }
 
         if (this.getTotalPendingCount() === 0) {
-            vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', false);
+            vscode.commands.executeCommand('setContext', 'kdaina.reviewPending', false);
         }
         this._onDidUpdateStaging.fire(this.getTotalPendingCount());
         this.refreshActiveDecorations();
@@ -384,7 +396,7 @@ export class ReviewManager {
         this.originalSnapshots.delete(uriStr);
 
         if (this.getTotalPendingCount() === 0) {
-            vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', false);
+            vscode.commands.executeCommand('setContext', 'kdaina.reviewPending', false);
         }
         this._onDidUpdateStaging.fire(this.getTotalPendingCount());
         this.refreshActiveDecorations();
@@ -419,7 +431,7 @@ export class ReviewManager {
         this.originalSnapshots.delete(uriStr);
 
         if (this.getTotalPendingCount() === 0) {
-            vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', false);
+            vscode.commands.executeCommand('setContext', 'kdaina.reviewPending', false);
         }
         this._onDidUpdateStaging.fire(this.getTotalPendingCount());
         this.refreshActiveDecorations();
@@ -431,7 +443,7 @@ export class ReviewManager {
     public async commitAll() {
         this.pendingEdits.clear();
         this.originalSnapshots.clear();
-        vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', false);
+        vscode.commands.executeCommand('setContext', 'kdaina.reviewPending', false);
         this._onDidUpdateStaging.fire(0);
         this.refreshActiveDecorations();
         return true;
@@ -487,6 +499,70 @@ export class ReviewManager {
         if (editor) {
             ReviewDecorationProvider.updateDecorations(editor);
         }
+    }
+
+    /**
+     * Fuzzy whitespace matching for chunk_replace.
+     * 
+     * AI models frequently get indentation wrong (tabs vs spaces, 4 spaces vs 6,
+     * trailing whitespace, etc.). This method normalizes leading whitespace on each
+     * line and uses a sliding window to find the matching block in the file.
+     * 
+     * Returns the ACTUAL file text for the matched range (not the normalized version),
+     * so the replacement targets the real content.
+     */
+    private fuzzyWhitespaceMatch(
+        fullText: string,
+        target: string
+    ): { matchedText: string; startLine: number; endLine: number } | null {
+        const fileLines = fullText.split('\n');
+        const targetLines = target.split('\n');
+
+        if (targetLines.length === 0 || targetLines.length > fileLines.length) {
+            return null;
+        }
+
+        // Normalize: collapse leading whitespace to a single space, trim trailing
+        const normalize = (line: string) => line.replace(/^\s+/, ' ').trimEnd();
+        const normTargetLines = targetLines.map(normalize);
+
+        // Sliding window search
+        const windowSize = targetLines.length;
+        for (let i = 0; i <= fileLines.length - windowSize; i++) {
+            let match = true;
+            for (let j = 0; j < windowSize; j++) {
+                if (normalize(fileLines[i + j]) !== normTargetLines[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                // Verify uniqueness — check there's no second match
+                let secondMatch = false;
+                for (let k = i + 1; k <= fileLines.length - windowSize; k++) {
+                    let isMatch = true;
+                    for (let j = 0; j < windowSize; j++) {
+                        if (normalize(fileLines[k + j]) !== normTargetLines[j]) {
+                            isMatch = false;
+                            break;
+                        }
+                    }
+                    if (isMatch) {
+                        secondMatch = true;
+                        break;
+                    }
+                }
+                if (secondMatch) {
+                    return null; // Ambiguous — multiple fuzzy matches
+                }
+
+                // Return the actual file content for this range
+                const matchedText = fileLines.slice(i, i + windowSize).join('\n');
+                return { matchedText, startLine: i, endLine: i + windowSize - 1 };
+            }
+        }
+
+        return null;
     }
 
     // ─── LEGACY COMPAT (kept for webview staging bar) ─────────────────────

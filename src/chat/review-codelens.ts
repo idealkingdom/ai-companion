@@ -35,13 +35,13 @@ export class ReviewCodeLensProvider implements vscode.CodeLensProvider {
 
             lenses.push(new vscode.CodeLens(range, {
                 title: `$(check) Accept Change`,
-                command: 'ai-companion.acceptEdit',
+                command: 'kdaina.acceptEdit',
                 arguments: [uriStr, idx]
             }));
 
             lenses.push(new vscode.CodeLens(range, {
                 title: `$(discard) Revert Change`,
-                command: 'ai-companion.revertEdit',
+                command: 'kdaina.revertEdit',
                 arguments: [uriStr, idx]
             }));
         });

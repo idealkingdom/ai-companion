@@ -43,6 +43,7 @@ function resolveModel(provider: string, model: string, apiKey: string, baseUrl?:
     // All OpenAI-compatible providers (OpenAI, DeepSeek, Mistral, Custom, etc.)
     const opts: any = {
         baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
+        compatibility: 'compatible', // Bypass strict OpenAI model validation whitelist
     };
 
     // Custom header support: some providers use non-standard auth headers
@@ -210,7 +211,7 @@ function createOpenAIReasoningFetch() {
         if (response.body && response.headers.get('content-type')?.includes('text/event-stream')) {
             let buffer = '';
             let isReasoning = false;
-            
+
             const transform = new TransformStream({
                 transform(chunk, controller) {
                     buffer += new TextDecoder().decode(chunk);
@@ -224,6 +225,13 @@ function createOpenAIReasoningFetch() {
                                 const data = JSON.parse(line.slice(6));
                                 if (data.choices?.[0]?.delta) {
                                     const delta = data.choices[0].delta;
+
+                                    // Strip 'None' from reasoning_content — some Python proxies
+                                    // serialize null as the string "None" instead of JSON null
+                                    if (typeof delta.reasoning_content === 'string' && delta.reasoning_content.trim() === 'None') {
+                                        delta.reasoning_content = null;
+                                    }
+
                                     const hasReasoning = 'reasoning_content' in delta;
                                     const reasoningVal = delta.reasoning_content;
                                     const hasContent = delta.content !== undefined && delta.content !== null && delta.content !== '';
@@ -234,7 +242,7 @@ function createOpenAIReasoningFetch() {
                                             // Valid reasoning text — inject into content
                                             if (!isReasoning) {
                                                 isReasoning = true;
-                                                delta.content = '<think>\n' + reasoningVal;
+                                                delta.content = '<thinking>\n' + reasoningVal;
                                             } else {
                                                 delta.content = reasoningVal;
                                             }
@@ -243,7 +251,7 @@ function createOpenAIReasoningFetch() {
                                             if (isReasoning) {
                                                 isReasoning = false;
                                                 // Close the think block. Prepend to real content if present.
-                                                delta.content = '\n</think>\n' + (hasContent ? delta.content : '');
+                                                delta.content = '\n</thinking>\n' + (hasContent ? delta.content : '');
                                             } else {
                                                 // Never started reasoning — just pass content as-is (or skip if no content)
                                                 if (!hasContent) {
@@ -255,7 +263,7 @@ function createOpenAIReasoningFetch() {
                                     } else if (isReasoning && hasContent) {
                                         // No reasoning_content key at all, but we were reasoning — close the block
                                         isReasoning = false;
-                                        delta.content = '\n</think>\n' + delta.content;
+                                        delta.content = '\n</thinking>\n' + delta.content;
                                     }
                                 }
                                 newChunk += 'data: ' + JSON.stringify(data) + '\n';
@@ -274,7 +282,7 @@ function createOpenAIReasoningFetch() {
                     // If reasoning was never closed (model cut off), close it now
                     let closing = '';
                     if (isReasoning) {
-                        closing = 'data: {"choices":[{"delta":{"content":"\\n</think>\\n","role":"assistant"},"index":0}]}\n\n';
+                        closing = 'data: {"choices":[{"delta":{"content":"\\n</thinking>\\n","role":"assistant"},"index":0}]}\n\n';
                     }
                     if (buffer || closing) {
                         controller.enqueue(new TextEncoder().encode(closing + buffer));
@@ -313,7 +321,7 @@ function resolveAgenticModel(provider: string, model: string, apiKey: string, ba
     }
     const opts: any = {
         baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
-        compatibility: 'strict',
+        compatibility: 'compatible', // 'compatible' disables the SDK's internal vision model whitelist
         fetch: createOpenAIReasoningFetch()
     };
 
@@ -326,7 +334,7 @@ function resolveAgenticModel(provider: string, model: string, apiKey: string, ba
 
     const openai = createOpenAI(opts);
     const resolved = openai.chat(model);
-    
+
     // Most third-party open reasoning models (DeepSeek R1, Kimi, etc.) 
     // output their reasoning inside <think> tags. We use the middleware 
     // to automatically parse this into native reasoning-delta events.
@@ -496,8 +504,8 @@ export async function aiAgenticRequest(
                         activeMessages[sysIndex] = {
                             ...sysMsg,
                             content: [
-                                { 
-                                    type: 'text', 
+                                {
+                                    type: 'text',
                                     text: sysMsg.content,
                                     providerOptions: {
                                         anthropic: { cacheControl: { type: 'ephemeral' } }

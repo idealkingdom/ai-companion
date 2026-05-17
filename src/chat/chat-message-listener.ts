@@ -686,8 +686,8 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                 const chatId = ChatViewProvider.getCurrentSessionId() || message.data.chatId;
                 const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
                 if (workspaceRoot && chatId) {
-                    const artifactPath = path.join(workspaceRoot, '.ai-companion', 'artifacts', 'sessions', chatId, artifactName);
-                    const artifactPathMd = path.join(workspaceRoot, '.ai-companion', 'artifacts', 'sessions', chatId, artifactName.endsWith('.md') ? artifactName : `${artifactName}.md`);
+                    const artifactPath = path.join(workspaceRoot, '.kdaina', 'artifacts', 'sessions', chatId, artifactName);
+                    const artifactPathMd = path.join(workspaceRoot, '.kdaina', 'artifacts', 'sessions', chatId, artifactName.endsWith('.md') ? artifactName : `${artifactName}.md`);
                     
                     if (fs.existsSync(artifactPath)) {
                         vscode.commands.executeCommand('vscode.open', vscode.Uri.file(artifactPath));

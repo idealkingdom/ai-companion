@@ -42,7 +42,7 @@ export interface SourceIndexData {
 // ─── SERVICE ─────────────────────────────────────────────────────────────
 
 export class SourceIndexService {
-    private static readonly STORAGE_KEY = 'aiCompanion.sourceIndex';
+    private static readonly STORAGE_KEY = 'kdaina.sourceIndex';
     private context: vscode.ExtensionContext;
 
     constructor(context: vscode.ExtensionContext) {

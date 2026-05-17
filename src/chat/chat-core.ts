@@ -192,20 +192,26 @@ export class ChatCoreService {
             let finalCurrentMessage: any = currentMessageContent;
 
             if (hasImages) {
-                // Check if the provider supports image models at all
+                // Check if the active model supports vision:
+                // 1. Custom model with IMAGE toggle ON (supportsImage flag)
+                // 2. Provider's hardcoded image model list
+                const activeCustomModel = (appSettings.customModels || []).find((cm: any) => cm.name === fallbackTextModel);
+                const customModelSupportsImage = activeCustomModel?.supportsImage === true;
                 const providerSupportsVision = providerImageModels.length > 0;
 
-                if (providerSupportsVision) {
-                    targetModel = fallbackImageModel;
-                    // Warn if the selected image model isn't in the provider's image-capable list
-                    if (providerImageModels.length > 0 && !providerImageModels.includes(targetModel)) {
+                if (customModelSupportsImage || providerSupportsVision) {
+                    // Custom model with IMAGE toggle ON — send raw image directly using the text model
+                    // Provider image model list — use the configured image model
+                    targetModel = customModelSupportsImage ? fallbackTextModel : fallbackImageModel;
+                    if (!customModelSupportsImage && providerImageModels.length > 0 && !providerImageModels.includes(targetModel)) {
                         outputChannel.appendLine(`[ChatCore] ⚠ Warning: Model "${targetModel}" may not support images. Image-capable models for ${configProvider}: ${providerImageModels.join(', ')}`);
                     }
+                    outputChannel.appendLine(`[ChatCore] Vision enabled: model=${targetModel}, source=${customModelSupportsImage ? 'customModel.supportsImage' : 'providerImageModels'}`);
                 } else {
-                    // Provider doesn't list image models — fall back to text description
+                    // No vision support — fall back to text description
                     const descriptionContext = storedImageDescriptions.map((d, i) => `[Image ${i + 1} Description: ${d}]`).join("\n");
                     finalCurrentMessage = `${data.message}\n\n${descriptionContext}`;
-                    outputChannel.appendLine(`[ChatCore] Provider "${configProvider}" has no image models listed — using text descriptions instead.`);
+                    outputChannel.appendLine(`[ChatCore] Provider "${configProvider}" has no image models listed and no custom model IMAGE toggle — using text descriptions instead.`);
                 }
             } else {
                 targetModel = fallbackTextModel;
@@ -247,7 +253,7 @@ export class ChatCoreService {
 
                 // ULTIMATE FALLBACK: Check VS Code global configuration directly as a last resort
                 if (!apiKey) {
-                    const config = vscode.workspace.getConfiguration('aiCompanion');
+                    const config = vscode.workspace.getConfiguration('kdaina');
                     const configToken = config.get<string>('accessToken');
                     if (configToken && configToken.trim() !== '') {
                         apiKey = configToken;
@@ -297,7 +303,7 @@ export class ChatCoreService {
                     azureStyle
                 );
                 aiResponseText = response.text;
-                if (!totalUsage) totalUsage = response.usage;
+                if (!totalUsage) { totalUsage = response.usage; }
                 if (response.hitStepLimit) {
                     hitStepLimit = true;
                     continuationMaxSteps = response.maxSteps || 0;
@@ -312,7 +318,7 @@ export class ChatCoreService {
                     azureStyle
                 );
                 aiResponseText = response.text;
-                if (!totalUsage) totalUsage = response.usage;
+                if (!totalUsage) { totalUsage = response.usage; }
             }
 
             // --- STEP E: SAVE AI RESPONSE ---
@@ -412,7 +418,7 @@ export class ChatCoreService {
                     (event: any) => {
                         const usage = event.usage || event.totalUsage;
                         totalUsage = usage;
-                        if (onUsageUpdate) onUsageUpdate(usage);
+                        if (onUsageUpdate) { onUsageUpdate(usage); }
                     },
                     azureStyle
                 );
@@ -494,7 +500,7 @@ export class ChatCoreService {
                 }
             };
 
-            const baseDir = path.join(workspaceRoot, '.ai-companion', 'artifacts');
+            const baseDir = path.join(workspaceRoot, '.kdaina', 'artifacts');
             scanDir(path.join(baseDir, 'global'), 'global');
             scanDir(path.join(baseDir, 'sessions', data.chat_id), 'session');
 
@@ -667,7 +673,7 @@ CONTEXT PRIORITY:
             stepBudget: stepBudget,
             readFilesConfirmation: alwaysProceed ? false : (settings.permissions?.readFilesConfirmation ?? false),
             writeFilesConfirmation: alwaysProceed ? false : (settings.permissions?.writeFilesConfirmation ?? true),
-            runCommandsConfirmation: alwaysProceed ? false : (settings.permissions?.runCommandsConfirmation ?? true),
+            commandSafetyMode: alwaysProceed ? 'none' : (settings.permissions?.commandSafetyMode ?? 'smart'),
             onApprovalRequest: async (toolCallId, toolName, args, opts) => {
                 if (abortSignal?.aborted) {
                     return;
@@ -697,13 +703,10 @@ CONTEXT PRIORITY:
         outputChannel.appendLine(`[Agentic] Tool names: ${Object.keys(tools).join(', ')}`);
         outputChannel.appendLine(`[Agentic] Messages count: ${messages.length}`);
 
-        // Optimize temperature by agent role:
-        // - Code/task agents: 0.2 for precision (0.1 causes repetition loops in some models)
-        // - Research/planning agents: 0.5 for creative analysis while staying grounded
-        const agentName = (agent?.name || '').toLowerCase();
-        const isResearchAgent = agentName.includes('research') || agentName.includes('planner') || agentName.includes('analyst') || agentName.includes('advisor') || agentName.includes('architect');
-        const agentTemp = isResearchAgent ? 0.5 : 0.2;
-        outputChannel.appendLine(`[Agentic] Temperature: ${agentTemp} (${isResearchAgent ? 'research/planning' : 'code/task'})`);
+        // Per-agent temperature: each agent profile carries its own temperature.
+        // Falls back to 0.15 (precise coding default) for agents without a setting.
+        const agentTemp = agent?.temperature ?? 0.15;
+        outputChannel.appendLine(`[Agentic] Temperature: ${agentTemp} (from agent profile${agent?.temperature !== undefined ? '' : ', default'})`);
 
 
         let stepCount = 0;
@@ -737,12 +740,13 @@ CONTEXT PRIORITY:
                 outputChannel.appendLine(`[Agentic] Auto-detected reasoning support for model: ${model}`);
             }
         }
-        // Aggressive mode doubles maxSteps for persistent task completion
+        // Aggressive mode increases maxSteps for persistent task completion (capped at 60)
         const isAggressive = settings.general?.aggressiveAgentic === true;
         const baseSteps = modelTier === 'small' ? 30 : modelTier === 'mid' ? 40 : 45;
         // +2 grace steps: ensures the model can finish its text response after
         // verify_completion without getting cut off mid-sentence
-        const maxSteps = (isAggressive ? baseSteps * 2 : baseSteps) + 2;
+        // Cap at 60: beyond this the agent tends to spin in retry loops rather than making progress
+        const maxSteps = Math.min((isAggressive ? baseSteps * 2 : baseSteps) + 2, 60);
         stepBudget.max = maxSteps; // populate the shared counter
         outputChannel.appendLine(`[Agentic] maxSteps=${maxSteps}${isAggressive ? ' (aggressive)' : ''}`);
 
@@ -760,7 +764,7 @@ CONTEXT PRIORITY:
                     modelTier: modelTier,
                     onFinish: (event: any) => {
                         const usage = event.usage || event.totalUsage;
-                        if (onUsageUpdate && usage) onUsageUpdate(usage);
+                        if (onUsageUpdate && usage) { onUsageUpdate(usage); }
                     },
                     // #44: Real-time reasoning streaming (for models like Gemini/DeepSeek)
                     onReasoningChunk: (text: string) => {
@@ -800,7 +804,7 @@ CONTEXT PRIORITY:
 
                         // Accumulate usage per step so tokens are counted even on abort
                         if (event.usage) {
-                            if (onUsageUpdate) onUsageUpdate(event.usage);
+                            if (onUsageUpdate) { onUsageUpdate(event.usage); }
                         }
 
                         // Stream tool activity to frontend
@@ -859,18 +863,30 @@ CONTEXT PRIORITY:
             let _thinkingBuffer = ''; // Buffer to detect partial <thinking> / </thinking> tags
             let _insideThinkingBlock = false; // Track if we're inside <thinking>...</thinking>
 
-            // Inactivity timeout: if no stream event arrives for 120s, auto-abort
-            const INACTIVITY_TIMEOUT_MS = 120_000;
+            // Inactivity timeout: if no stream event arrives for 300s, prompt user
+            // Reasoning models (Kimi-K2.6, DeepSeek R1) can think for 2-5min without sending events
+            const INACTIVITY_TIMEOUT_MS = 300_000;
             // Reset timer reference (declared above try for catch-block access)
             const resetInactivityTimer = () => {
                 if (inactivityTimer) { clearTimeout(inactivityTimer); }
-                inactivityTimer = setTimeout(() => {
-                    outputChannel.appendLine(`[Agentic] ⚠ Inactivity timeout: no stream event for ${INACTIVITY_TIMEOUT_MS / 1000}s — aborting`);
-                    // Look up the abort controller from the static map
-                    const ctrl = ChatCoreService.activeAbortControllers.get(data.chat_id);
-                    if (ctrl) {
-                        (ctrl.signal as any)._isTimeout = true;
-                        ctrl.abort();
+                inactivityTimer = setTimeout(async () => {
+                    outputChannel.appendLine(`[Agentic] ⚠ Inactivity: no stream event for ${INACTIVITY_TIMEOUT_MS / 1000}s — prompting user`);
+                    const choice = await vscode.window.showWarningMessage(
+                        `No response from the AI model for ${INACTIVITY_TIMEOUT_MS / 1000 / 60} minutes. The model may still be thinking.`,
+                        { modal: false },
+                        'Continue Waiting',
+                        'Abort'
+                    );
+                    if (choice === 'Continue Waiting') {
+                        outputChannel.appendLine(`[Agentic] User chose to continue waiting — resetting timer`);
+                        resetInactivityTimer(); // Extend by another cycle
+                    } else {
+                        outputChannel.appendLine(`[Agentic] User chose to abort (or dismissed prompt)`);
+                        const ctrl = ChatCoreService.activeAbortControllers.get(data.chat_id);
+                        if (ctrl) {
+                            (ctrl.signal as any)._isTimeout = true;
+                            ctrl.abort();
+                        }
                     }
                 }, INACTIVITY_TIMEOUT_MS);
             };
@@ -899,6 +915,11 @@ CONTEXT PRIORITY:
                             break;
                         }
                         _lastTextDelta = deltaText;
+
+                        // Strip spurious 'None' that proxies inject at reasoning transitions
+                        if (deltaText && deltaText.trim() === 'None') {
+                            break;
+                        }
 
                         // Accumulate into buffer for tag detection
                         _thinkingBuffer += deltaText;
@@ -1111,12 +1132,19 @@ CONTEXT PRIORITY:
 
                         // Consolidate reasoning text (like the AI SDK elements example)
                         // step.reasoning is Array<ReasoningPart> where each part has { type: 'reasoning', text: string }
-                        if (step.reasoningText && step.reasoningText.trim()) {
-                            if (allReasoningText) { allReasoningText += '\n\n'; }
-                            allReasoningText += step.reasoningText;
+                        if (step.reasoningText && step.reasoningText.trim() && step.reasoningText.trim() !== 'None') {
+                            // Strip leading 'None\n' artifacts from reasoning text
+                            let cleanText = step.reasoningText;
+                            if (cleanText.startsWith('None\n')) {
+                                cleanText = cleanText.substring(5);
+                            }
+                            if (cleanText.trim()) {
+                                if (allReasoningText) { allReasoningText += '\n\n'; }
+                                allReasoningText += cleanText;
+                            }
                         } else if (step.reasoning && Array.isArray(step.reasoning) && step.reasoning.length > 0) {
                             const consolidated = step.reasoning
-                                .filter((r: any) => r.text)
+                                .filter((r: any) => r.text && r.text !== 'None')
                                 .map((r: any) => r.text)
                                 .join('\n\n');
                             if (consolidated.trim()) {
@@ -1222,7 +1250,7 @@ CONTEXT PRIORITY:
         // ═══════════════════════════════════════════════════════════════
         if (mode === 'compact') {
             // Keep only system + user + assistant messages (drop all tool messages)
-            const conversational = deduped.filter(msg => 
+            const conversational = deduped.filter(msg =>
                 msg.role === 'system' || msg.role === 'user' || msg.role === 'assistant'
             );
 
@@ -1247,9 +1275,14 @@ CONTEXT PRIORITY:
                     // Active messages: full content
                     result.push(msg);
                 } else {
-                    // Background messages: aggressive truncation
-                    if (typeof msg.content === 'string' && msg.content.length > 300) {
-                        result.push({ ...msg, content: msg.content.substring(0, 300) + '\n... [prior context — truncated]' });
+                    // Background messages: moderate truncation (preserve enough for useful context)
+                    if (typeof msg.content === 'string') {
+                        const limit = msg.role === 'assistant' ? 800 : 600;
+                        if (msg.content.length > limit) {
+                            result.push({ ...msg, content: msg.content.substring(0, limit) + '\n... [prior context — truncated]' });
+                        } else {
+                            result.push(msg);
+                        }
                     } else {
                         result.push(msg);
                     }
@@ -1323,13 +1356,13 @@ CONTEXT PRIORITY:
                 // WARM tier: truncate based on role
                 if (msg.role === 'tool' && msg.content) {
                     const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-                    if (content.length > 200) {
-                        return { ...msg, content: content.substring(0, 200) + '... [truncated]' };
+                    if (content.length > 500) {
+                        return { ...msg, content: content.substring(0, 500) + '... [truncated]' };
                     }
                 }
 
-                if (msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.length > 600) {
-                    return { ...msg, content: msg.content.substring(0, 600) + '\n... [truncated for context efficiency]' };
+                if (msg.role === 'assistant' && typeof msg.content === 'string' && msg.content.length > 1000) {
+                    return { ...msg, content: msg.content.substring(0, 1000) + '\n... [truncated for context efficiency]' };
                 }
 
                 if (msg.role === 'user' && typeof msg.content === 'string' && msg.content.length > 400) {

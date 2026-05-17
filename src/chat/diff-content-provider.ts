@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 export class DiffContentProvider implements vscode.TextDocumentContentProvider {
-    static readonly scheme = 'ai-companion-preview';
+    static readonly scheme = 'kdaina-preview';
     private static instance: DiffContentProvider;
     
     private contentMap = new Map<string, string>();
