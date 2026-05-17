@@ -370,6 +370,12 @@
                     </div>
                 </div>
 
+                <div class="agent-temp-row">
+                    <label class="agent-temp-label">Temperature</label>
+                    <input type="range" class="agent-temp-slider" min="0" max="100" value="${Math.round((agent.temperature ?? 0.15) * 100)}" data-agent-id="${agent.id}" data-field="temperature">
+                    <span class="agent-temp-value" data-agent-id="${agent.id}">${(agent.temperature ?? 0.15).toFixed(2)}</span>
+                </div>
+
                 <div class="agent-prompt-area">
                     <div class="agent-prompt-label-row">
                         <span class="agent-prompt-label">System Prompt</span>
@@ -436,6 +442,21 @@
                 const a = agents.find(a => a.id === e.target.dataset.agentId);
                 if (a) a.isActive = e.target.checked;
                 if (activeCountEl) activeCountEl.textContent = String(agents.filter(a => a.isActive).length);
+            });
+        });
+
+        // Temperature slider: update display on drag, save on release
+        agentsList.querySelectorAll('.agent-temp-slider').forEach(slider => {
+            slider.addEventListener('input', (e) => {
+                const val = (parseInt(e.target.value, 10) / 100).toFixed(2);
+                const label = agentsList.querySelector(`.agent-temp-value[data-agent-id="${e.target.dataset.agentId}"]`);
+                if (label) label.textContent = val;
+            });
+            slider.addEventListener('change', (e) => {
+                const val = parseFloat((parseInt(e.target.value, 10) / 100).toFixed(2));
+                const agent = agents.find(a => a.id === e.target.dataset.agentId);
+                if (agent) agent.temperature = val;
+                vscode.postMessage({ command: 'updateAgent', data: { id: e.target.dataset.agentId, field: 'temperature', value: val } });
             });
         });
     }

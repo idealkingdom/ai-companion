@@ -840,6 +840,70 @@ body {
   background: linear-gradient(135deg, var(--hub-accent), var(--hub-accent-2));
 }
 
+/* ─── AGENT TEMPERATURE SLIDER ────────────────────────────────────────── */
+
+.agent-temp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+
+.agent-temp-label {
+  font-size: 11px;
+  color: var(--hub-text-muted);
+  font-weight: 500;
+  flex-shrink: 0;
+  min-width: 75px;
+}
+
+.agent-temp-slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.agent-temp-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--hub-accent), var(--hub-accent-2));
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  transition: transform 0.15s ease;
+}
+
+.agent-temp-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.agent-temp-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--hub-accent), var(--hub-accent-2));
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+
+.agent-temp-value {
+  font-size: 11px;
+  font-family: var(--hub-font-mono);
+  color: var(--hub-accent);
+  font-weight: 600;
+  min-width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
 .agent-prompt-area {
   margin-bottom: 12px;
 }

@@ -59,7 +59,7 @@ export class AgentHubView {
         }
 
         const panel = vscode.window.createWebviewPanel(
-            'aiCompanionAgentHub',
+            'kdainaAgentHub',
             'Agent Hub',
             column || vscode.ViewColumn.One,
             {
@@ -396,7 +396,8 @@ export class AgentHubView {
                     isActive: true,
                     order: settings.prompts.length + 1,
                     linkedSources: [],
-                    linkedRules: []
+                    linkedRules: [],
+                    temperature: 0.15
                 };
                 settings.prompts.push(newAgent);
                 await this.settingsManager.updateSettings({ prompts: settings.prompts });
@@ -415,6 +416,7 @@ export class AgentHubView {
                 if (field === 'name') { agent.name = value; }
                 else if (field === 'content') { agent.content = value; }
                 else if (field === 'isActive') { agent.isActive = !!value; }
+                else if (field === 'temperature') { agent.temperature = typeof value === 'number' ? value : parseFloat(value); }
 
                 await this.settingsManager.updateSettings({ prompts: settings.prompts });
                 // Don't call sendAgents() here — it causes full DOM rebuild and input flicker.
