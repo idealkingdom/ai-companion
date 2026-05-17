@@ -20,9 +20,6 @@ import * as path from 'path';
 export type ModelTier = 'frontier' | 'mid' | 'small';
 
 /**
- * Auto-persist progress to a session-scoped _progress.md artifact.
- * This survives step limits — when the user says "continue", the system
- * prompt manifest shows this artifact and the agent can read_artifact to
  * know exactly where it left off.
  */
 function persistProgress(chatId: string, content: string) {
@@ -34,7 +31,7 @@ function persistProgress(chatId: string, content: string) {
         if (!fs.existsSync(dir)) {
             fs.mkdirSync(dir, { recursive: true });
         }
-        fs.writeFileSync(path.join(dir, '_progress.md'), content, 'utf-8');
+        fs.writeFileSync(path.join(dir, 'task.md'), content, 'utf-8');
     } catch (e) {
         outputChannel.appendLine(`[Cognitive] Failed to persist progress: ${e}`);
     }

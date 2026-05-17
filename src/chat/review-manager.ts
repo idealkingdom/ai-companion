@@ -43,7 +43,43 @@ export class ReviewManager {
     private _isSaving = false;
     public get isSaving() { return this._isSaving; }
 
-    private constructor() {}
+    private _isTerminalRunning = false;
+    public setTerminalRunning(val: boolean) { this._isTerminalRunning = val; }
+
+    private constructor() {
+        // Track file creations while terminal is running
+        vscode.workspace.onDidCreateFiles(async (e) => {
+            if (this._isTerminalRunning) {
+                for (const uri of e.files) {
+                    // Ignore noisy directories
+                    if (uri.fsPath.includes('node_modules') || uri.fsPath.includes('.git') || uri.fsPath.includes('__pycache__')) continue;
+                    
+                    try {
+                        const stat = await vscode.workspace.fs.stat(uri);
+                        if (stat.type === vscode.FileType.File) {
+                            const content = await vscode.workspace.fs.readFile(uri);
+                            this.trackTerminalCreate(uri, Buffer.from(content).toString('utf-8'));
+                        }
+                    } catch (err) {}
+                }
+            }
+        });
+
+        // Update the content of tracked terminal creations if they are modified by the terminal
+        vscode.workspace.onDidChangeTextDocument(e => {
+            if (this._isTerminalRunning && !this._isSaving) {
+                const key = e.document.uri.toString();
+                const edits = this.pendingEdits.get(key);
+                if (edits) {
+                    const termEdit = edits.find(edit => edit.toolName === 'terminal');
+                    if (termEdit) {
+                        termEdit.newContent = e.document.getText();
+                        termEdit.endLine = termEdit.newContent.split('\n').length - 1;
+                    }
+                }
+            }
+        });
+    }
 
     public static getInstance(): ReviewManager {
         if (!ReviewManager.instance) {
@@ -233,6 +269,31 @@ export class ReviewManager {
         } catch (err: any) {
             return { success: false, error: err?.message || String(err) };
         }
+    }
+
+    /**
+     * Track a file created via terminal command.
+     */
+    public trackTerminalCreate(uri: vscode.Uri, content: string) {
+        const key = uri.toString();
+        const lineCount = content.split('\n').length;
+        const pendingEdit: PendingEdit = {
+            originalContent: '',
+            newContent: content,
+            startLine: 0,
+            endLine: Math.max(0, lineCount - 1),
+            toolName: 'terminal',
+            timestamp: Date.now()
+        };
+
+        this.originalSnapshots.set(key, '');
+        if (!this.pendingEdits.has(key)) {
+            this.pendingEdits.set(key, []);
+        }
+        this.pendingEdits.get(key)!.push(pendingEdit);
+
+        vscode.commands.executeCommand('setContext', 'ai-companion.reviewPending', true);
+        this._onDidUpdateStaging.fire(this.getTotalPendingCount());
     }
 
     /**

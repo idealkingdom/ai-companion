@@ -1117,10 +1117,17 @@ function populateModelDropdowns(provider, selectedText, selectedImage) {
         imageList.push(selectedImage);
     }
 
+    // Helper to format option with alias if available
+    const getOptionHtml = (modelName) => {
+        const cm = customModels.find(c => c.name === modelName);
+        const displayName = cm && cm.alias ? cm.alias : modelName;
+        return `<option value="${modelName}">${displayName}</option>`;
+    };
+
     // Text
-    textModelInput.innerHTML = textList.map(m => `<option value="${m}">${m}</option>`).join('');
+    textModelInput.innerHTML = textList.map(m => getOptionHtml(m)).join('');
     // Image
-    imageModelInput.innerHTML = imageList.map(m => `<option value="${m}">${m}</option>`).join('');
+    imageModelInput.innerHTML = imageList.map(m => getOptionHtml(m)).join('');
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1145,7 +1152,7 @@ function renderModelTable() {
     const activeImageModel = currentSettings.models.imageModel;
 
     // Helper: build a model row with expandable config
-    function buildRow(modelName, providerKey, providerName, isCustom, customId, supportsImage, modelSupportsReasoning, modelTier) {
+    function buildRow(modelName, providerKey, providerName, isCustom, customId, supportsImage, modelSupportsReasoning, modelTier, alias) {
         let isActive = true;
         if (isCustom) {
             const cm = (currentSettings.customModels || []).find(m => m.id === customId);
@@ -1208,7 +1215,7 @@ function renderModelTable() {
                         <svg class="expand-chevron" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                         ${getProviderIcon(providerKey)}
                         <div class="model-card-name-block">
-                            <span class="model-card-name">${escapeHtml(modelName)}${configDot}</span>
+                            <span class="model-card-name">${escapeHtml(alias || modelName)}${configDot}</span>
                             <span class="model-card-provider">${escapeHtml(providerName)}</span>
                         </div>
                     </div>
@@ -1256,6 +1263,10 @@ function renderModelTable() {
                             <label>Base URL</label>
                             <input type="text" placeholder="Leave empty for default" value="${escapeHtml(baseUrl)}" data-config-field="baseUrl" disabled>
                         </div>
+                        ${isCustom ? `<div class="config-field">
+                            <label>Alias <span style="font-size:0.72rem;opacity:0.6;">(optional)</span></label>
+                            <input type="text" placeholder="Display name" value="${escapeHtml(alias || '')}" data-config-field="alias" disabled>
+                        </div>` : ''}
                         ${isCustom && (providerKey === 'Custom' || providerKey === 'Azure OpenAI' || providerKey === 'Anthropic') ? `<div class="config-field">
                             <label>API Key Header <span style="font-size:0.72rem;opacity:0.6;">(optional)</span></label>
                             <input type="text" placeholder="e.g., x-api-key" value="${escapeHtml(apiKeyHeaderVal)}" data-config-field="apiKeyHeader" disabled>
@@ -1293,7 +1304,8 @@ function renderModelTable() {
     // Custom models
     const customModels = currentSettings.customModels || [];
     for (const cm of customModels) {
-        allHtml += buildRow(cm.name, cm.provider, cm.provider, true, cm.id, !!cm.supportsImage, !!cm.supportsReasoning, cm.tier || 'mid');
+        const tier = cm.name.toLowerCase().includes('gpt-4') || cm.name.toLowerCase().includes('claude-3-opus') ? 'frontier' : 'mid';
+        allHtml += buildRow(cm.name, cm.provider, cm.provider, true, cm.id, !!cm.supportsImage, !!cm.supportsReasoning, tier, cm.alias);
     }
 
     listBody.innerHTML = allHtml;
@@ -1415,6 +1427,8 @@ window.toggleModelEdit = function(configId) {
         const apiKeyHeaderVal = apiKeyHeaderField?.value?.trim() || '';
         const azureStyleField = panel.querySelector('[data-config-field="azureStyle"]');
         const azureStyleVal = azureStyleField?.checked || false;
+        const aliasField = panel.querySelector('[data-config-field="alias"]');
+        const aliasVal = aliasField?.value?.trim() || '';
         
         if (customId) {
             const cm = (currentSettings.customModels || []).find(m => m.id === customId);
@@ -1425,6 +1439,8 @@ window.toggleModelEdit = function(configId) {
                 else delete cm.apiKeyHeader;
                 if (azureStyleVal) cm.azureStyle = true;
                 else delete cm.azureStyle;
+                if (aliasVal) cm.alias = aliasVal;
+                else delete cm.alias;
             }
         } else if (providerKey) {
             if (!currentSettings.models.providerSettings) currentSettings.models.providerSettings = {};
@@ -1441,6 +1457,12 @@ window.toggleModelEdit = function(configId) {
         }
         
         persistSettings();
+        
+        if (customId) {
+            // Re-render table and dropdowns to show any updates
+            renderModelTable();
+            populateModelDropdowns(currentSettings.models.provider, currentSettings.models.textModel, currentSettings.models.imageModel);
+        }
         
         // Lock fields again
         inputs.forEach(i => i.disabled = true);

@@ -7,6 +7,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
 import { outputChannel } from '../logger';
+import { ReviewManager } from '../chat/review-manager';
 
 // ─── Persistent AI Terminal ─────────────────────────────────────────
 // Uses a REAL shell terminal (not pseudoterminal) for full interactivity.
@@ -127,35 +128,52 @@ export function createSysTools() {
             // The user sees the command + output in the real terminal
             const cdCmd = `cd ${JSON.stringify(execCwd)}`;
             const runCmd = `${params.command} 2>&1 | tee ${JSON.stringify(outFile)}; echo $? > ${JSON.stringify(exitFile)}`;
-            terminal.sendText(`${cdCmd} && ${runCmd}`, true);
-
-            // Wait for exit file to appear (command completed)
-            const completed = await waitForFile(exitFile, 30000);
-
+            
+            ReviewManager.getInstance().setTerminalRunning(true);
             let output = '(no output)';
             let exitCode = 1;
+            
+            try {
+                terminal.sendText(`${cdCmd} && ${runCmd}`, true);
 
-            if (completed) {
-                // Small delay to ensure file is fully written
-                await new Promise(r => setTimeout(r, 100));
+                // Wait for exit file to appear (command completed)
+                const completed = await waitForFile(exitFile, 30000);
 
-                try {
-                    output = fs.readFileSync(outFile, 'utf-8') || '(no output)';
-                    const exitStr = fs.readFileSync(exitFile, 'utf-8').trim();
-                    exitCode = parseInt(exitStr, 10) || 0;
-                } catch (e) {
-                    output = `(failed to read output: ${e})`;
+                if (completed) {
+                    // Reset timeout count on success
+                    (ReviewManager.getInstance() as any)._timeoutCount = 0;
+                    
+                    // Small delay to ensure file is fully written
+                    await new Promise(r => setTimeout(r, 100));
+
+                    try {
+                        output = fs.readFileSync(outFile, 'utf-8') || '(no output)';
+                        const exitStr = fs.readFileSync(exitFile, 'utf-8').trim();
+                        exitCode = parseInt(exitStr, 10) || 0;
+                    } catch (e) {
+                        output = `(failed to read output: ${e})`;
+                    }
+                } else {
+                    const failCount = (ReviewManager.getInstance() as any)._timeoutCount || 0;
+                    (ReviewManager.getInstance() as any)._timeoutCount = failCount + 1;
+                    
+                    if (failCount >= 1) {
+                        output = '(command timed out AGAIN after 30s. The background process is stubbornly blocking the terminal. Use terminal_send_input with { send_ctrl_c: true } to recover the terminal. If you already tried that and it is still stuck, STOP and ask the user to manually kill the process or restart the server.)';
+                    } else {
+                        output = '(command timed out after 30s — it may still be running in the terminal. If the terminal is stuck or swallowed by a background process, use the terminal_send_input tool with { send_ctrl_c: true } to recover the terminal before running more commands.)';
+                    }
+                    exitCode = 124;
                 }
-            } else {
-                output = '(command timed out after 30s — it may still be running in the terminal. Use Ctrl+C to stop it.)';
-                exitCode = 124;
+
+                // Cleanup temp files
+                try { fs.unlinkSync(outFile); } catch {}
+                try { fs.unlinkSync(exitFile); } catch {}
+
+                outputChannel.appendLine(`[run_command] exit code: ${exitCode}`);
+            } finally {
+                // Allow a small delay for FS watchers to fire
+                setTimeout(() => ReviewManager.getInstance().setTerminalRunning(false), 500);
             }
-
-            // Cleanup temp files
-            try { fs.unlinkSync(outFile); } catch {}
-            try { fs.unlinkSync(exitFile); } catch {}
-
-            outputChannel.appendLine(`[run_command] exit code: ${exitCode}`);
 
             if (output.length > 3000) {
                 output = output.substring(0, 3000) + '\n... [output truncated at 3000 chars]';
@@ -239,6 +257,34 @@ You have ${MAX_TEST_RETRIES - tracker.count} retries remaining. Do NOT skip the 
                 exitCode,
                 output
             };
+        }
+    } as any);
+
+    // ─── TOOL: terminal_send_input ──────────────────────────────────────
+    const terminal_send_input = tool({
+        description: 'Send raw text or special keys to the active terminal. Use this to interact with prompts (like "y" or "n") or to recover a stuck terminal (send_ctrl_c: true) if a background process (like Vite) is swallowing inputs and preventing run_command from working.',
+        inputSchema: z.object({
+            text: z.string().optional().describe('Text to send to the terminal (e.g. "y\\n")'),
+            send_ctrl_c: z.boolean().optional().describe('Set to true to send a Ctrl+C signal to interrupt the current process')
+        }),
+        execute: async (params: { text?: string; send_ctrl_c?: boolean }) => {
+            const terminal = getOrCreateAITerminal(workspaceRoot);
+            terminal.show(true);
+
+            if (params.send_ctrl_c) {
+                outputChannel.appendLine(`[terminal_send_input] Sending Ctrl+C`);
+                terminal.sendText('\x03', false);
+                terminal.sendText('\x03', false); // Fire twice!
+                return { output: 'Sent Ctrl+C to terminal (fired twice to ensure interrupt).' };
+            }
+
+            if (params.text) {
+                outputChannel.appendLine(`[terminal_send_input] Sending text: ${params.text}`);
+                terminal.sendText(params.text, false);
+                return { output: `Sent text to terminal.` };
+            }
+
+            return { output: 'No action taken.' };
         }
     } as any);
 
@@ -358,6 +404,7 @@ You have ${MAX_TEST_RETRIES - tracker.count} retries remaining. Do NOT skip the 
 
     return {
         run_command,
+        terminal_send_input,
         search_workspace,
         get_workspace_problems
     };

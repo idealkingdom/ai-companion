@@ -31,13 +31,24 @@ export interface WorkspaceIndex {
  * - Active editor context: auto-injects skeletons of currently open files
  */
 export class WorkspaceIndexService {
+    private static instance: WorkspaceIndexService;
+    public static getInstance(): WorkspaceIndexService {
+        if (!WorkspaceIndexService.instance) {
+            WorkspaceIndexService.instance = new WorkspaceIndexService();
+        }
+        return WorkspaceIndexService.instance;
+    }
+
     private index: WorkspaceIndex = { fileTree: [], lastUpdated: 0 };
     private disposables: vscode.Disposable[] = [];
+
+    private _onDidUpdate = new vscode.EventEmitter<number>();
+    public readonly onDidUpdate = this._onDidUpdate.event;
 
     /** Cache of file skeletons so repeated read_file_skeleton calls are free */
     private skeletonCache = new Map<string, { skeleton: string; totalLines: number; mtime: number }>();
 
-    constructor() {
+    private constructor() {
         // Auto-refresh on file changes
         this.disposables.push(
             vscode.workspace.onDidCreateFiles(() => this.refresh()),
@@ -177,6 +188,7 @@ export class WorkspaceIndexService {
             .sort((a, b) => a.relativePath.localeCompare(b.relativePath));
 
         this.index.lastUpdated = Date.now();
+        this._onDidUpdate.fire(this.index.fileTree.length);
     }
 
     /**

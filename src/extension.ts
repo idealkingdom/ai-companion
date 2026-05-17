@@ -44,6 +44,15 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // Track workspace index updates and push to webview live
+    const { WorkspaceIndexService } = require('./services/workspace-index');
+    WorkspaceIndexService.getInstance().onDidUpdate((count: number) => {
+        provider.postMessage({
+            command: 'indexUpdate',
+            content: { fileCount: count, lastUpdated: new Date().toISOString() }
+        });
+    });
+
     // Apply SSL Verification Setting
     const applySslConfig = () => {
         const config = vscode.workspace.getConfiguration('aiCompanion');
@@ -128,6 +137,10 @@ export function activate(context: vscode.ExtensionContext) {
                 command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
                 content: []
             });
+            await ChatViewProvider.getInstance().postMessage({
+                command: 'chatStagingUpdate',
+                content: { stagedFilesCount: 0 }
+            });
         } else {
             const uris = reviewManager.getStagedUris();
             const filesData = uris.map(u => ({
@@ -140,8 +153,18 @@ export function activate(context: vscode.ExtensionContext) {
                 command: CHAT_COMMANDS.REVIEW_HUNKS_DATA,
                 content: filesData
             });
+            await ChatViewProvider.getInstance().postMessage({
+                command: 'chatStagingUpdate',
+                content: { stagedFilesCount: filesData.length }
+            });
         }
     };
+
+    context.subscriptions.push(
+        reviewManager.onDidUpdateStaging(() => {
+            syncReviewToWebview();
+        })
+    );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('ai-companion.acceptEdit', async (uriStr: string, editIndex: number) => {

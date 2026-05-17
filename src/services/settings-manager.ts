@@ -88,8 +88,10 @@ CODE QUALITY STANDARDS
 - Never leave TODOs, placeholder code, or stub implementations.
 
 ERROR HANDLING
-- If a tool call fails, read the error, diagnose the cause, and retry with a correction.
-- If you cannot complete a step after 2 attempts, explain what failed and what the user should check.
+- If a tool call fails, read the error, diagnose the cause, and retry ONCE with a correction.
+- If the same tool or action fails twice, STOP. Do NOT retry a third time. Report the failure to the user and move on to other work.
+- Never say "one last try" or "let me try again" after the second failure. The answer is to stop and ask the user.
+- Browser tools (browser_open, browser_snapshot, browser_action) are especially flaky. If the page doesn't load or shows the wrong content after 2 attempts, tell the user and move on.
 - Never silently skip a step and claim task completion.
 
 COMMUNICATION
@@ -154,6 +156,27 @@ COMMUNICATION
                 scope: 'global',
                 content: `Be direct and concise. Don't explain what you plan to do — just do it. After completing work, provide a brief summary of what changed and any caveats. If you encounter ambiguity, make the most reasonable assumption and note it rather than blocking on a question.`,
                 isDefault: true
+            },
+            {
+                id: 'rule-background-processes',
+                name: 'Background Servers & Logs',
+                scope: 'global',
+                content: `When starting long-running background processes (like 'npm run dev', 'npx vite', or any command with '&'), ALWAYS redirect both stdout and stderr to a log file (e.g., '> server.log 2>&1 &'). Immediately after starting the process, read the log file to verify the actual port it bound to and ensure it started successfully before proceeding.`,
+                isDefault: true
+            },
+            {
+                id: 'rule-tool-usage',
+                name: 'Direct Tool Usage',
+                scope: 'global',
+                content: `Never output raw source code blocks in your chat response. ALWAYS use your provided editing tools to modify files directly. The user wants you to do the work, not show them how to do it.`,
+                isDefault: true
+            },
+            {
+                id: 'rule-no-retry-loops',
+                name: 'No Retry Loops',
+                scope: 'global',
+                content: `STRICT: If a tool call or action fails twice, STOP retrying. Do not attempt a third time. Do not say "one last try" — report the failure to the user and either move on to the next task or ask for help. This applies especially to browser_open, browser_snapshot, and run_command. Repeating the same failing action wastes steps and frustrates the user.`,
+                isDefault: true
             }
         ]
     };
@@ -177,6 +200,19 @@ export class SettingsManager {
             finalPrompts = [...(DEFAULT_SETTINGS.prompts || [])];
         }
 
+        let finalRules = stored.rules || [];
+        if (finalRules.length === 0) {
+            finalRules = [...(DEFAULT_SETTINGS.rules || [])];
+        } else {
+            // Ensure all default rules are present if they were added in a newer version
+            const defaultRules = DEFAULT_SETTINGS.rules || [];
+            for (const dRule of defaultRules) {
+                if (!finalRules.find((r: any) => r.id === dRule.id)) {
+                    finalRules.push(dRule);
+                }
+            }
+        }
+
         const merged: AppSettings = {
             general: { ...DEFAULT_SETTINGS.general, ...stored.general },
             models: { ...DEFAULT_SETTINGS.models, ...stored.models },
@@ -185,7 +221,7 @@ export class SettingsManager {
             prompts: finalPrompts,
             customTemplates: stored.customTemplates || [],
             customModels: stored.customModels || [],
-            rules: (stored.rules && stored.rules.length > 0) ? stored.rules : [...(DEFAULT_SETTINGS.rules || [])]
+            rules: finalRules
         };
 
         if (!merged.models.providerSettings) {
