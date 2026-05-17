@@ -1,0 +1,364 @@
+/* ─── HUNK REVIEW PANEL ─── */
+.hunk-review-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--app-bg, #1e1e1e);
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.25s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.hunk-review-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.hunk-review-header h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  opacity: 0.9;
+  font-family: var(--font-ui);
+  flex: 1;
+}
+
+.hunk-review-header .back-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  opacity: 0.7;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hunk-review-header .back-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.hunk-review-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+
+/* File Section */
+.hunk-file-section {
+  margin-bottom: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.hunk-file-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.hunk-file-header:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.hunk-file-name {
+  font-family: var(--font-editor);
+  font-size: 0.82rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hunk-file-badge {
+  font-size: 0.68rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.hunk-file-badge.new-file {
+  background: rgba(76, 175, 80, 0.15);
+  color: #66bb6a;
+}
+
+.hunk-file-badge.modified {
+  background: rgba(79, 195, 247, 0.15);
+  color: #4fc3f7;
+}
+
+.hunk-file-toggle {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  transition: transform 0.2s;
+}
+
+.hunk-file-section.collapsed .hunk-file-toggle {
+  transform: rotate(-90deg);
+}
+
+.hunk-file-section.collapsed .hunk-file-body {
+  display: none;
+}
+
+.hunk-file-body {
+  padding: 8px;
+}
+
+/* Individual Hunk Card */
+.hunk-card {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: all 0.2s;
+}
+
+.hunk-card.rejected {
+  opacity: 0.4;
+  border-color: rgba(244, 67, 54, 0.3);
+}
+
+.hunk-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.15);
+  font-size: 0.72rem;
+  font-family: var(--font-editor);
+  opacity: 0.7;
+}
+
+.hunk-card-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.hunk-toggle-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-color);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.hunk-toggle-btn.accept-btn {
+  color: #66bb6a;
+  border-color: rgba(76, 175, 80, 0.3);
+}
+
+.hunk-toggle-btn.accept-btn:hover {
+  background: rgba(76, 175, 80, 0.15);
+}
+
+.hunk-toggle-btn.reject-btn {
+  color: #f44336;
+  border-color: rgba(244, 67, 54, 0.3);
+}
+
+.hunk-toggle-btn.reject-btn:hover {
+  background: rgba(244, 67, 54, 0.15);
+}
+
+.hunk-toggle-btn.active {
+  font-weight: 700;
+}
+
+.hunk-toggle-btn.accept-btn.active {
+  background: rgba(76, 175, 80, 0.2);
+  border-color: #66bb6a;
+}
+
+.hunk-toggle-btn.reject-btn.active {
+  background: rgba(244, 67, 54, 0.2);
+  border-color: #f44336;
+}
+
+/* Diff Lines */
+.hunk-diff-lines {
+  font-family: var(--font-editor);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  overflow-x: auto;
+}
+
+.hunk-diff-line {
+  padding: 0 10px;
+  white-space: pre;
+  min-height: 1.55em;
+}
+
+.hunk-diff-line.added {
+  background: rgba(76, 175, 80, 0.08);
+  color: #a5d6a7;
+}
+
+.hunk-diff-line.removed {
+  background: rgba(244, 67, 54, 0.08);
+  color: #ef9a9a;
+}
+
+.hunk-diff-line.context {
+  opacity: 0.5;
+}
+
+/* Bottom Action Bar */
+.hunk-review-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.25);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.hunk-action-info {
+  font-size: 0.78rem;
+  opacity: 0.6;
+  font-family: var(--font-editor);
+}
+
+.hunk-action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.hunk-action-btn {
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.hunk-action-btn.commit {
+  background: rgba(76, 175, 80, 0.2);
+  color: #66bb6a;
+  border-color: rgba(76, 175, 80, 0.3);
+}
+
+.hunk-action-btn.commit:hover {
+  background: rgba(76, 175, 80, 0.35);
+  border-color: #66bb6a;
+}
+
+.hunk-action-btn.discard {
+  background: rgba(244, 67, 54, 0.1);
+  color: #ef5350;
+  border-color: rgba(244, 67, 54, 0.2);
+}
+
+.hunk-action-btn.discard:hover {
+  background: rgba(244, 67, 54, 0.25);
+  border-color: #ef5350;
+}
+
+.hunk-action-btn.undo {
+  background: rgba(128, 128, 128, 0.1);
+  color: var(--text-color);
+  border-color: rgba(128, 128, 128, 0.2);
+  opacity: 0.7;
+}
+
+.hunk-action-btn.undo:hover {
+  opacity: 1;
+  background: rgba(128, 128, 128, 0.2);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   #48 — AGENT QUESTION STICKY BANNER
+   ═══════════════════════════════════════════════════════════ */
+
+.agent-question-banner {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(255, 167, 38, 0.12);
+  border: 1px solid rgba(255, 167, 38, 0.3);
+  border-radius: 0 0 8px 8px;
+  backdrop-filter: blur(12px);
+  animation: bannerSlideDown 0.3s ease-out;
+  font-size: 0.78rem;
+  color: #ffcc80;
+  font-weight: 500;
+}
+
+.agent-question-banner.hidden {
+  display: none;
+}
+
+.question-icon {
+  font-size: 1rem;
+}
+
+.dismiss-question-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: rgba(255, 204, 128, 0.6);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.dismiss-question-btn:hover {
+  color: #fff;
+  background: rgba(255, 167, 38, 0.2);
+}
+
+@keyframes bannerSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

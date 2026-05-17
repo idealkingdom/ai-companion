@@ -1,0 +1,225 @@
+/* --- Context Menu Hint --- */
+.ctx-hint {
+  font-size: 0.7rem;
+  opacity: 0.4;
+  margin-left: auto;
+  font-family: var(--font-editor);
+}
+
+/* --- Inline Mention Pill (in chat messages) --- */
+.inline-attachment-pill.file-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: color-mix(in srgb, var(--text-color) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-color) 12%, transparent);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-family: var(--font-editor);
+  font-size: 0.78rem;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  vertical-align: baseline;
+  text-decoration: none;
+}
+
+.inline-attachment-pill.file-pill:hover {
+  background: color-mix(in srgb, var(--text-color) 14%, transparent);
+  border-color: color-mix(in srgb, var(--text-color) 20%, transparent);
+}
+
+/* --- Prompt Suggestion Chips --- */
+.prompt-suggestion-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  animation: slideUp 0.15s ease-out;
+}
+
+.suggestion-chip {
+  background: color-mix(in srgb, var(--text-color) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-color) 10%, transparent);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: var(--font-editor);
+  font-size: 0.78rem;
+  color: var(--text-color);
+  opacity: 0.8;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, opacity 0.15s, border-color 0.15s;
+}
+
+.suggestion-chip:hover {
+  background: color-mix(in srgb, var(--text-color) 10%, transparent);
+  border-color: color-mix(in srgb, var(--text-color) 18%, transparent);
+  opacity: 1;
+}
+
+/* === CUSTOM MODE DROPDOWN === */
+.mode-dropdown {
+  position: relative;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--input-fg, rgba(255, 255, 255, 0.75));
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+}
+
+.mode-dropdown-selected {
+  background: rgba(128, 128, 128, 0.06);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  transition: all 0.2s ease;
+}
+
+.mode-dropdown-selected:hover {
+  background: rgba(128, 128, 128, 0.12);
+  border-color: var(--input-focus-border);
+  color: var(--input-fg);
+}
+
+.dropdown-arrow {
+  opacity: 0.6;
+  transition: transform 0.2s;
+}
+
+.mode-dropdown.open .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.mode-dropdown-options {
+  position: absolute;
+  bottom: calc(100% + 5px);
+  right: 0;
+  background: var(--vscode-dropdown-background);
+  border: 1px solid var(--vscode-dropdown-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  min-width: 140px;
+  z-index: 100;
+  overflow: hidden;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.mode-dropdown-options.hidden {
+  display: none;
+}
+
+.mode-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  color: var(--vscode-dropdown-foreground);
+  transition: background 0.1s;
+}
+
+.mode-option:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.mode-option.selected {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+.context-item-perm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--vscode-menu-foreground, var(--input-fg));
+}
+
+.perm-select {
+  background: var(--vscode-dropdown-background, var(--input-bg));
+  color: var(--vscode-dropdown-foreground, var(--input-fg));
+  border: 1px solid var(--vscode-dropdown-border, var(--border-color));
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+}
+
+.perm-select:focus {
+  border-color: var(--input-focus-border);
+}
+
+/* Mini toggle for the Always Proceed switch in permissions dropdown */
+.mini-toggle {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.mini-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.mini-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9px;
+  transition: background 0.2s;
+}
+
+.mini-toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  left: 2px;
+  bottom: 2px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.mini-toggle input:checked+.mini-toggle-slider {
+  background: #ffb74d;
+}
+
+.mini-toggle input:checked+.mini-toggle-slider::before {
+  transform: translateX(14px);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AGENT TELEMETRY CARDS — Live tool execution visualization
+   ═══════════════════════════════════════════════════════════ */
+
+.agent-steps-group {
+  background: transparent;
+  margin: 12px 0;
+  padding-left: 10px;
+  border-left: 2px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+}
+

@@ -8,10 +8,29 @@ export const CHATBOX_FOLDER = 'chatbox';
 export const INDEX_HTML = 'chatbox.html';
 
 export const FILES_TO_LOAD = [
-  { name: 'chatbox.js', placeholder: '{{scriptPath}}' },
-  { name: 'chatbox.css', placeholder: '{{stylePath}}' },
   { name: 'history.js', placeholder: '{{scriptHistoryPath}}' },
   { name: 'history.css', placeholder: '{{styleHistoryPath}}' },
+  // Split CSS
+  { name: 'chat-base.css', placeholder: '{{cssBase}}' },
+  { name: 'chat-layout.css', placeholder: '{{cssLayout}}' },
+  { name: 'chat-input.css', placeholder: '{{cssInput}}' },
+  { name: 'chat-widgets.css', placeholder: '{{cssWidgets}}' },
+  { name: 'chat-agentic.css', placeholder: '{{cssAgentic}}' },
+  { name: 'chat-ui.css', placeholder: '{{cssUi}}' },
+  { name: 'chat-hunk.css', placeholder: '{{cssHunk}}' },
+  { name: 'chat-index.css', placeholder: '{{cssIndex}}' },
+  { name: 'chat-misc.css', placeholder: '{{cssMisc}}' },
+  // Split JS
+  { name: 'chat-globals.js', placeholder: '{{jsGlobals}}' },
+  { name: 'chat-scroll.js', placeholder: '{{jsScroll}}' },
+  { name: 'chat-ui.js', placeholder: '{{jsUi}}' },
+  { name: 'chat-attachments.js', placeholder: '{{jsAttachments}}' },
+  { name: 'chat-messages.js', placeholder: '{{jsMessages}}' },
+  { name: 'chat-agentic.js', placeholder: '{{jsAgentic}}' },
+  { name: 'chat-staging.js', placeholder: '{{jsStaging}}' },
+  { name: 'chat-index.js', placeholder: '{{jsIndex}}' },
+  { name: 'chat-process.js', placeholder: '{{jsProcess}}' },
+  { name: 'chat-events.js', placeholder: '{{jsEvents}}' },
 ];
 
 export const LIBRARIES_TO_LOAD = [

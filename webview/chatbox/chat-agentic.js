@@ -1,0 +1,489 @@
+let _waitingIndicatorTimer = null;
+
+function clearWaitingIndicator() {
+    if (_waitingIndicatorTimer) {
+        clearTimeout(_waitingIndicatorTimer);
+        _waitingIndicatorTimer = null;
+    }
+    const existing = document.querySelector('.agent-waiting-indicator');
+    if (existing) { existing.remove(); }
+}
+
+function scheduleWaitingIndicator() {
+    clearWaitingIndicator();
+    _waitingIndicatorTimer = setTimeout(() => {
+        // Only show if there isn't already a streaming thinking block
+        if (document.querySelector('.agent-thinking-block:not([data-finalized="true"])')) { return; }
+
+        const indicator = document.createElement('div');
+        indicator.className = 'agent-waiting-indicator';
+        indicator.innerHTML = `
+            <div class="waiting-dots">
+                <span></span><span></span><span></span>
+            </div>
+            <span class="waiting-label">Analyzing...</span>
+        `;
+        const group = getOrCreateAgentStepsGroup();
+        withAutoScroll(() => group.appendChild(indicator));
+    }, 1000); // 1s delay — short enough to feel responsive, long enough to avoid flicker
+}
+
+const AGENT_ICONS = {
+    'list_workspace': '○',
+    'read_file_skeleton': '▢',
+    'read_line_range': '▤',
+    'chunk_replace': '◇',
+    'create_file': '▷',
+    'find_symbol': '◎',
+    'run_command': '▸',
+    'search_workspace': '◈',
+    'scrape_url': '◉',
+    'web_search': '⌕',
+    'manage_artifact': '🗄',
+    'read_artifact': '🗎'
+};
+
+const AGENT_TOOL_LABELS = {
+    'list_workspace': { running: 'Listing Workspace', done: 'Listed Workspace' },
+    'read_file_skeleton': { running: 'Reading File Skeleton', done: 'Read File Skeleton' },
+    'read_line_range': { running: 'Reading Lines', done: 'Read Lines' },
+    'chunk_replace': { running: 'Editing File', done: 'Edited File' },
+    'create_file': { running: 'Creating File', done: 'Created File' },
+    'find_symbol': { running: 'Finding Symbol', done: 'Found Symbol' },
+    'run_command': { running: 'Running Command', done: 'Ran Command' },
+    'search_workspace': { running: 'Searching Workspace', done: 'Searched Workspace' },
+    'scrape_url': { running: 'Scraping URL', done: 'Scraped URL' },
+    'web_search': { running: 'Searching Web', done: 'Searched Web' },
+    'manage_artifact': { running: 'Managing Artifact', done: 'Managed Artifact' },
+    'read_artifact': { running: 'Reading Artifact', done: 'Read Artifact' }
+};
+
+/**
+ * Renders an Agent tool step card in the chat log.
+ * Shows what the agent is doing (reading, editing, searching, etc.)
+ */
+function renderAgentStep(step) {
+    if (!step) { return; }
+
+    // Always clear the waiting indicator when any new step arrives
+    clearWaitingIndicator();
+
+    if (step.type === 'thinking') {
+        // Differentiate between status messages and actual reasoning tokens
+        const isStatusMessage = step.text && (
+            step.text.startsWith('Agent completed') ||
+            step.text.startsWith('■') ||
+            step.text.startsWith('✕')
+        );
+
+        if (isStatusMessage) {
+            // Status messages render as simple inline cards (existing behavior)
+            const activeGroup = chatbox.querySelector('details.agent-steps-group:not([data-finalized="true"])');
+            if (activeGroup) {
+                const stepsContainer = activeGroup.querySelector('.agent-steps-container');
+                if (stepsContainer && stepsContainer.children.length === 0) {
+                    if (activeGroup.dataset.timer) {
+                        clearInterval(parseInt(activeGroup.dataset.timer));
+                    }
+                    activeGroup.remove();
+                }
+            }
+
+            const thinkingEl = document.createElement('div');
+            thinkingEl.className = 'agent-step-card thinking';
+            thinkingEl.innerHTML = `
+                <div class="step-header">
+                    <span class="step-icon">✦</span>
+                    <span class="step-tool-name">${step.text}</span>
+                </div>
+            `;
+            withAutoScroll(() => chatbox.appendChild(thinkingEl));
+            return;
+        }
+
+        // #44: Handle __TOKENS__ sentinel (token count only, no text)
+        const tokenMatch = step.text && step.text.match(/^__TOKENS__(\d+)$/);
+        if (tokenMatch) {
+            const tokenCount = parseInt(tokenMatch[1], 10);
+            // Find ANY thinking block (non-finalized first, then most recent finalized)
+            let thinkingBlock = chatbox.querySelector('.agent-thinking-block:not([data-finalized="true"])');
+            if (!thinkingBlock) {
+                // Post-stream token count — find the most recent finalized block
+                const all = chatbox.querySelectorAll('.agent-thinking-block');
+                thinkingBlock = all.length > 0 ? all[all.length - 1] : null;
+            }
+            if (thinkingBlock) {
+                const prev = parseInt(thinkingBlock.dataset.tokens || '0', 10);
+                const total = prev + tokenCount;
+                thinkingBlock.dataset.tokens = String(total);
+                // Update label with token count
+                const label = thinkingBlock.querySelector('.thinking-label');
+                if (label) {
+                    label.textContent = `Thought for ${total} tokens`;
+                }
+            }
+            return;
+        }
+
+        // SVG icon for reasoning (sparkle/brain style — matches design system)
+        const thinkingIconSVG = `<span class="thinking-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707"/><circle cx="12" cy="12" r="4"/></svg></span>`;
+
+        // #44: Actual reasoning text — stream into a collapsible block
+        let thinkingBlock = chatbox.querySelector('.agent-thinking-block:not([data-finalized="true"])');
+        if (!thinkingBlock) {
+            thinkingBlock = document.createElement('details');
+            thinkingBlock.className = 'agent-thinking-block streaming';
+            thinkingBlock.open = true; // auto-open during streaming
+            thinkingBlock.dataset.tokens = '0';
+            thinkingBlock.dataset.stepCount = '0';
+            thinkingBlock.dataset.thinkStart = String(Date.now());
+
+            const summary = document.createElement('summary');
+            summary.className = 'thinking-summary';
+            summary.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                ${thinkingIconSVG}
+                <span class="thinking-label">Thinking...</span>
+            `;
+            thinkingBlock.appendChild(summary);
+
+            const content = document.createElement('div');
+            content.className = 'thinking-content';
+            thinkingBlock.appendChild(content);
+
+            // Live elapsed time timer
+            const timerId = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - parseInt(thinkingBlock.dataset.thinkStart)) / 1000);
+                const label = thinkingBlock.querySelector('.thinking-label');
+                if (label && !thinkingBlock.dataset.finalized) {
+                    label.textContent = `Thinking for ${elapsed}s`;
+                }
+            }, 1000);
+            thinkingBlock.dataset.thinkTimer = String(timerId);
+
+            getOrCreateAgentStepsGroup(step._isHistory).appendChild(thinkingBlock);
+        }
+
+        // Append the reasoning text (if any — empty string for reasoning-start)
+        if (step.text) {
+            const contentEl = thinkingBlock.querySelector('.thinking-content');
+            if (contentEl) {
+                withAutoScroll(() => { contentEl.textContent += step.text; });
+            }
+            // Update label to show it's working
+            const label = thinkingBlock.querySelector('.thinking-label');
+            if (label) {
+                label.textContent = 'Thinking...';
+            }
+        }
+        return;
+    }
+
+    // Finalize any open thinking block when a non-thinking step arrives
+    const openThinking = chatbox.querySelector('.agent-thinking-block:not([data-finalized="true"])');
+    if (openThinking) {
+        openThinking.dataset.finalized = 'true';
+        openThinking.classList.remove('streaming');
+        openThinking.open = false; // auto-collapse when done
+
+        // Stop the elapsed time timer
+        if (openThinking.dataset.thinkTimer) {
+            clearInterval(parseInt(openThinking.dataset.thinkTimer));
+        }
+
+        const label = openThinking.querySelector('.thinking-label');
+        const tokens = parseInt(openThinking.dataset.tokens || '0', 10);
+        const startTime = parseInt(openThinking.dataset.thinkStart || '0', 10);
+        const elapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+        const contentEl = openThinking.querySelector('.thinking-content');
+        const hasText = contentEl && contentEl.textContent.trim();
+
+        if (label) {
+            let labelText = elapsed > 0 ? `Thought for ${elapsed}s` : 'Thought process';
+            if (tokens > 0) {
+                labelText += ` · ${tokens} tokens`;
+            }
+            label.textContent = labelText;
+        }
+    }
+
+    // Helper is defined below
+    const stepsContainer = getOrCreateAgentStepsGroup(step._isHistory);
+
+    // Tools that go inside category groups don't need expand/collapse — use a simple div
+    const groupedTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol',
+        'search_workspace', 'get_workspace_problems', 'read_artifact', 'chunk_replace',
+        'create_file', 'manage_artifact', 'scrape_url', 'web_search'];
+    const isGroupedTool = groupedTools.includes(step.toolName);
+
+    let stepEl = null;
+    if (step.toolCallId) {
+        stepEl = stepsContainer.querySelector(`[data-tool-call-id="${step.toolCallId}"]`);
+    }
+    if (!stepEl && step.toolName) {
+        const candidates = stepsContainer.querySelectorAll(`[data-tool-name="${step.toolName}"] .step-status.running`);
+        if (candidates.length > 0) {
+            stepEl = candidates[candidates.length - 1].closest('.agent-step-card');
+        }
+    }
+    if (!stepEl) {
+        stepEl = document.createElement(isGroupedTool ? 'div' : 'details');
+    }
+
+    if (!stepEl.parentNode) {
+        stepEl.className = 'agent-step-card';
+    }
+
+    if (step.type === 'tool_call') {
+        const icon = AGENT_ICONS[step.toolName] || '◆';
+        const labelObj = AGENT_TOOL_LABELS[step.toolName];
+        let displayName = labelObj ? labelObj.running : step.toolName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+        let argsPreview = step.args ? JSON.stringify(step.args).substring(0, 120) : '';
+        if (step.args) {
+            // Attempt to extract a target name to append to the display name for transparency
+            let targetName = null;
+            const pathArg = step.args.filePath || step.args.directory || step.args.TargetFile || step.args.AbsolutePath || step.args.SearchPath || step.args.DirectoryPath;
+
+            if (typeof pathArg === 'string' && pathArg.trim() !== '') {
+                targetName = pathArg.split(/[\\/]/).pop();
+                if (!targetName || targetName === '.' || targetName === '..') {
+                    targetName = 'Root';
+                }
+            } else if (step.toolName === 'list_workspace') {
+                targetName = 'Root';
+            }
+
+            if (targetName) {
+                if (step.toolName === 'list_workspace') {
+                    displayName += ` (${targetName})`;
+                } else {
+                    displayName += ` - ${targetName}`;
+                }
+            }
+            if (step.toolName === 'web_search' && step.args.query) {
+                argsPreview = `<span style="opacity: 0.8;">Query:</span> <strong style="color: var(--vscode-textLink-foreground);">${step.args.query}</strong>`;
+            } else if (step.toolName === 'scrape_url' && step.args.url) {
+                argsPreview = `<span style="opacity: 0.8;">URL:</span> <a href="${step.args.url}" target="_blank" style="color: var(--vscode-textLink-foreground); text-decoration: none;">${step.args.url}</a>`;
+            } else if (step.toolName === 'run_command' && step.args.command) {
+                argsPreview = `<code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; font-size: 0.9em;">$ ${step.args.command}</code>`;
+            } else if (step.toolName === 'read_artifact' && step.args.name) {
+                argsPreview = `<span style="opacity: 0.8;">${step.args.scope || 'session'}:</span> <strong style="color: var(--vscode-textLink-foreground); cursor: pointer;" onclick="vscode.postMessage({command: 'openArtifact', data: {name: '${step.args.name}'}})">${step.args.name}</strong>`;
+            } else if (step.toolName === 'plan_task' || step.toolName === 'update_task_progress' || step.toolName === 'verify_completion') {
+                const previewStr = JSON.stringify(step.args).replace(/["'{}[\]]/g, '').substring(0, 80) + '...';
+                argsPreview = `<span style="opacity: 0.8;">${previewStr}</span> <strong style="color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: underline; margin-left: 8px;" onclick="vscode.postMessage({command: 'openArtifact', data: {name: 'task.md'}})">View Progress</strong>`;
+            }
+        }
+
+        // All tools now show as "Running" initially. 
+        // Write tools will quickly flip to "Done" (Staged) when the result arrives.
+        // History steps render directly as "done" — no pulse animation needed.
+        const initialStatus = step._isHistory ? 'done' : 'running';
+        if (isGroupedTool) {
+            // Grouped tools: simple inline header, no expand/collapse needed
+            stepEl.innerHTML = `
+                <div class="step-header">
+                    <span class="step-icon">${icon}</span>
+                    <span class="step-tool-name">${displayName}</span>
+                    <span class="step-status ${initialStatus}"></span>
+                </div>
+            `;
+        } else {
+            // Ungrouped tools (run_command, plan_task, etc): expandable with content area
+            stepEl.innerHTML = `
+                <summary class="step-header">
+                    <span class="step-icon">${icon}</span>
+                    <span class="step-tool-name">${displayName}</span>
+                    <span class="step-status ${initialStatus}"></span>
+                    <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </summary>
+                <div class="step-content">
+                    <div class="step-args">${argsPreview}</div>
+                </div>
+            `;
+            // Auto-open if there is something to show
+            if (argsPreview) {
+                stepEl.open = true;
+            }
+        }
+
+        if (step.toolCallId) {
+            stepEl.dataset.toolCallId = step.toolCallId;
+            stepEl.dataset.toolName = step.toolName;
+            // Store args for later review
+            window.pendingToolArgs = window.pendingToolArgs || {};
+            window.pendingToolArgs[step.toolCallId] = step.args;
+
+            if (step.approvalRequired && !step.diffReviewRequired) {
+                stepEl.classList.add('approval-pending');
+                const actionsEl = document.createElement('div');
+                actionsEl.className = 'step-actions';
+                actionsEl.innerHTML = `
+                    <button class="approve-btn staging-btn primary" style="padding: 2px 8px; font-size: 11px;" onclick="approveTool('${step.toolCallId}', true)">Approve</button>
+                    <button class="deny-btn staging-btn danger" style="padding: 2px 8px; font-size: 11px;" onclick="approveTool('${step.toolCallId}', false)">Deny</button>
+                `;
+                stepEl.appendChild(actionsEl);
+
+                const statusEl = stepEl.querySelector('.step-status');
+                if (statusEl) {
+                    statusEl.classList.remove('running');
+                    statusEl.classList.add('pending');
+                }
+            }
+        }
+
+    } else if (step.type === 'tool_result') {
+        // Find the specific card by toolCallId, then try toolName fallback
+        let targetCard = null;
+        if (step.toolCallId) {
+            targetCard = stepsContainer.querySelector(`[data-tool-call-id="${step.toolCallId}"]`);
+        }
+        // Fallback: if toolCallId didn't match (e.g. streaming used a temp ID),
+        // find the last card with this toolName that's still "running"
+        if (!targetCard && step.toolName) {
+            const candidates = stepsContainer.querySelectorAll(`[data-tool-name="${step.toolName}"] .step-status.running`);
+            if (candidates.length > 0) {
+                targetCard = candidates[candidates.length - 1].closest('.agent-step-card');
+            }
+        }
+
+        const statusEl = (targetCard || stepsContainer).querySelector('.step-status.running');
+        if (statusEl) {
+            const isStaged = step.result && (typeof step.result.message === 'string' && step.result.message.includes('staged'));
+            if (isStaged) statusEl.textContent = 'Staged';
+            statusEl.classList.remove('running');
+            statusEl.classList.add('done');
+
+            // The user requested to keep the present tense verb (e.g., "Running Command") 
+            // permanently, so we no longer flip it to past tense here.
+
+            // Special styling for manage_artifact result
+            if (targetCard && step.toolName === 'manage_artifact' && step.result && step.result._artifactManaged) {
+                targetCard.style.borderLeft = '3px solid #8e44ad';
+                targetCard.style.background = 'rgba(142, 68, 173, 0.05)';
+                const header = targetCard.querySelector('.step-header');
+                if (header) {
+                    header.style.color = '#9b59b6';
+                }
+                const argsPreview = targetCard.querySelector('.step-args');
+                if (argsPreview) {
+                    const am = step.result._artifactManaged;
+                    argsPreview.innerHTML = `<strong>${am.action.toUpperCase()}</strong>: <code>${am.scope}/${am.name}</code>`;
+                }
+            }
+
+            // run_command: render terminal snippet in the step-content div
+            if (targetCard && step.toolName === 'run_command' && step.result && typeof step.result.output === 'string') {
+                const commandArgs = window.pendingToolArgs && window.pendingToolArgs[step.toolCallId];
+                const commandExecuted = (step.result && step.result._commandExecuted) || (commandArgs ? commandArgs.command : 'command');
+
+                const terminalSnippet = document.createElement('div');
+                terminalSnippet.className = 'terminal-snippet';
+
+                let outputText = step.result.output.trim();
+                if (outputText.length > 2000) {
+                    outputText = outputText.substring(0, 2000) + '\n... (output truncated)';
+                }
+                if (!outputText) {
+                    outputText = '(no output)';
+                }
+
+                const escapedOutput = outputText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const cwdText = '~/.../workspace';
+
+                terminalSnippet.innerHTML = `
+                    <div class="terminal-prompt"><span class="terminal-cwd">${cwdText}</span> $ ${commandExecuted}</div>
+                    <div class="terminal-output">${escapedOutput}</div>
+                `;
+                // Ensure the card is open so the terminal snippet is visible
+                targetCard.open = true;
+                
+                // Clear any inline styles that might hide the details content
+                if (targetCard.style.display === 'none') {
+                    targetCard.style.display = '';
+                }
+
+                const contentDiv = targetCard.querySelector('.step-content') || targetCard;
+                contentDiv.appendChild(terminalSnippet);
+            }
+        }
+
+        // Schedule the waiting indicator — will show "Analyzing..." if
+        // the model takes >1s to decide its next action.
+        // Skip during history replay — all results are already present.
+        if (!step._isHistory) { scheduleWaitingIndicator(); }
+        return;
+    }
+
+    if (!stepEl.parentNode) {
+        const categories = {
+            'list_workspace': 'explore',
+            'read_file_skeleton': 'explore',
+            'read_line_range': 'explore',
+            'find_symbol': 'explore',
+            'search_workspace': 'explore',
+            'get_workspace_problems': 'explore',
+            'read_artifact': 'explore',
+            'chunk_replace': 'edit',
+            'create_file': 'edit',
+            'manage_artifact': 'edit',
+            'scrape_url': 'web',
+            'web_search': 'web'
+        };
+        const categoryLabels = {
+            'explore': 'Explored',
+            'edit': 'Edited',
+            'web': 'Searched'
+        };
+
+        const cat = categories[step.toolName];
+
+        if (cat) {
+            // Find the last actual group in stepsContainer
+            let lastChild = stepsContainer.lastElementChild;
+            if (lastChild && lastChild.classList.contains('agent-waiting-indicator')) {
+                lastChild = lastChild.previousElementSibling;
+            }
+
+            if (lastChild && lastChild.tagName === 'DETAILS' && lastChild.dataset.category === cat) {
+                // Append to existing group
+                const count = parseInt(lastChild.dataset.count || '0') + 1;
+                lastChild.dataset.count = String(count);
+                const labelEl = lastChild.querySelector('.group-label');
+                if (labelEl) {
+                    labelEl.textContent = `${categoryLabels[cat]} ${count} items`;
+                }
+                const groupContent = lastChild.querySelector('.group-content');
+                if (groupContent) {
+                    groupContent.appendChild(stepEl);
+                } else {
+                    lastChild.appendChild(stepEl);
+                }
+            } else {
+                // Create new group
+                const groupEl = document.createElement('details');
+                groupEl.className = 'agent-step-group-sub agent-step-card';
+                groupEl.dataset.category = cat;
+                groupEl.dataset.count = "1";
+                groupEl.open = true;
+                groupEl.innerHTML = `
+                    <summary class="step-header">
+                        <span class="step-icon">◂</span>
+                        <span class="group-label step-tool-name">${categoryLabels[cat]} 1 item</span>
+                        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </summary>
+                    <div class="group-content step-content" style="padding-left: 12px; border-left: 1px solid rgba(255, 255, 255, 0.1);"></div>
+                `;
+                groupEl.querySelector('.group-content').appendChild(stepEl);
+                stepsContainer.appendChild(groupEl);
+            }
+        } else {
+            // Un-grouped items (e.g. run_command)
+            stepsContainer.appendChild(stepEl);
+        }
+    }
+
+    scrollToBottom();
+}
+
+/** ─── STAGING BAR LOGIC ─── **/

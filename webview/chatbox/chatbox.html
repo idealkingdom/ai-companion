@@ -5,11 +5,32 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>kdAina Chat</title>
-  <link rel="stylesheet" type="text/css" href="{{stylePath}}">
+
+  <!-- ── Split CSS ── -->
+  <link rel="stylesheet" type="text/css" href="{{cssBase}}">
+  <link rel="stylesheet" type="text/css" href="{{cssLayout}}">
+  <link rel="stylesheet" type="text/css" href="{{cssInput}}">
+  <link rel="stylesheet" type="text/css" href="{{cssWidgets}}">
+  <link rel="stylesheet" type="text/css" href="{{cssAgentic}}">
+  <link rel="stylesheet" type="text/css" href="{{cssUi}}">
+  <link rel="stylesheet" type="text/css" href="{{cssHunk}}">
+  <link rel="stylesheet" type="text/css" href="{{cssIndex}}">
+  <link rel="stylesheet" type="text/css" href="{{cssMisc}}">
   <link rel="stylesheet" type="text/css" href="{{styleHistoryPath}}">
 
-  <script src="{{scriptPath}}" defer></script>
+  <!-- ── Split JS (order matters) ── -->
+  <script src="{{jsGlobals}}" defer></script>
+  <script src="{{jsScroll}}" defer></script>
+  <script src="{{jsUi}}" defer></script>
+  <script src="{{jsAttachments}}" defer></script>
+  <script src="{{jsMessages}}" defer></script>
+  <script src="{{jsAgentic}}" defer></script>
+  <script src="{{jsStaging}}" defer></script>
+  <script src="{{jsIndex}}" defer></script>
+  <script src="{{jsProcess}}" defer></script>
+  <script src="{{jsEvents}}" defer></script>
   <script src="{{scriptHistoryPath}}" defer></script>
+
   <script src="{{markedScriptPath}}"></script>
   <link rel="stylesheet" type="text/css" href="{{highlightStylePath}}">
   <script src="{{highlightScriptPath}}"></script>

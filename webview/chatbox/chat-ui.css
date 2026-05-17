@@ -1,0 +1,297 @@
+/* ─── UNIFIED CHAT INPUT CONTAINER ─── */
+.unified-input-container {
+  background: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  margin: 0 4px 4px 4px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+  position: relative;
+}
+
+.unified-input-container:focus-within {
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 2px var(--input-focus-border), 0 8px 32px rgba(0, 0, 0, 0.25);
+}
+
+/* Bottom toolbar inside the unified input container */
+.input-actions-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 0 0 12px 12px;
+}
+
+.toolbar-left-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toolbar-icon-btn {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--text-color) 10%, transparent);
+  color: var(--text-color);
+  opacity: 0.5;
+  border-radius: 6px;
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.toolbar-icon-btn:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--text-color) 6%, transparent);
+}
+
+/* Premium Pill Buttons for Toolbar */
+.toolbar-btn-pill {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  color: var(--input-fg, rgba(255, 255, 255, 0.75));
+  border-radius: 12px;
+  padding: 4px 12px;
+  font-size: 11px;
+  backdrop-filter: blur(4px);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.toolbar-btn-pill:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--input-fg);
+  transform: translateY(-1px);
+}
+
+.toolbar-btn-pill svg {
+  width: 14px;
+  height: 14px;
+}
+
+.generate-btn {
+  background: rgba(79, 172, 254, 0.08) !important;
+  border: 1px solid rgba(79, 172, 254, 0.25) !important;
+  color: #4facfe !important;
+  border-radius: 16px !important;
+  padding: 3px 10px !important;
+  font-size: 11px !important;
+  font-weight: 500;
+  gap: 5px;
+  height: auto !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.generate-btn svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+.generate-btn:hover {
+  background: rgba(79, 172, 254, 0.18) !important;
+  border-color: #4facfe !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(79, 172, 254, 0.15);
+}
+
+.generate-btn.loading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.generate-btn.loading span {
+  display: none;
+}
+
+.generate-btn.loading::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Send Button Premium */
+.send-btn-premium {
+  background: var(--vscode-button-background, #4fc3f7);
+  color: var(--vscode-button-foreground, #121820);
+  border: none;
+  border-radius: 20px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.send-btn-premium:hover {
+  transform: scale(1.05);
+  background: var(--vscode-button-hoverBackground, #81d4fa);
+}
+
+.send-btn-premium.generating {
+  background: #f44336 !important;
+  color: #ffffff !important;
+}
+
+.send-btn-premium.generating:hover {
+  background: #d32f2f !important;
+}
+
+.send-btn-premium svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+/* Premium Staging Bar */
+.staging-bar-premium {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px 12px 0 0;
+  color: var(--text-color, rgba(255, 255, 255, 0.8));
+  font-size: 12px;
+  animation: fadeIn 0.3s ease;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.staging-left {
+  display: flex;
+  align-items: center;
+}
+
+.staging-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.premium-action-btn {
+  background: rgba(128, 128, 128, 0.06);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  color: var(--input-fg, rgba(255, 255, 255, 0.8));
+  border-radius: 16px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.premium-action-btn:hover:not(:disabled) {
+  background: rgba(128, 128, 128, 0.15);
+  border-color: var(--input-focus-border);
+  color: var(--input-fg);
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(128, 128, 128, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: var(--text-color, rgba(255, 255, 255, 0.7));
+}
+
+.status-pill:hover {
+  background: rgba(128, 128, 128, 0.15);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text-color, #fff);
+}
+
+.pill-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+}
+
+.pill-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+@keyframes reviewGlow {
+  0% {
+    box-shadow: 0 0 0px rgba(79, 195, 247, 0);
+    border-color: rgba(79, 195, 247, 0.2);
+  }
+
+  50% {
+    box-shadow: 0 0 12px rgba(79, 195, 247, 0.3);
+    border-color: rgba(79, 195, 247, 0.6);
+  }
+
+  100% {
+    box-shadow: 0 0 0px rgba(79, 195, 247, 0);
+    border-color: rgba(79, 195, 247, 0.2);
+  }
+}
+
+.status-pill.glow {
+  animation: reviewGlow 2.5s infinite ease-in-out;
+  background: rgba(79, 195, 247, 0.08);
+  color: #4fc3f7;
+  border-color: rgba(79, 195, 247, 0.3);
+}
+
+.status-pill.glow .pill-icon {
+  opacity: 1;
+}
+
+.step-status.pending {
+  color: #eab308;
+}
+
+.step-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+

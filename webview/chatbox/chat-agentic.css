@@ -1,0 +1,453 @@
+/* ─── Thinking/Reasoning Block (#44) ─── */
+.agent-thinking-block {
+  background: transparent;
+  margin: 8px 0;
+}
+
+.agent-thinking-block.streaming .thinking-summary {
+  opacity: 1;
+}
+
+.thinking-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--text-color);
+  font-weight: 500;
+  user-select: none;
+  list-style: none;
+  transition: opacity 0.2s;
+  width: max-content;
+  position: relative;
+  z-index: 0;
+}
+
+.thinking-summary::-webkit-details-marker {
+  display: none;
+}
+
+.thinking-summary:hover {
+  opacity: 0.8;
+}
+
+.thinking-summary .chevron {
+  transition: transform 0.2s;
+  opacity: 0.5;
+}
+
+.agent-thinking-block[open] .thinking-summary .chevron {
+  transform: rotate(90deg);
+}
+
+.thinking-icon {
+  display: flex;
+  align-items: center;
+}
+
+.thinking-icon svg {
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+
+.agent-thinking-block.streaming .thinking-icon svg {
+  animation: thinkingPulse 1.5s ease-in-out infinite;
+}
+
+.thinking-label {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 500;
+}
+
+.thinking-content {
+  padding: 10px 14px;
+  margin-left: 12px;
+  margin-top: 4px;
+  border-left: 2px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.75rem;
+  font-family: var(--font-editor);
+  color: rgba(255, 255, 255, 0.45);
+  white-space: pre-wrap;
+  line-height: 1.55;
+  max-height: 300px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  contain: content;
+  animation: thinkingFadeIn 0.3s ease-out;
+}
+
+@keyframes thinkingFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes thinkingPulse {
+
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.agent-steps-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  user-select: none;
+  list-style: none;
+  /* Hide default arrow */
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  width: max-content;
+  transition: background 0.2s;
+}
+
+.agent-steps-summary:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.agent-steps-summary::-webkit-details-marker {
+  display: none;
+}
+
+.agent-steps-summary .chevron {
+  transition: transform 0.2s;
+  opacity: 0.7;
+}
+
+.agent-steps-group[open] .agent-steps-summary .chevron {
+  transform: rotate(90deg);
+}
+
+.agent-steps-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 6px;
+  margin-left: 6px;
+  border-left: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.agent-step-card {
+  padding: 2px 0;
+  font-size: 0.75rem;
+  font-family: var(--font-ui);
+  animation: stepFadeIn 0.3s ease-out;
+  position: relative;
+  list-style: none;
+}
+
+.agent-step-card::-webkit-details-marker {
+  display: none;
+}
+
+.terminal-snippet {
+  background: #1e1e1e;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: 6px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+  color: #cccccc;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.terminal-prompt {
+  color: #9cdcfe;
+  margin-bottom: 4px;
+}
+
+.terminal-cwd {
+  color: #4fc1ff;
+}
+
+.terminal-output {
+  color: #cecece;
+}
+
+.step-header:hover {
+  opacity: 0.8;
+}
+
+@keyframes stepFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.2s;
+}
+
+.step-header .chevron {
+  transition: transform 0.2s;
+  opacity: 0.4;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+}
+
+.agent-step-card[open] .step-header .chevron {
+  transform: rotate(90deg);
+}
+
+.step-content {
+  padding-left: 20px;
+  margin-top: 2px;
+  margin-bottom: 8px;
+}
+
+.step-icon {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.step-tool-name {
+  font-weight: 600;
+  color: var(--text-color);
+  font-family: var(--font-editor);
+  font-size: 0.75rem;
+  letter-spacing: -0.2px;
+}
+
+.step-status {
+  margin-left: auto;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.step-status.running {
+  color: #fff;
+  background: rgba(255, 202, 40, 0.2);
+  border: 1px solid rgba(255, 202, 40, 0.4);
+  animation: statusPulse 2s infinite;
+}
+
+.step-status.done {
+  color: #fff;
+  background: rgba(102, 187, 106, 0.2);
+  border: 1px solid rgba(102, 187, 106, 0.4);
+}
+
+.step-status.awaiting {
+  color: #ffa726;
+  border-color: rgba(255, 167, 38, 0.5);
+  background: rgba(255, 167, 38, 0.05);
+}
+
+.step-status.denied {
+  color: #ef5350;
+  border-color: rgba(239, 83, 80, 0.3);
+}
+
+.step-status.approved {
+  color: #42a5f5;
+  border-color: rgba(66, 165, 245, 0.3);
+}
+
+@keyframes statusPulse {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+}
+
+.step-args {
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: var(--font-editor);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: 20px;
+}
+
+.agent-step-card.approval-pending {
+  border-color: rgba(255, 167, 38, 0.4);
+  background: rgba(255, 167, 38, 0.03);
+  box-shadow: 0 4px 15px rgba(255, 167, 38, 0.05);
+}
+
+.step-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.approve-btn,
+.deny-btn,
+.review-btn {
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: var(--font-ui);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.approve-btn {
+  background: rgba(66, 165, 245, 0.1);
+  color: #42a5f5;
+  border: 1px solid rgba(66, 165, 245, 0.2);
+}
+
+.approve-btn:hover {
+  background: rgba(66, 165, 245, 0.2);
+  border-color: rgba(66, 165, 245, 0.4);
+}
+
+.deny-btn {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.deny-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.review-btn {
+  background: rgba(79, 195, 247, 0.1);
+  color: #4fc3f7;
+  border: 1px solid rgba(79, 195, 247, 0.3);
+  flex: 1.2;
+}
+
+.review-btn:hover {
+  background: rgba(79, 195, 247, 0.2);
+  border-color: #4fc3f7;
+}
+
+.review-btn::before {
+  content: '◈';
+  font-size: 0.8rem;
+}
+
+/* Thinking step style */
+.agent-step-card.thinking {
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  opacity: 0.6;
+}
+
+.agent-step-card.thinking .step-tool-name {
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+}
+
+/* ─── WAITING INDICATOR (between-step heartbeat) ─── */
+.agent-waiting-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  opacity: 0;
+  animation: waitingFadeIn 0.3s ease 0.1s forwards;
+}
+
+@keyframes waitingFadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+.agent-waiting-indicator .waiting-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.agent-waiting-indicator .waiting-dots span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--vscode-textLink-foreground, #4fc1ff);
+  opacity: 0.4;
+  animation: waitingPulse 1.4s ease-in-out infinite;
+}
+
+.agent-waiting-indicator .waiting-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.agent-waiting-indicator .waiting-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes waitingPulse {
+
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+
+  40% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.agent-waiting-indicator .waiting-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+}
+

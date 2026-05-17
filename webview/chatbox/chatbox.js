@@ -47,6 +47,7 @@ function sendMessage(command, data = '') {
 // --- GLOBALS ---
 const chatbox = document.getElementById("chatMessages");
 const chatLog = document.getElementById("chatLog");
+
 const chatWelcomeMessage = document.getElementById("chatWelcomeMessage");
 const sendButton = document.getElementById('sendButton');
 const chatMessage = document.getElementById('messageInput');
@@ -763,32 +764,97 @@ function getCurrentDate() {
 }
 
 // --- SCROLL MANAGEMENT ---
-let isAtBottom = true;
 
-// Instead of listening to the unreliable 'scroll' event (which fires asynchronously 
-// and causes race conditions during programmatic scrolling), we ONLY check if the user 
-// is at the bottom when they physically interact with the chat log.
-const checkBottom = () => {
-    setTimeout(() => {
-        isAtBottom = Math.ceil(chatLog.scrollTop + chatLog.clientHeight) >= chatLog.scrollHeight - 50;
-    }, 50);
-};
+// Returns the last .chat-turn element
+function getLastChatTurn() {
+    const turns = chatbox.querySelectorAll('.chat-turn');
+    return turns.length > 0 ? turns[turns.length - 1] : null;
+}
 
-['wheel', 'touchmove', 'keydown'].forEach(evt => {
-    chatLog.addEventListener(evt, checkBottom, { passive: true });
+// --- DYNAMIC MIN-HEIGHT ---
+// Instead of a separate spacer div, we set min-height on the last .chat-turn.
+// This keeps the extra space INSIDE the turn, so the scrollbar only represents
+// actual conversation turns — not a separate empty block.
+
+let _prevMinHeightTurn = null;
+
+function updateLastTurnMinHeight() {
+    const lastTurn = getLastChatTurn();
+    const viewportHeight = chatLog.clientHeight;
+
+    // Clear min-height from the previous turn if it changed
+    if (_prevMinHeightTurn && _prevMinHeightTurn !== lastTurn) {
+        _prevMinHeightTurn.style.minHeight = '';
+    }
+
+    if (!lastTurn) return;
+
+    // Account for the sticky user-message-wrapper
+    const stickyHeader = lastTurn.querySelector('.user-message-wrapper');
+    const stickyHeight = stickyHeader ? stickyHeader.offsetHeight : 0;
+
+    // min-height = viewport so scrollIntoView can push the turn to the top
+    // Subtract sticky height so content doesn't hide behind it
+    lastTurn.style.minHeight = (viewportHeight - stickyHeight) + 'px';
+    _prevMinHeightTurn = lastTurn;
+}
+
+// MutationObserver: fires on ANY DOM change inside chatbox
+const _chatMutationObserver = new MutationObserver(() => {
+    updateLastTurnMinHeight();
 });
-window.addEventListener('mouseup', checkBottom, { passive: true });
-window.addEventListener('touchend', checkBottom, { passive: true });
+_chatMutationObserver.observe(chatbox, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+});
 
-// Automatically scroll whenever DOM mutates if we were already at the bottom
-new MutationObserver(() => {
-    if (isAtBottom) chatLog.scrollTop = chatLog.scrollHeight;
-}).observe(chatLog, { childList: true, subtree: true, characterData: true });
+// ResizeObserver on chatLog — catches panel/window resizes
+new ResizeObserver(() => updateLastTurnMinHeight()).observe(chatLog);
+
+// Initial setup
+updateLastTurnMinHeight();
+
+// --- VIEWPORT / SCROLL HELPERS ---
+
+function shouldAutoScroll() {
+    const distanceFromBottom = chatLog.scrollHeight - chatLog.scrollTop - chatLog.clientHeight;
+    return distanceFromBottom <= 150;
+}
+
+// Anchor: called once when a NEW user message is added.
+// Sets the min-height so the turn fills the viewport, then scrolls to its top.
+function anchorToNewMessage() {
+    updateLastTurnMinHeight();
+    const lastTurn = getLastChatTurn();
+    if (lastTurn) {
+        lastTurn.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+// Follow: called during AI streaming to keep the growing content in view.
+// Does NOT touch min-height — just scrolls down as new tokens appear.
+function scrollToStreamingContent() {
+    chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+// Legacy alias kept so callers (scrollToBottom, rehydrateState) still work
+function showLastChat() {
+    anchorToNewMessage();
+}
+
+function withAutoScroll(callback) {
+    var shouldSnap = shouldAutoScroll();
+    callback();
+    if (shouldSnap) {
+        // During streaming we only need to follow the content, not re-anchor
+        scrollToStreamingContent();
+    }
+}
 
 function scrollToBottom(force = false) {
-    if (force || isAtBottom) {
-        isAtBottom = true;
-        chatLog.scrollTop = chatLog.scrollHeight;
+    if (force) {
+        showLastChat();
     }
 }
 
@@ -1062,13 +1128,16 @@ window.handleUrlScrape = function (pill) {
 };
 
 function getActiveTurn() {
-    let lastTurn = chatbox.lastElementChild;
-    if (!lastTurn || !lastTurn.classList.contains('chat-turn')) {
-        lastTurn = document.createElement('div');
-        lastTurn.className = 'chat-turn';
-        chatbox.appendChild(lastTurn);
+    // The active (newest) turn is the last .chat-turn
+    const lastTurn = getLastChatTurn();
+    if (lastTurn) {
+        return lastTurn;
     }
-    return lastTurn;
+    // No existing turn — create one and insert before the spacer
+    const newTurn = document.createElement('div');
+    newTurn.className = 'chat-turn';
+    chatbox.appendChild(newTurn);
+    return newTurn;
 }
 
 function hideLoadingIndicator() {
@@ -1080,17 +1149,13 @@ function showLoadingIndicator() {
     const loadingDiv = document.createElement('div');
     loadingDiv.className = 'loading-indicator';
     loadingDiv.innerHTML = `<div class="generating-text" style="opacity: 0.5; font-size: 0.9em; margin-bottom: 8px;">Generating...</div>`;
-    chatLog.appendChild(loadingDiv);
-    scrollToBottom();
+    withAutoScroll(() => chatLog.appendChild(loadingDiv));
 }
 
 
 // --- MESSAGE HANDLING ---
 
-function appendUserMessage(message, images = [], files = []) {
-    // Force scroll lock when user sends a new message
-    isAtBottom = true; // Re-enable auto-scroll when user sends
-
+function appendUserMessage(message, images = [], files = [], isHistory = false) {
     let finalHTML = processMessageContent(message);
 
     if (files && files.length > 0) {
@@ -1158,7 +1223,6 @@ function appendUserMessage(message, images = [], files = []) {
     const turnDiv = document.createElement('div');
     turnDiv.className = 'chat-turn';
     chatbox.appendChild(turnDiv);
-
     turnDiv.appendChild(tempDiv.firstElementChild);
 
     // Important: Since we injected new <pre> blocks inside the details, 
@@ -1169,8 +1233,12 @@ function appendUserMessage(message, images = [], files = []) {
             addAllCopyButtons();
         }, 0);
     }
-    scrollToBottom(true);
+    if (!isHistory) {
+        // Anchor the view to this new message — sets min-height so it fills the screen
+        anchorToNewMessage();
+    }
 }
+
 
 function getOrCreateAgentStepsGroup(isHistory) {
     let detailsEl = chatbox.querySelector('details.agent-steps-group:not([data-finalized="true"])');
@@ -1251,8 +1319,7 @@ function scheduleWaitingIndicator() {
             <span class="waiting-label">Analyzing...</span>
         `;
         const group = getOrCreateAgentStepsGroup();
-        group.appendChild(indicator);
-        scrollToBottom();
+        withAutoScroll(() => group.appendChild(indicator));
     }, 1000); // 1s delay — short enough to feel responsive, long enough to avoid flicker
 }
 
@@ -1325,8 +1392,7 @@ function renderAgentStep(step) {
                     <span class="step-tool-name">${step.text}</span>
                 </div>
             `;
-            chatbox.appendChild(thinkingEl);
-            scrollToBottom();
+            withAutoScroll(() => chatbox.appendChild(thinkingEl));
             return;
         }
 
@@ -1397,9 +1463,7 @@ function renderAgentStep(step) {
         if (step.text) {
             const contentEl = thinkingBlock.querySelector('.thinking-content');
             if (contentEl) {
-                contentEl.textContent += step.text;
-                // Auto-scroll thinking content to show latest text
-                contentEl.scrollTop = contentEl.scrollHeight;
+                withAutoScroll(() => { contentEl.textContent += step.text; });
             }
             // Update label to show it's working
             const label = thinkingBlock.querySelector('.thinking-label');
@@ -1469,13 +1533,13 @@ function renderAgentStep(step) {
         const icon = AGENT_ICONS[step.toolName] || '◆';
         const labelObj = AGENT_TOOL_LABELS[step.toolName];
         let displayName = labelObj ? labelObj.running : step.toolName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-        
+
         let argsPreview = step.args ? JSON.stringify(step.args).substring(0, 120) : '';
         if (step.args) {
             // Attempt to extract a target name to append to the display name for transparency
             let targetName = null;
             const pathArg = step.args.filePath || step.args.directory || step.args.TargetFile || step.args.AbsolutePath || step.args.SearchPath || step.args.DirectoryPath;
-            
+
             if (typeof pathArg === 'string' && pathArg.trim() !== '') {
                 targetName = pathArg.split(/[\\/]/).pop();
                 if (!targetName || targetName === '.' || targetName === '..') {
@@ -1637,58 +1701,58 @@ function renderAgentStep(step) {
         return;
     }
 
-        if (!stepEl.parentNode) {
-            const categories = {
-                'list_workspace': 'explore',
-                'read_file_skeleton': 'explore',
-                'read_line_range': 'explore',
-                'find_symbol': 'explore',
-                'search_workspace': 'explore',
-                'get_workspace_problems': 'explore',
-                'read_artifact': 'explore',
-                'chunk_replace': 'edit',
-                'create_file': 'edit',
-                'manage_artifact': 'edit',
-                'scrape_url': 'web',
-                'web_search': 'web'
-            };
-            const categoryLabels = {
-                'explore': 'Explored',
-                'edit': 'Edited',
-                'web': 'Searched'
-            };
+    if (!stepEl.parentNode) {
+        const categories = {
+            'list_workspace': 'explore',
+            'read_file_skeleton': 'explore',
+            'read_line_range': 'explore',
+            'find_symbol': 'explore',
+            'search_workspace': 'explore',
+            'get_workspace_problems': 'explore',
+            'read_artifact': 'explore',
+            'chunk_replace': 'edit',
+            'create_file': 'edit',
+            'manage_artifact': 'edit',
+            'scrape_url': 'web',
+            'web_search': 'web'
+        };
+        const categoryLabels = {
+            'explore': 'Explored',
+            'edit': 'Edited',
+            'web': 'Searched'
+        };
 
-            const cat = categories[step.toolName];
+        const cat = categories[step.toolName];
 
-            if (cat) {
-                // Find the last actual group in stepsContainer
-                let lastChild = stepsContainer.lastElementChild;
-                if (lastChild && lastChild.classList.contains('agent-waiting-indicator')) {
-                    lastChild = lastChild.previousElementSibling;
+        if (cat) {
+            // Find the last actual group in stepsContainer
+            let lastChild = stepsContainer.lastElementChild;
+            if (lastChild && lastChild.classList.contains('agent-waiting-indicator')) {
+                lastChild = lastChild.previousElementSibling;
+            }
+
+            if (lastChild && lastChild.tagName === 'DETAILS' && lastChild.dataset.category === cat) {
+                // Append to existing group
+                const count = parseInt(lastChild.dataset.count || '0') + 1;
+                lastChild.dataset.count = String(count);
+                const labelEl = lastChild.querySelector('.group-label');
+                if (labelEl) {
+                    labelEl.textContent = `${categoryLabels[cat]} ${count} items`;
                 }
-
-                if (lastChild && lastChild.tagName === 'DETAILS' && lastChild.dataset.category === cat) {
-                    // Append to existing group
-                    const count = parseInt(lastChild.dataset.count || '0') + 1;
-                    lastChild.dataset.count = String(count);
-                    const labelEl = lastChild.querySelector('.group-label');
-                    if (labelEl) {
-                        labelEl.textContent = `${categoryLabels[cat]} ${count} items`;
-                    }
-                    const groupContent = lastChild.querySelector('.group-content');
-                    if (groupContent) {
-                        groupContent.appendChild(stepEl);
-                    } else {
-                        lastChild.appendChild(stepEl);
-                    }
+                const groupContent = lastChild.querySelector('.group-content');
+                if (groupContent) {
+                    groupContent.appendChild(stepEl);
                 } else {
-                    // Create new group
-                    const groupEl = document.createElement('details');
-                    groupEl.className = 'agent-step-group-sub agent-step-card';
-                    groupEl.dataset.category = cat;
-                    groupEl.dataset.count = "1";
-                    groupEl.open = true;
-                    groupEl.innerHTML = `
+                    lastChild.appendChild(stepEl);
+                }
+            } else {
+                // Create new group
+                const groupEl = document.createElement('details');
+                groupEl.className = 'agent-step-group-sub agent-step-card';
+                groupEl.dataset.category = cat;
+                groupEl.dataset.count = "1";
+                groupEl.open = true;
+                groupEl.innerHTML = `
                     <summary class="step-header">
                         <span class="step-icon">◂</span>
                         <span class="group-label step-tool-name">${categoryLabels[cat]} 1 item</span>
@@ -1696,173 +1760,173 @@ function renderAgentStep(step) {
                     </summary>
                     <div class="group-content step-content" style="padding-left: 12px; border-left: 1px solid rgba(255, 255, 255, 0.1);"></div>
                 `;
-                    groupEl.querySelector('.group-content').appendChild(stepEl);
-                    stepsContainer.appendChild(groupEl);
-                }
-            } else {
-                // Un-grouped items (e.g. run_command)
-                stepsContainer.appendChild(stepEl);
+                groupEl.querySelector('.group-content').appendChild(stepEl);
+                stepsContainer.appendChild(groupEl);
             }
-        }
-
-        scrollToBottom();
-    }
-
-    /** ─── STAGING BAR LOGIC ─── **/
-    function updateStagingBar(count) {
-        const stagingBar = document.getElementById('staging-bar');
-        const stagingCount = document.getElementById('staging-count');
-        const pillReviews = document.getElementById('pill-reviews');
-
-        if (!stagingBar || !stagingCount) {
-            return;
-        }
-
-        if (count > 0) {
-            stagingBar.classList.remove('hidden');
-            stagingCount.textContent = `${count} File${count > 1 ? 's' : ''} With Changes`;
-            if (pillReviews) pillReviews.classList.add('glow');
         } else {
-            stagingBar.classList.remove('hidden');
-            stagingCount.textContent = `0 Files With Changes`;
-            if (pillReviews) pillReviews.classList.remove('glow');
+            // Un-grouped items (e.g. run_command)
+            stepsContainer.appendChild(stepEl);
         }
     }
 
-    // Global button listeners (can stay at top level but wrapped in check)
-    document.addEventListener('DOMContentLoaded', () => {
-        const stagingReviewBtn = document.getElementById('staging-review-btn');
-        const stagingApproveBtn = document.getElementById('staging-approve-btn');
-        const stagingDiscardBtn = document.getElementById('staging-discard-btn');
+    scrollToBottom();
+}
 
-        if (stagingReviewBtn) {
-            stagingReviewBtn.onclick = () => sendMessage('chatReviewDiff', { isGlobalReview: true });
-        }
-        if (stagingApproveBtn) {
-            stagingApproveBtn.onclick = () => sendMessage('chatToolApproval', { approved: true });
-        }
-        if (stagingDiscardBtn) {
-            stagingDiscardBtn.onclick = () => sendMessage('chatToolApproval', { approved: false });
-        }
+/** ─── STAGING BAR LOGIC ─── **/
+function updateStagingBar(count) {
+    const stagingBar = document.getElementById('staging-bar');
+    const stagingCount = document.getElementById('staging-count');
+    const pillReviews = document.getElementById('pill-reviews');
 
-        // Initialize Generate Button
-        initGenerateButton();
-    });
-
-    function initGenerateButton() {
-        const generateBtn = document.getElementById('generateButton');
-        if (generateBtn) {
-            generateBtn.onclick = () => {
-                const input = document.getElementById('messageInput');
-                if (!input) {
-                    console.error('messageInput not found');
-                    return;
-                }
-                const prompt = input.innerText.trim();
-
-                generateBtn.classList.add('loading');
-
-                if (!prompt) {
-                    // Empty input — suggest prompt ideas
-                    console.log('Sending suggestPrompts request...');
-                    sendMessage('suggestPrompts', {});
-                } else {
-                    // Has text — improve the existing prompt
-                    console.log('Sending improvePrompt request...');
-                    sendMessage('improvePrompt', { prompt });
-                }
-            };
-        } else {
-            console.warn('generateButton not found in DOM during init');
-        }
+    if (!stagingBar || !stagingCount) {
+        return;
     }
 
+    if (count > 0) {
+        stagingBar.classList.remove('hidden');
+        stagingCount.textContent = `${count} File${count > 1 ? 's' : ''} With Changes`;
+        if (pillReviews) pillReviews.classList.add('glow');
+    } else {
+        stagingBar.classList.remove('hidden');
+        stagingCount.textContent = `0 Files With Changes`;
+        if (pillReviews) pillReviews.classList.remove('glow');
+    }
+}
 
-    window.approveTool = (toolCallId, approved) => {
-        sendMessage('chatToolApproval', { toolCallId, approved });
-        // Local update for immediate feedback
-        updateCardApproval(toolCallId, approved);
-    };
+// Global button listeners (can stay at top level but wrapped in check)
+document.addEventListener('DOMContentLoaded', () => {
+    const stagingReviewBtn = document.getElementById('staging-review-btn');
+    const stagingApproveBtn = document.getElementById('staging-approve-btn');
+    const stagingDiscardBtn = document.getElementById('staging-discard-btn');
 
-    function updateCardApproval(toolCallId, approved) {
-        // Find the button or use direct lookup for the card
-        // We look for common elements that contain the toolCallId
-        const btn = document.querySelector(`.approve-btn[onclick*="${toolCallId}"], .deny-btn[onclick*="${toolCallId}"], .review-btn[onclick*="${toolCallId}"]`);
-        if (btn) {
-            const card = btn.closest('.agent-step-card');
-            if (card) {
-                card.classList.remove('approval-pending');
-                const status = card.querySelector('.step-status');
-                if (status) {
-                    status.textContent = approved ? 'Approved' : 'Denied';
-                    status.className = `step-status ${approved ? 'approved' : 'denied'}`;
-                }
-                const actions = card.querySelector('.step-actions');
-                if (actions) { actions.remove(); }
+    if (stagingReviewBtn) {
+        stagingReviewBtn.onclick = () => sendMessage('chatReviewDiff', { isGlobalReview: true });
+    }
+    if (stagingApproveBtn) {
+        stagingApproveBtn.onclick = () => sendMessage('chatToolApproval', { approved: true });
+    }
+    if (stagingDiscardBtn) {
+        stagingDiscardBtn.onclick = () => sendMessage('chatToolApproval', { approved: false });
+    }
+
+    // Initialize Generate Button
+    initGenerateButton();
+});
+
+function initGenerateButton() {
+    const generateBtn = document.getElementById('generateButton');
+    if (generateBtn) {
+        generateBtn.onclick = () => {
+            const input = document.getElementById('messageInput');
+            if (!input) {
+                console.error('messageInput not found');
+                return;
             }
-        }
-    }
+            const prompt = input.innerText.trim();
 
-    window.reviewDiff = (toolCallId, toolName) => {
-        try {
-            console.log('Initiating ReviewDiff for:', toolCallId, toolName);
-            const args = window.pendingToolArgs ? window.pendingToolArgs[toolCallId] : null;
-            if (args) {
-                sendMessage('chatReviewDiff', { toolCallId, toolName, args });
+            generateBtn.classList.add('loading');
+
+            if (!prompt) {
+                // Empty input — suggest prompt ideas
+                console.log('Sending suggestPrompts request...');
+                sendMessage('suggestPrompts', {});
             } else {
-                console.error('No pending args found for toolCallId:', toolCallId);
+                // Has text — improve the existing prompt
+                console.log('Sending improvePrompt request...');
+                sendMessage('improvePrompt', { prompt });
             }
-        } catch (e) {
-            console.error('Failed to initiate diff review', e);
-        }
-    };
-
-    // ─── HUNK REVIEW PANEL ───────────────────────────────────────────────
-    let hunkReviewState = null; // { files: [...], undoStack: [], currentNavIndex: 0 }
-
-    function openHunkReviewPanel(filesData) {
-        // Initialize state (allow empty filesData for forced open)
-        hunkReviewState = {
-            files: (filesData || []).map(f => ({
-                ...f,
-                hunks: (f.hunks || []).map(h => ({ ...h, accepted: true }))
-            })),
-            undoStack: [], // Stack of { fileIdx, hunkIdx, prevState }
-            currentNavIndex: 0
         };
-
-        renderHunkReviewPanel();
+    } else {
+        console.warn('generateButton not found in DOM during init');
     }
+}
 
-    function closeHunkReviewPanel() {
-        hunkReviewState = null;
-        const overlay = document.getElementById('hunk-review-overlay');
-        if (overlay) { overlay.remove(); }
+
+window.approveTool = (toolCallId, approved) => {
+    sendMessage('chatToolApproval', { toolCallId, approved });
+    // Local update for immediate feedback
+    updateCardApproval(toolCallId, approved);
+};
+
+function updateCardApproval(toolCallId, approved) {
+    // Find the button or use direct lookup for the card
+    // We look for common elements that contain the toolCallId
+    const btn = document.querySelector(`.approve-btn[onclick*="${toolCallId}"], .deny-btn[onclick*="${toolCallId}"], .review-btn[onclick*="${toolCallId}"]`);
+    if (btn) {
+        const card = btn.closest('.agent-step-card');
+        if (card) {
+            card.classList.remove('approval-pending');
+            const status = card.querySelector('.step-status');
+            if (status) {
+                status.textContent = approved ? 'Approved' : 'Denied';
+                status.className = `step-status ${approved ? 'approved' : 'denied'}`;
+            }
+            const actions = card.querySelector('.step-actions');
+            if (actions) { actions.remove(); }
+        }
     }
+}
 
-    function renderHunkReviewPanel() {
-        if (!hunkReviewState) { return; }
+window.reviewDiff = (toolCallId, toolName) => {
+    try {
+        console.log('Initiating ReviewDiff for:', toolCallId, toolName);
+        const args = window.pendingToolArgs ? window.pendingToolArgs[toolCallId] : null;
+        if (args) {
+            sendMessage('chatReviewDiff', { toolCallId, toolName, args });
+        } else {
+            console.error('No pending args found for toolCallId:', toolCallId);
+        }
+    } catch (e) {
+        console.error('Failed to initiate diff review', e);
+    }
+};
 
-        // Remove existing if present
-        let overlay = document.getElementById('hunk-review-overlay');
-        const wasOpen = !!overlay;
-        const scrollPos = wasOpen ? overlay.querySelector('.hunk-review-body').scrollTop : 0;
+// ─── HUNK REVIEW PANEL ───────────────────────────────────────────────
+let hunkReviewState = null; // { files: [...], undoStack: [], currentNavIndex: 0 }
 
-        if (overlay) { overlay.remove(); }
+function openHunkReviewPanel(filesData) {
+    // Initialize state (allow empty filesData for forced open)
+    hunkReviewState = {
+        files: (filesData || []).map(f => ({
+            ...f,
+            hunks: (f.hunks || []).map(h => ({ ...h, accepted: true }))
+        })),
+        undoStack: [], // Stack of { fileIdx, hunkIdx, prevState }
+        currentNavIndex: 0
+    };
 
-        overlay = document.createElement('div');
-        overlay.id = 'hunk-review-overlay';
-        overlay.className = 'hunk-review-overlay';
+    renderHunkReviewPanel();
+}
 
-        const bodyContent = hunkReviewState.files.length === 0
-            ? `<div class="hunk-empty-state" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; opacity:0.6; padding-top: 40px;">
+function closeHunkReviewPanel() {
+    hunkReviewState = null;
+    const overlay = document.getElementById('hunk-review-overlay');
+    if (overlay) { overlay.remove(); }
+}
+
+function renderHunkReviewPanel() {
+    if (!hunkReviewState) { return; }
+
+    // Remove existing if present
+    let overlay = document.getElementById('hunk-review-overlay');
+    const wasOpen = !!overlay;
+    const scrollPos = wasOpen ? overlay.querySelector('.hunk-review-body').scrollTop : 0;
+
+    if (overlay) { overlay.remove(); }
+
+    overlay = document.createElement('div');
+    overlay.id = 'hunk-review-overlay';
+    overlay.className = 'hunk-review-overlay';
+
+    const bodyContent = hunkReviewState.files.length === 0
+        ? `<div class="hunk-empty-state" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; opacity:0.6; padding-top: 40px;">
              <div class="empty-icon" style="font-size: 48px; margin-bottom: 16px;">✓</div>
              <div class="empty-text" style="font-size: 1.1rem; font-weight: 600;">No pending changes</div>
              <div class="empty-subtext" style="font-size: 0.85rem;">All changes have been accepted or reverted.</div>
            </div>`
-            : hunkReviewState.files.map((file, fileIdx) => renderFileSection(file, fileIdx)).join('');
+        : hunkReviewState.files.map((file, fileIdx) => renderFileSection(file, fileIdx)).join('');
 
-        overlay.innerHTML = `
+    overlay.innerHTML = `
         <div class="hunk-review-header">
             <button class="back-btn" onclick="closeHunkReviewPanel()" title="Back to Chat">←</button>
             <h2>Review Changes (${hunkReviewState.files.length} file${hunkReviewState.files.length !== 1 ? 's' : ''})</h2>
@@ -1886,17 +1950,17 @@ function renderAgentStep(step) {
         </div>
     `;
 
-        document.body.appendChild(overlay);
-        if (wasOpen) {
-            overlay.querySelector('.hunk-review-body').scrollTop = scrollPos;
-        }
+    document.body.appendChild(overlay);
+    if (wasOpen) {
+        overlay.querySelector('.hunk-review-body').scrollTop = scrollPos;
     }
+}
 
-    function renderNavigator() {
-        const total = hunkReviewState.files.length;
-        const current = hunkReviewState.currentNavIndex || 0;
+function renderNavigator() {
+    const total = hunkReviewState.files.length;
+    const current = hunkReviewState.currentNavIndex || 0;
 
-        return `
+    return `
         <div class="hunk-navigator" style="display:flex; align-items:center; gap:10px; background: rgba(255,255,255,0.06); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);">
             <button class="nav-btn" onclick="navigateHunk(-1)" ${current <= 0 ? 'disabled' : ''} style="background:none; border:none; color:inherit; cursor:pointer; font-size:11px; opacity:${current <= 0 ? '0.3' : '1'};">
                 ↑ Prev
@@ -1907,44 +1971,44 @@ function renderAgentStep(step) {
             </button>
         </div>
     `;
+}
+
+function navigateHunk(direction) {
+    if (!hunkReviewState) return;
+    const total = hunkReviewState.files.length;
+    let idx = (hunkReviewState.currentNavIndex || 0) + direction;
+    idx = Math.max(0, Math.min(idx, total - 1));
+    hunkReviewState.currentNavIndex = idx;
+
+    const section = document.querySelector(`.hunk-file-section[data-file-idx="${idx}"]`);
+    if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
-    function navigateHunk(direction) {
-        if (!hunkReviewState) return;
-        const total = hunkReviewState.files.length;
-        let idx = (hunkReviewState.currentNavIndex || 0) + direction;
-        idx = Math.max(0, Math.min(idx, total - 1));
-        hunkReviewState.currentNavIndex = idx;
+    // Update counter & button states in-place (no full re-render = no flicker)
+    const counter = document.querySelector('.nav-counter');
+    if (counter) { counter.textContent = `${idx + 1} / ${total}`; }
+    const prevBtn = document.querySelector('.nav-btn[onclick="navigateHunk(-1)"]');
+    const nextBtn = document.querySelector('.nav-btn[onclick="navigateHunk(1)"]');
+    if (prevBtn) { prevBtn.disabled = idx <= 0; prevBtn.style.opacity = idx <= 0 ? '0.3' : '1'; }
+    if (nextBtn) { nextBtn.disabled = idx >= total - 1; nextBtn.style.opacity = idx >= total - 1 ? '0.3' : '1'; }
 
-        const section = document.querySelector(`.hunk-file-section[data-file-idx="${idx}"]`);
-        if (section) {
-            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+    // Update current section highlights
+    document.querySelectorAll('.hunk-file-section').forEach((s, i) => {
+        const isCurrent = i === idx;
+        s.style.borderColor = isCurrent ? 'rgba(79, 172, 254, 0.4)' : 'rgba(255, 255, 255, 0.06)';
+        s.querySelector('.hunk-file-header').style.background = isCurrent ? 'rgba(79, 172, 254, 0.05)' : 'rgba(255, 255, 255, 0.03)';
+    });
+}
 
-        // Update counter & button states in-place (no full re-render = no flicker)
-        const counter = document.querySelector('.nav-counter');
-        if (counter) { counter.textContent = `${idx + 1} / ${total}`; }
-        const prevBtn = document.querySelector('.nav-btn[onclick="navigateHunk(-1)"]');
-        const nextBtn = document.querySelector('.nav-btn[onclick="navigateHunk(1)"]');
-        if (prevBtn) { prevBtn.disabled = idx <= 0; prevBtn.style.opacity = idx <= 0 ? '0.3' : '1'; }
-        if (nextBtn) { nextBtn.disabled = idx >= total - 1; nextBtn.style.opacity = idx >= total - 1 ? '0.3' : '1'; }
+function renderFileSection(file, fileIdx) {
+    const badge = file.isNewFile
+        ? '<span class="hunk-file-badge new-file">NEW</span>'
+        : '<span class="hunk-file-badge modified">MODIFIED</span>';
 
-        // Update current section highlights
-        document.querySelectorAll('.hunk-file-section').forEach((s, i) => {
-            const isCurrent = i === idx;
-            s.style.borderColor = isCurrent ? 'rgba(79, 172, 254, 0.4)' : 'rgba(255, 255, 255, 0.06)';
-            s.querySelector('.hunk-file-header').style.background = isCurrent ? 'rgba(79, 172, 254, 0.05)' : 'rgba(255, 255, 255, 0.03)';
-        });
-    }
+    const isCurrent = hunkReviewState.currentNavIndex === fileIdx;
 
-    function renderFileSection(file, fileIdx) {
-        const badge = file.isNewFile
-            ? '<span class="hunk-file-badge new-file">NEW</span>'
-            : '<span class="hunk-file-badge modified">MODIFIED</span>';
-
-        const isCurrent = hunkReviewState.currentNavIndex === fileIdx;
-
-        return `
+    return `
         <div class="hunk-file-section ${isCurrent ? 'current' : ''}" data-file-idx="${fileIdx}" style="margin-bottom:16px; border:1px solid ${isCurrent ? 'rgba(79, 172, 254, 0.4)' : 'rgba(255, 255, 255, 0.06)'}; border-radius:8px; overflow:hidden;">
             <div class="hunk-file-header" style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background: ${isCurrent ? 'rgba(79, 172, 254, 0.05)' : 'rgba(255, 255, 255, 0.03)'};">
                 <div class="hunk-file-name" onclick="sendMessage('chatOpenFile', { uri: '${file.uri}' })" style="cursor: pointer; display:flex; align-items:center; gap:8px; font-family:var(--font-editor); font-size:0.82rem; font-weight:600;" title="Open File for Direct Review">
@@ -1963,22 +2027,22 @@ function renderAgentStep(step) {
             </div>
         </div>
     `;
-    }
+}
 
-    function renderHunkCard(hunk, fileIdx, hunkIdx) {
-        const isAccepted = hunk.accepted;
-        const cardClass = isAccepted ? '' : 'rejected';
-        const location = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
+function renderHunkCard(hunk, fileIdx, hunkIdx) {
+    const isAccepted = hunk.accepted;
+    const cardClass = isAccepted ? '' : 'rejected';
+    const location = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
 
-        const linesHtml = hunk.lines.map(line => {
-            const prefix = line.charAt(0);
-            let lineClass = 'context';
-            if (prefix === '+') { lineClass = 'added'; }
-            else if (prefix === '-') { lineClass = 'removed'; }
-            return `<div class="hunk-diff-line ${lineClass}">${escapeHtml(line)}</div>`;
-        }).join('');
+    const linesHtml = hunk.lines.map(line => {
+        const prefix = line.charAt(0);
+        let lineClass = 'context';
+        if (prefix === '+') { lineClass = 'added'; }
+        else if (prefix === '-') { lineClass = 'removed'; }
+        return `<div class="hunk-diff-line ${lineClass}">${escapeHtml(line)}</div>`;
+    }).join('');
 
-        return `
+    return `
         <div class="hunk-card ${cardClass}" data-file-idx="${fileIdx}" data-hunk-idx="${hunkIdx}">
             <div class="hunk-card-header">
                 <span>${location}</span>
@@ -1992,110 +2056,110 @@ function renderAgentStep(step) {
             </div>
         </div>
     `;
+}
+
+function toggleFileSection(fileIdx) {
+    const section = document.querySelector(`.hunk-file-section[data-file-idx="${fileIdx}"]`);
+    if (section) {
+        section.classList.toggle('collapsed');
     }
+}
 
-    function toggleFileSection(fileIdx) {
-        const section = document.querySelector(`.hunk-file-section[data-file-idx="${fileIdx}"]`);
-        if (section) {
-            section.classList.toggle('collapsed');
-        }
-    }
+function toggleHunk(fileIdx, hunkIdx, accepted) {
+    if (!hunkReviewState) { return; }
 
-    function toggleHunk(fileIdx, hunkIdx, accepted) {
-        if (!hunkReviewState) { return; }
+    const file = hunkReviewState.files[fileIdx];
+    if (!file) { return; }
+    const hunk = file.hunks[hunkIdx];
+    if (!hunk) { return; }
 
-        const file = hunkReviewState.files[fileIdx];
-        if (!file) { return; }
-        const hunk = file.hunks[hunkIdx];
-        if (!hunk) { return; }
-
-        // Save to undo stack
-        hunkReviewState.undoStack.push({
-            fileIdx,
-            hunkIdx,
-            prevState: hunk.accepted
-        });
-
-        hunk.accepted = accepted;
-
-        // Sync with backend
-        sendMessage('chatToggleHunk', { uri: file.uri, index: hunk.index, accepted });
-
-        // Re-render efficiently (just update the card + footer)
-        renderHunkReviewPanel();
-    }
-
-    function undoHunkToggle() {
-        if (!hunkReviewState || hunkReviewState.undoStack.length === 0) { return; }
-
-        const last = hunkReviewState.undoStack.pop();
-        const file = hunkReviewState.files[last.fileIdx];
-        if (file) {
-            const hunk = file.hunks[last.hunkIdx];
-            if (hunk) {
-                hunk.accepted = last.prevState;
-            }
-        }
-
-        renderHunkReviewPanel();
-    }
-
-    function commitSelectedHunks() {
-        if (!hunkReviewState) { return; }
-
-        const selections = hunkReviewState.files.map(file => ({
-            uri: file.uri,
-            acceptedIndices: file.hunks
-                .filter(h => h.accepted)
-                .map(h => h.index)
-        }));
-
-        sendMessage('commitSelectedHunks', { selections, action: 'commit' });
-        closeHunkReviewPanel();
-    }
-
-    function discardAllHunks() {
-        sendMessage('commitSelectedHunks', { selections: [], action: 'discard' });
-        closeHunkReviewPanel();
-    }
-
-
-    // Keyboard shortcuts for hunk review panel
-    document.addEventListener('keydown', (e) => {
-        if (!hunkReviewState) { return; }
-
-        // Ctrl+Z / Cmd+Z = Undo
-        if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-            e.preventDefault();
-            undoHunkToggle();
-        }
-
-        // Escape = Close panel
-        if (e.key === 'Escape') {
-            e.preventDefault();
-            closeHunkReviewPanel();
-            closeIndexViewer();
-        }
+    // Save to undo stack
+    hunkReviewState.undoStack.push({
+        fileIdx,
+        hunkIdx,
+        prevState: hunk.accepted
     });
 
-    // ─── WORKSPACE INDEX VIEWER ──────────────────────────────────────────
+    hunk.accepted = accepted;
 
-    function openIndexViewer(fileList, fileCount, lastUpdated) {
-        // Remove existing if present
-        let overlay = document.getElementById('index-viewer-overlay');
-        if (overlay) { overlay.remove(); }
+    // Sync with backend
+    sendMessage('chatToggleHunk', { uri: file.uri, index: hunk.index, accepted });
 
-        overlay = document.createElement('div');
-        overlay.id = 'index-viewer-overlay';
-        overlay.className = 'index-viewer-overlay';
+    // Re-render efficiently (just update the card + footer)
+    renderHunkReviewPanel();
+}
 
-        // Group files by top-level directory
-        const groups = groupFilesByDir(fileList);
-        const groupKeys = Object.keys(groups).sort();
+function undoHunkToggle() {
+    if (!hunkReviewState || hunkReviewState.undoStack.length === 0) { return; }
 
-        const timeStr = lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : '—';
+    const last = hunkReviewState.undoStack.pop();
+    const file = hunkReviewState.files[last.fileIdx];
+    if (file) {
+        const hunk = file.hunks[last.hunkIdx];
+        if (hunk) {
+            hunk.accepted = last.prevState;
+        }
+    }
 
-        overlay.innerHTML = `
+    renderHunkReviewPanel();
+}
+
+function commitSelectedHunks() {
+    if (!hunkReviewState) { return; }
+
+    const selections = hunkReviewState.files.map(file => ({
+        uri: file.uri,
+        acceptedIndices: file.hunks
+            .filter(h => h.accepted)
+            .map(h => h.index)
+    }));
+
+    sendMessage('commitSelectedHunks', { selections, action: 'commit' });
+    closeHunkReviewPanel();
+}
+
+function discardAllHunks() {
+    sendMessage('commitSelectedHunks', { selections: [], action: 'discard' });
+    closeHunkReviewPanel();
+}
+
+
+// Keyboard shortcuts for hunk review panel
+document.addEventListener('keydown', (e) => {
+    if (!hunkReviewState) { return; }
+
+    // Ctrl+Z / Cmd+Z = Undo
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        undoHunkToggle();
+    }
+
+    // Escape = Close panel
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        closeHunkReviewPanel();
+        closeIndexViewer();
+    }
+});
+
+// ─── WORKSPACE INDEX VIEWER ──────────────────────────────────────────
+
+function openIndexViewer(fileList, fileCount, lastUpdated) {
+    // Remove existing if present
+    let overlay = document.getElementById('index-viewer-overlay');
+    if (overlay) { overlay.remove(); }
+
+    overlay = document.createElement('div');
+    overlay.id = 'index-viewer-overlay';
+    overlay.className = 'index-viewer-overlay';
+
+    // Group files by top-level directory
+    const groups = groupFilesByDir(fileList);
+    const groupKeys = Object.keys(groups).sort();
+
+    const timeStr = lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : '—';
+
+    overlay.innerHTML = `
         <div class="index-viewer-header">
             <button class="back-btn" onclick="closeIndexViewer()" title="Back to Chat">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6"/></svg>
@@ -2117,52 +2181,52 @@ function renderAgentStep(step) {
         </div>
     `;
 
-        document.body.appendChild(overlay);
+    document.body.appendChild(overlay);
 
-        // Focus the search input
-        setTimeout(() => {
-            const searchInput = document.getElementById('index-search-input');
-            if (searchInput) { searchInput.focus(); }
-        }, 100);
+    // Focus the search input
+    setTimeout(() => {
+        const searchInput = document.getElementById('index-search-input');
+        if (searchInput) { searchInput.focus(); }
+    }, 100);
+}
+
+function closeIndexViewer() {
+    const overlay = document.getElementById('index-viewer-overlay');
+    if (overlay) { overlay.remove(); }
+}
+
+function groupFilesByDir(fileList) {
+    const groups = {};
+    for (const filePath of fileList) {
+        const parts = filePath.split(/[\\/]/);
+        const dir = parts.length > 1 ? parts[0] : '(root)';
+        if (!groups[dir]) { groups[dir] = []; }
+        groups[dir].push(filePath);
+    }
+    return groups;
+}
+
+function renderIndexDirGroup(dir, files) {
+    let headerText = dir;
+    if (dir === '.ai-companion') {
+        headerText = '.ai-companion (Artifacts)';
     }
 
-    function closeIndexViewer() {
-        const overlay = document.getElementById('index-viewer-overlay');
-        if (overlay) { overlay.remove(); }
-    }
-
-    function groupFilesByDir(fileList) {
-        const groups = {};
-        for (const filePath of fileList) {
-            const parts = filePath.split(/[\\/]/);
-            const dir = parts.length > 1 ? parts[0] : '(root)';
-            if (!groups[dir]) { groups[dir] = []; }
-            groups[dir].push(filePath);
-        }
-        return groups;
-    }
-
-    function renderIndexDirGroup(dir, files) {
-        let headerText = dir;
-        if (dir === '.ai-companion') {
-            headerText = '.ai-companion (Artifacts)';
-        }
-
-        const fileItems = files.map(f => {
-            let fileName = f.split(/[\\/]/).pop();
-            if (dir === '.ai-companion' && f.includes('sessions')) {
-                const parts = f.split(/[\\/]/);
-                if (parts.length >= 3) {
-                    fileName = `${parts[parts.length - 2]}/${fileName}`;
-                }
+    const fileItems = files.map(f => {
+        let fileName = f.split(/[\\/]/).pop();
+        if (dir === '.ai-companion' && f.includes('sessions')) {
+            const parts = f.split(/[\\/]/);
+            if (parts.length >= 3) {
+                fileName = `${parts[parts.length - 2]}/${fileName}`;
             }
+        }
 
-            const ext = fileName.split('.').pop();
-            const extBadge = ext && ext !== fileName ? `<span class="index-file-ext">.${ext}</span>` : '';
-            return `<div class="index-file-item" data-filepath="${escapeHtml(f)}" onclick="sendMessage('chatOpenFile', { uri: '${escapeHtml(f)}' })" title="${escapeHtml(f)}"><svg class="index-file-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>${escapeHtml(fileName)} ${extBadge}</div>`;
-        }).join('');
+        const ext = fileName.split('.').pop();
+        const extBadge = ext && ext !== fileName ? `<span class="index-file-ext">.${ext}</span>` : '';
+        return `<div class="index-file-item" data-filepath="${escapeHtml(f)}" onclick="sendMessage('chatOpenFile', { uri: '${escapeHtml(f)}' })" title="${escapeHtml(f)}"><svg class="index-file-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>${escapeHtml(fileName)} ${extBadge}</div>`;
+    }).join('');
 
-        return `
+    return `
         <div class="index-dir-group" data-dir="${escapeHtml(dir)}">
             <div class="index-dir-header" onclick="toggleIndexDir(this)">
                 <span class="dir-chevron">▼</span>
@@ -2175,56 +2239,56 @@ function renderAgentStep(step) {
             </div>
         </div>
     `;
-    }
+}
 
-    function toggleIndexDir(headerEl) {
-        headerEl.classList.toggle('collapsed');
-        const fileList = headerEl.nextElementSibling;
-        if (fileList) {
-            fileList.classList.toggle('hidden');
+function toggleIndexDir(headerEl) {
+    headerEl.classList.toggle('collapsed');
+    const fileList = headerEl.nextElementSibling;
+    if (fileList) {
+        fileList.classList.toggle('hidden');
+    }
+}
+
+function filterIndexViewer(query) {
+    const body = document.getElementById('index-viewer-body');
+    if (!body) { return; }
+
+    const queryLower = query.toLowerCase().trim();
+    const groups = body.querySelectorAll('.index-dir-group');
+
+    for (const group of groups) {
+        const items = group.querySelectorAll('.index-file-item');
+        let visibleCount = 0;
+
+        for (const item of items) {
+            const filePath = (item.dataset.filepath || '').toLowerCase();
+            const match = !queryLower || filePath.includes(queryLower);
+            item.style.display = match ? '' : 'none';
+            if (match) { visibleCount++; }
+        }
+
+        // Hide entire directory group if no matches
+        group.style.display = visibleCount > 0 ? '' : 'none';
+
+        // Expand matching directories when searching
+        if (queryLower && visibleCount > 0) {
+            const header = group.querySelector('.index-dir-header');
+            const fileList = group.querySelector('.index-file-list');
+            if (header) { header.classList.remove('collapsed'); }
+            if (fileList) { fileList.classList.remove('hidden'); }
+        }
+
+        // Update count
+        const countEl = group.querySelector('.index-dir-count');
+        if (countEl) {
+            countEl.textContent = `(${visibleCount})`;
         }
     }
+}
 
-    function filterIndexViewer(query) {
-        const body = document.getElementById('index-viewer-body');
-        if (!body) { return; }
-
-        const queryLower = query.toLowerCase().trim();
-        const groups = body.querySelectorAll('.index-dir-group');
-
-        for (const group of groups) {
-            const items = group.querySelectorAll('.index-file-item');
-            let visibleCount = 0;
-
-            for (const item of items) {
-                const filePath = (item.dataset.filepath || '').toLowerCase();
-                const match = !queryLower || filePath.includes(queryLower);
-                item.style.display = match ? '' : 'none';
-                if (match) { visibleCount++; }
-            }
-
-            // Hide entire directory group if no matches
-            group.style.display = visibleCount > 0 ? '' : 'none';
-
-            // Expand matching directories when searching
-            if (queryLower && visibleCount > 0) {
-                const header = group.querySelector('.index-dir-header');
-                const fileList = group.querySelector('.index-file-list');
-                if (header) { header.classList.remove('collapsed'); }
-                if (fileList) { fileList.classList.remove('hidden'); }
-            }
-
-            // Update count
-            const countEl = group.querySelector('.index-dir-count');
-            if (countEl) {
-                countEl.textContent = `(${visibleCount})`;
-            }
-        }
-    }
-
-    function appendAIMessage(response) {
-        const parsedResponse = marked.parse(response);
-        const systemResponseHTML = `<div class="system-message">
+function appendAIMessage(response) {
+    const parsedResponse = marked.parse(response);
+    const systemResponseHTML = `<div class="system-message">
             <div class="message-content">
                 <span class="message-text">${parsedResponse}</span>
                 <div class="message-footer">
@@ -2234,155 +2298,260 @@ function renderAgentStep(step) {
             </div>`;
 
 
-        if (!chatWelcomeMessage.classList.contains('hidden')) {
-            chatWelcomeMessage.classList.add('hidden');
-            document.querySelector('.chat-container').classList.remove('new-chat');
-        }
+    if (!chatWelcomeMessage.classList.contains('hidden')) {
+        chatWelcomeMessage.classList.add('hidden');
+        document.querySelector('.chat-container').classList.remove('new-chat');
+    }
 
 
-        const tempDiv = document.createElement('div');
+    const tempDiv = document.createElement('div');
 
 
-        tempDiv.innerHTML = systemResponseHTML;
+    tempDiv.innerHTML = systemResponseHTML;
 
-        const newMessageElement = tempDiv.firstElementChild;
+    const newMessageElement = tempDiv.firstElementChild;
 
+    withAutoScroll(() => {
         getActiveTurn().appendChild(newMessageElement);
-
         hljs.highlightAll();
         addAllCopyButtons();
-        scrollToBottom();
-    }
+    });
+}
 
 
-    function chatRequest(content) {
-        sendMessage('chatRequest', content);
-        appendUserMessage(content.message, content.images);
-    }
+function chatRequest(content) {
+    sendMessage('chatRequest', content);
+    appendUserMessage(content.message, content.images, content.files, false);
+}
 
-    function updateActiveAgentUI(agentId, agentsList) {
-        activeAgentId = agentId || 'default';
+function updateActiveAgentUI(agentId, agentsList) {
+    activeAgentId = agentId || 'default';
 
-        const chatIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`;
-        const agentIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
-        const arrowIcon = `<svg class="dropdown-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>`;
+    const chatIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`;
+    const agentIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
+    const arrowIcon = `<svg class="dropdown-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>`;
 
-        if (activeAgentId === 'default') {
+    if (activeAgentId === 'default') {
+        if (modeSelected) {
+            modeSelected.innerHTML = `<span class="mode-icon">${chatIcon}</span> Chat ${arrowIcon}`;
+        }
+    } else {
+        const agents = agentsList || (window.VS_CONSTANTS ? window.VS_CONSTANTS.AGENTS : []);
+        const agent = (agents || []).find(a => a.id === activeAgentId);
+        if (agent && modeSelected) {
+            modeSelected.innerHTML = `<span class="mode-icon">${agentIcon}</span> ${escapeHtml(agent.name)} ${arrowIcon}`;
+        } else {
+            // Fallback to default if agent not found
+            activeAgentId = 'default';
             if (modeSelected) {
                 modeSelected.innerHTML = `<span class="mode-icon">${chatIcon}</span> Chat ${arrowIcon}`;
             }
-        } else {
-            const agents = agentsList || (window.VS_CONSTANTS ? window.VS_CONSTANTS.AGENTS : []);
-            const agent = (agents || []).find(a => a.id === activeAgentId);
-            if (agent && modeSelected) {
-                modeSelected.innerHTML = `<span class="mode-icon">${agentIcon}</span> ${escapeHtml(agent.name)} ${arrowIcon}`;
-            } else {
-                // Fallback to default if agent not found
-                activeAgentId = 'default';
-                if (modeSelected) {
-                    modeSelected.innerHTML = `<span class="mode-icon">${chatIcon}</span> Chat ${arrowIcon}`;
-                }
-            }
-        }
-
-        // Update selected class in dropdown
-        if (modeOptions) {
-            modeOptions.querySelectorAll('.mode-option').forEach(o => {
-                if (o.dataset.value === activeAgentId) {
-                    o.classList.add('selected');
-                } else {
-                    o.classList.remove('selected');
-                }
-            });
         }
     }
 
-    function resetChat(content) {
-        // Clear any outstanding group timers before wiping the DOM
-        // to prevent leaked setInterval callbacks referencing detached nodes
-        document.querySelectorAll('details.agent-steps-group').forEach(group => {
-            if (group.dataset.timer) {
-                clearInterval(parseInt(group.dataset.timer));
+    // Update selected class in dropdown
+    if (modeOptions) {
+        modeOptions.querySelectorAll('.mode-option').forEach(o => {
+            if (o.dataset.value === activeAgentId) {
+                o.classList.add('selected');
+            } else {
+                o.classList.remove('selected');
             }
         });
-        clearWaitingIndicator();
-        chatMessages.innerHTML = '';
-        chatLog.dataset.chatId = content.uid;
-        isGenerating = false;
-        toggleSendButton("off");
-        attachedImages = [];
-        attachedFiles = [];
-        renderAttachments();
-        chatWelcomeMessage.classList.remove('hidden');
-        document.querySelector('.chat-container').classList.add('new-chat');
-        showChatView(); // Make sure we're on the chat view
-        chatMessage.focus();
+    }
+}
 
-        // Only reset agent if the content explicitly provides one (e.g. loading from history)
-        // New chat should preserve whatever agent the user currently has selected
-        if (content.agentId !== undefined) {
-            updateActiveAgentUI(content.agentId);
+function resetChat(content) {
+    // Clear any outstanding group timers before wiping the DOM
+    // to prevent leaked setInterval callbacks referencing detached nodes
+    document.querySelectorAll('details.agent-steps-group').forEach(group => {
+        if (group.dataset.timer) {
+            clearInterval(parseInt(group.dataset.timer));
+        }
+    });
+    clearWaitingIndicator();
+    chatMessages.innerHTML = '';
+
+    chatLog.dataset.chatId = content.uid;
+    isGenerating = false;
+    toggleSendButton("off");
+    attachedImages = [];
+    attachedFiles = [];
+    renderAttachments();
+    chatWelcomeMessage.classList.remove('hidden');
+    document.querySelector('.chat-container').classList.add('new-chat');
+    showChatView(); // Make sure we're on the chat view
+    chatMessage.focus();
+
+    // Only reset agent if the content explicitly provides one (e.g. loading from history)
+    // New chat should preserve whatever agent the user currently has selected
+    if (content.agentId !== undefined) {
+        updateActiveAgentUI(content.agentId);
+    }
+}
+
+
+
+/**
+ * Retry: keep the user message, remove only all AI messages following it.
+ */
+function retryLastMessage(btn) {
+    const userMsgEl = btn ? btn.closest('.user-message') : null;
+    const allMessages = Array.from(chatbox.querySelectorAll('.user-message, .system-message'));
+
+    // Determine where to start removing AI messages
+    let startIdx = -1;
+    let targetUserMsg = userMsgEl;
+    if (targetUserMsg) {
+        startIdx = allMessages.indexOf(targetUserMsg) + 1;
+    } else {
+        // Fallback for non-button invocation (e.g. command palette)
+        // Find the LAST user message in the chat
+        const reversed = [...allMessages].reverse();
+        targetUserMsg = reversed.find(el => el.classList.contains('user-message'));
+        startIdx = targetUserMsg ? allMessages.indexOf(targetUserMsg) + 1 : allMessages.length - 1;
+    }
+
+    // Calculate precise userMsgIdx for robust backend deletion
+    const allUserMessages = Array.from(chatbox.querySelectorAll('.user-message'));
+    const userMsgIdx = targetUserMsg ? allUserMessages.indexOf(targetUserMsg) : allUserMessages.length - 1;
+
+    if (startIdx <= 0 || startIdx > allMessages.length) { return; }
+
+    // Count system-messages (AI responses) after this user message
+    const messagesAfter = allMessages.length - startIdx;
+    // Minimum count is 2: the user message itself + at least 1 bot response (even if empty/error)
+    const removedCount = Math.max(2, messagesAfter + 1);
+
+    // Blast away all DOM nodes that come after targetUserMsg
+    if (targetUserMsg) {
+        let wrapper = targetUserMsg.closest('.user-message-wrapper') || targetUserMsg;
+        let turnDiv = wrapper.closest('.chat-turn') || wrapper;
+
+        // 1. Remove all siblings after the user message inside the turnDiv
+        let nextNode = wrapper.nextSibling;
+        while (nextNode) {
+            const toRemove = nextNode;
+            nextNode = nextNode.nextSibling;
+            toRemove.remove();
+        }
+
+        // 2. Remove all subsequent turnDivs
+        let nextTurn = turnDiv.nextSibling;
+        while (nextTurn) {
+            const toRemove = nextTurn;
+            nextTurn = nextTurn.nextSibling;
+            toRemove.remove();
+        }
+    } else {
+        for (let i = startIdx; i < allMessages.length; i++) {
+            allMessages[i].remove();
         }
     }
 
+    showLoadingIndicator();
+    toggleSendButton('disabled');
+    sendMessage(CHAT_COMMANDS.CHAT_RETRY, {
+        chat_id: chatLog.dataset.chatId,
+        count: removedCount,
+        userMsgIdx: userMsgIdx >= 0 ? userMsgIdx : undefined,
+        agentId: activeAgentId
+    });
+}
 
+/**
+ * Edit: swap user message bubble with an inline editable textarea.
+ * On cancel, restore the original bubble.
+ */
+function editUserMessage(btn) {
+    const userMsgEl = btn.closest('.user-message');
+    const rawText = decodeURIComponent(userMsgEl.dataset.rawText || '');
 
-    /**
-     * Retry: keep the user message, remove only all AI messages following it.
-     */
-    function retryLastMessage(btn) {
-        const userMsgEl = btn ? btn.closest('.user-message') : null;
-        const allMessages = Array.from(chatbox.querySelectorAll('.user-message, .system-message'));
+    // Find exact user message index for robust backend deletion
+    const allUserMessages = Array.from(chatbox.querySelectorAll('.user-message'));
+    const userMsgIdx = allUserMessages.indexOf(userMsgEl);
 
-        // Determine where to start removing AI messages
-        let startIdx = -1;
-        let targetUserMsg = userMsgEl;
-        if (targetUserMsg) {
-            startIdx = allMessages.indexOf(targetUserMsg) + 1;
-        } else {
-            // Fallback for non-button invocation (e.g. command palette)
-            // Find the LAST user message in the chat
-            const reversed = [...allMessages].reverse();
-            targetUserMsg = reversed.find(el => el.classList.contains('user-message'));
-            startIdx = targetUserMsg ? allMessages.indexOf(targetUserMsg) + 1 : allMessages.length - 1;
-        }
+    // Count formal AI/user messages for the legacy backend history trim
+    const allMessages = Array.from(chatbox.querySelectorAll('.user-message, .system-message'));
+    const startIdx = allMessages.indexOf(userMsgEl);
+    const messagesAfter = allMessages.slice(startIdx + 1);
+    const removedCount = messagesAfter.length + 1; // +1 = the user msg itself for history delete
 
-        // Calculate precise userMsgIdx for robust backend deletion
-        const allUserMessages = Array.from(chatbox.querySelectorAll('.user-message'));
-        const userMsgIdx = targetUserMsg ? allUserMessages.indexOf(targetUserMsg) : allUserMessages.length - 1;
+    // Blast away all DOM nodes that come after userMsgEl
+    let wrapper = userMsgEl.closest('.user-message-wrapper') || userMsgEl;
+    let turnDiv = wrapper.closest('.chat-turn') || wrapper;
 
-        if (startIdx <= 0 || startIdx > allMessages.length) { return; }
+    let removedNodes = [];
 
-        // Count system-messages (AI responses) after this user message
-        const messagesAfter = allMessages.length - startIdx;
-        // Minimum count is 2: the user message itself + at least 1 bot response (even if empty/error)
-        const removedCount = Math.max(2, messagesAfter + 1);
+    // 1. Remove siblings inside the turn
+    let nextNode = wrapper.nextSibling;
+    while (nextNode) {
+        const toRemove = nextNode;
+        nextNode = nextNode.nextSibling;
+        removedNodes.push({ parent: turnDiv, node: toRemove });
+        toRemove.remove();
+    }
 
-        // Blast away all DOM nodes that come after targetUserMsg
-        if (targetUserMsg) {
-            let wrapper = targetUserMsg.closest('.user-message-wrapper') || targetUserMsg;
-            let turnDiv = wrapper.closest('.chat-turn') || wrapper;
-            
-            // 1. Remove all siblings after the user message inside the turnDiv
-            let nextNode = wrapper.nextSibling;
-            while (nextNode) {
-                const toRemove = nextNode;
-                nextNode = nextNode.nextSibling;
-                toRemove.remove();
-            }
-            
-            // 2. Remove all subsequent turnDivs
-            let nextTurn = turnDiv.nextSibling;
-            while (nextTurn) {
-                const toRemove = nextTurn;
-                nextTurn = nextTurn.nextSibling;
-                toRemove.remove();
-            }
-        } else {
-            for (let i = startIdx; i < allMessages.length; i++) {
-                allMessages[i].remove();
-            }
-        }
+    // 2. Remove subsequent turns
+    let nextTurn = turnDiv.nextSibling;
+    while (nextTurn) {
+        const toRemove = nextTurn;
+        nextTurn = nextTurn.nextSibling;
+        removedNodes.push({ parent: chatbox, node: toRemove });
+        toRemove.remove();
+    }
+
+    // Swap the text span for a textarea, IN-PLACE inside the existing bubble
+    const textSpan = userMsgEl.querySelector('.message-text');
+    const footer = userMsgEl.querySelector('.message-footer');
+    const actionsDiv = userMsgEl.querySelector('.user-message-actions');
+
+    // Build textarea to replace text span
+    const ta = document.createElement('textarea');
+    ta.className = 'edit-textarea';
+    ta.value = rawText;
+    ta.rows = Math.max(2, rawText.split('\n').length);
+    textSpan.replaceWith(ta);
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+
+    // Auto-grow helper (fallback for browsers without field-sizing support)
+    function autoGrow() {
+        ta.style.height = 'auto';
+        ta.style.height = Math.min(ta.scrollHeight, 220) + 'px';
+    }
+    ta.addEventListener('input', () => {
+        autoGrow();
+        sendBtn.disabled = !ta.value.trim();
+    });
+    autoGrow(); // run once on init
+
+    // Swap action buttons to Cancel/Send
+    const originalActionsHTML = actionsDiv.innerHTML;
+    actionsDiv.innerHTML = `
+        <button class="edit-cancel-btn">Cancel</button>
+        <button class="edit-send-btn" ${!rawText.trim() ? 'disabled' : ''}>Send</button>`;
+
+    const sendBtn = actionsDiv.querySelector('.edit-send-btn');
+
+    // Cancel: restore everything, put back AI messages
+    actionsDiv.querySelector('.edit-cancel-btn').addEventListener('click', () => {
+        ta.replaceWith(textSpan);
+        actionsDiv.innerHTML = originalActionsHTML;
+        // Re-attach action button listeners (onclick attributes are restored via innerHTML)
+        removedNodes.forEach(item => item.parent.appendChild(item.node));
+    });
+
+    // Send: update bubble text, remove AI history, re-submit
+    sendBtn.addEventListener('click', () => {
+        const newText = ta.value.trim();
+        if (!newText) { return; }
+
+        // Restore bubble to display mode with updated text
+        textSpan.innerHTML = escapeHtml(newText).replace(/\n/g, '<br>');
+        ta.replaceWith(textSpan);
+        userMsgEl.dataset.rawText = encodeURIComponent(newText);
+        actionsDiv.innerHTML = originalActionsHTML;
 
         showLoadingIndicator();
         toggleSendButton('disabled');
@@ -2390,719 +2559,616 @@ function renderAgentStep(step) {
             chat_id: chatLog.dataset.chatId,
             count: removedCount,
             userMsgIdx: userMsgIdx >= 0 ? userMsgIdx : undefined,
+            overrideMessage: newText,
             agentId: activeAgentId
         });
-    }
-
-    /**
-     * Edit: swap user message bubble with an inline editable textarea.
-     * On cancel, restore the original bubble.
-     */
-    function editUserMessage(btn) {
-        const userMsgEl = btn.closest('.user-message');
-        const rawText = decodeURIComponent(userMsgEl.dataset.rawText || '');
-
-        // Find exact user message index for robust backend deletion
-        const allUserMessages = Array.from(chatbox.querySelectorAll('.user-message'));
-        const userMsgIdx = allUserMessages.indexOf(userMsgEl);
-
-        // Count formal AI/user messages for the legacy backend history trim
-        const allMessages = Array.from(chatbox.querySelectorAll('.user-message, .system-message'));
-        const startIdx = allMessages.indexOf(userMsgEl);
-        const messagesAfter = allMessages.slice(startIdx + 1);
-        const removedCount = messagesAfter.length + 1; // +1 = the user msg itself for history delete
-
-        // Blast away all DOM nodes that come after userMsgEl
-        let wrapper = userMsgEl.closest('.user-message-wrapper') || userMsgEl;
-        let turnDiv = wrapper.closest('.chat-turn') || wrapper;
-        
-        let removedNodes = [];
-        
-        // 1. Remove siblings inside the turn
-        let nextNode = wrapper.nextSibling;
-        while (nextNode) {
-            const toRemove = nextNode;
-            nextNode = nextNode.nextSibling;
-            removedNodes.push({ parent: turnDiv, node: toRemove });
-            toRemove.remove();
-        }
-        
-        // 2. Remove subsequent turns
-        let nextTurn = turnDiv.nextSibling;
-        while (nextTurn) {
-            const toRemove = nextTurn;
-            nextTurn = nextTurn.nextSibling;
-            removedNodes.push({ parent: chatbox, node: toRemove });
-            toRemove.remove();
-        }
-
-        // Swap the text span for a textarea, IN-PLACE inside the existing bubble
-        const textSpan = userMsgEl.querySelector('.message-text');
-        const footer = userMsgEl.querySelector('.message-footer');
-        const actionsDiv = userMsgEl.querySelector('.user-message-actions');
-
-        // Build textarea to replace text span
-        const ta = document.createElement('textarea');
-        ta.className = 'edit-textarea';
-        ta.value = rawText;
-        ta.rows = Math.max(2, rawText.split('\n').length);
-        textSpan.replaceWith(ta);
-        ta.focus();
-        ta.setSelectionRange(ta.value.length, ta.value.length);
-
-        // Auto-grow helper (fallback for browsers without field-sizing support)
-        function autoGrow() {
-            ta.style.height = 'auto';
-            ta.style.height = Math.min(ta.scrollHeight, 220) + 'px';
-        }
-        ta.addEventListener('input', () => {
-            autoGrow();
-            sendBtn.disabled = !ta.value.trim();
-        });
-        autoGrow(); // run once on init
-
-        // Swap action buttons to Cancel/Send
-        const originalActionsHTML = actionsDiv.innerHTML;
-        actionsDiv.innerHTML = `
-        <button class="edit-cancel-btn">Cancel</button>
-        <button class="edit-send-btn" ${!rawText.trim() ? 'disabled' : ''}>Send</button>`;
-
-        const sendBtn = actionsDiv.querySelector('.edit-send-btn');
-
-        // Cancel: restore everything, put back AI messages
-        actionsDiv.querySelector('.edit-cancel-btn').addEventListener('click', () => {
-            ta.replaceWith(textSpan);
-            actionsDiv.innerHTML = originalActionsHTML;
-            // Re-attach action button listeners (onclick attributes are restored via innerHTML)
-            removedNodes.forEach(item => item.parent.appendChild(item.node));
-        });
-
-        // Send: update bubble text, remove AI history, re-submit
-        sendBtn.addEventListener('click', () => {
-            const newText = ta.value.trim();
-            if (!newText) { return; }
-
-            // Restore bubble to display mode with updated text
-            textSpan.innerHTML = escapeHtml(newText).replace(/\n/g, '<br>');
-            ta.replaceWith(textSpan);
-            userMsgEl.dataset.rawText = encodeURIComponent(newText);
-            actionsDiv.innerHTML = originalActionsHTML;
-
-            showLoadingIndicator();
-            toggleSendButton('disabled');
-            sendMessage(CHAT_COMMANDS.CHAT_RETRY, {
-                chat_id: chatLog.dataset.chatId,
-                count: removedCount,
-                userMsgIdx: userMsgIdx >= 0 ? userMsgIdx : undefined,
-                overrideMessage: newText,
-                agentId: activeAgentId
-            });
-        });
-
-        scrollToBottom();
-    }
-
-
-
-
-    // 1. Send Button Click
-    sendButton.addEventListener("click", event => {
-        if (isGenerating) {
-            // Cancel ongoing request
-            vscode.postMessage({
-                command: 'cancelChatRequest',
-                data: { chat_id: chatLog.dataset.chatId }
-            });
-            isGenerating = false;
-            toggleSendButton("off");
-            hideLoadingIndicator();
-
-            // Immediate visual feedback: append a stopped badge
-            if (activeStreamNode) {
-                const stopBadge = document.createElement('div');
-                stopBadge.className = 'status-badge status-stopped';
-                stopBadge.style.marginTop = '8px';
-                stopBadge.innerHTML = `■ Generation stopped by user`;
-                activeStreamNode.parentElement.appendChild(stopBadge);
-            }
-            return;
-        }
-        const imagePills = chatMessage.querySelectorAll('.inline-attachment-pill[data-image="true"]');
-        const dynamicAttachedImages = [];
-        const usedNames = new Set();
-
-        imagePills.forEach(pill => {
-            let name = pill.dataset.name;
-            let originalName = name;
-            let counter = 1;
-            while (usedNames.has(name)) {
-                const dotRegex = /(.*)(\.[a-zA-Z0-9]+)$/;
-                const match = originalName.match(dotRegex);
-                if (match) {
-                    name = `${match[1]}_${counter}${match[2]}`;
-                } else {
-                    name = `${originalName}_${counter}`;
-                }
-                counter++;
-            }
-            usedNames.add(name);
-
-            if (pill.dataset.name !== name) {
-                pill.dataset.name = name;
-                pill.innerHTML = `[${escapeHtml(name)}]`;
-            }
-
-            dynamicAttachedImages.push({
-                name: name,
-                dataUrl: pill.dataset.url
-            });
-        });
-
-        const filePills = chatMessage.querySelectorAll('.inline-attachment-pill[data-file="true"]');
-        const dynamicAttachedFiles = [];
-        filePills.forEach(pill => {
-            const fileId = pill.dataset.fileId;
-            const fileData = window.inlineFilesMap && window.inlineFilesMap[fileId];
-            if (fileData) {
-                dynamicAttachedFiles.push(fileData);
-            }
-        });
-
-        const messageText = chatMessage.innerText.trim();
-
-        // Combine inline files and externally attached files (if any still use the old method)
-        const allFiles = attachedFiles.concat(dynamicAttachedFiles);
-
-        // Update Condition: Check for files too
-        if (messageText || dynamicAttachedImages.length > 0 || allFiles.length > 0) {
-
-            // --- PREPARE PAYLOAD ---
-            const payload = {
-                message: messageText,
-                images: dynamicAttachedImages,
-
-                // CRITICAL: Send the attached files to the backend
-                files: allFiles,
-
-                agentId: activeAgentId,
-
-                chat_id: chatLog.dataset.chatId,
-                timestamp: new Date().toISOString()
-            };
-
-            // --- SEND ---
-            sendMessage(CHAT_COMMANDS.CHAT_REQUEST, payload);
-
-            // --- UI CLEANUP ---
-            hideQuestionBanner(); // #48: Dismiss question banner on reply
-            showLoadingIndicator(); // Show dots while waiting for backend echo
-            toggleSendButton("disabled");
-
-            chatMessage.innerHTML = "";
-
-            // Clear files array
-            attachedFiles = [];
-            // No need to clear attachedImages since they are dynamically populated
-
-            renderAttachments(); // Removes the file pills from the screen
-        }
     });
 
-    /**
-     * Parses raw message text to separate user message from file attachments.
-     * Returns HTML string with collapsible details.
-     */
-    function processMessageContent(rawText) {
-        const splitMarker = "--- ATTACHED CONTEXT ---";
+    scrollToBottom();
+}
 
-        // 1. If no attachments, just return formatted text
-        if (!rawText.includes(splitMarker)) {
-            return escapeHtml(rawText).replace(/\n/g, "<br>");
+
+
+
+// 1. Send Button Click
+sendButton.addEventListener("click", event => {
+    if (isGenerating) {
+        // Cancel ongoing request
+        vscode.postMessage({
+            command: 'cancelChatRequest',
+            data: { chat_id: chatLog.dataset.chatId }
+        });
+        isGenerating = false;
+        toggleSendButton("off");
+        hideLoadingIndicator();
+
+        // Immediate visual feedback: append a stopped badge
+        if (activeStreamNode) {
+            const stopBadge = document.createElement('div');
+            stopBadge.className = 'status-badge status-stopped';
+            stopBadge.style.marginTop = '8px';
+            stopBadge.innerHTML = `■ Generation stopped by user`;
+            activeStreamNode.parentElement.appendChild(stopBadge);
+        }
+        return;
+    }
+    const imagePills = chatMessage.querySelectorAll('.inline-attachment-pill[data-image="true"]');
+    const dynamicAttachedImages = [];
+    const usedNames = new Set();
+
+    imagePills.forEach(pill => {
+        let name = pill.dataset.name;
+        let originalName = name;
+        let counter = 1;
+        while (usedNames.has(name)) {
+            const dotRegex = /(.*)(\.[a-zA-Z0-9]+)$/;
+            const match = originalName.match(dotRegex);
+            if (match) {
+                name = `${match[1]}_${counter}${match[2]}`;
+            } else {
+                name = `${originalName}_${counter}`;
+            }
+            counter++;
+        }
+        usedNames.add(name);
+
+        if (pill.dataset.name !== name) {
+            pill.dataset.name = name;
+            pill.innerHTML = `[${escapeHtml(name)}]`;
         }
 
-        // 2. Split: [User Text, The Big Code Block]
-        const parts = rawText.split(splitMarker);
-        const userMessage = parts[0].trim();
-        const contextBlock = parts[1];
-
-        // 3. Format User Message
-        let html = escapeHtml(userMessage).replace(/\n/g, "<br>");
-
-        // 4. Return just the user message
-        return html;
-    }
-
-
-    window.addEventListener('DOMContentLoaded', () => {
-        sendMessage("ChatWebviewReady");
-        initGenerateButton();
-
-        const input = document.getElementById("messageInput");
-
-        input.addEventListener("keydown", (event) => {
-            if (autocompleteActive) {
-                if (event.key === "ArrowDown") {
-                    event.preventDefault();
-                    selectedIndex = (selectedIndex + 1) % filteredItems.length;
-                    renderAutocomplete();
-                    return;
-                }
-                if (event.key === "ArrowUp") {
-                    event.preventDefault();
-                    selectedIndex = (selectedIndex - 1 + filteredItems.length) % filteredItems.length;
-                    renderAutocomplete();
-                    return;
-                }
-                if (event.key === "Enter" || event.key === "Tab") {
-                    event.preventDefault();
-                    confirmAutocompleteSelection();
-                    return;
-                }
-                if (event.key === "Escape") {
-                    event.preventDefault();
-                    hideAutocomplete();
-                    return;
-                }
-            }
-
-            if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                sendButton.click();
-            }
-        });
-
-        input.addEventListener("input", (event) => {
-            const text = input.innerText;
-            const cursorPosition = getCaretPosition(input);
-            const textBeforeCursor = text.substring(0, cursorPosition);
-
-            // Find the last trigger character before the cursor
-            const lastAt = textBeforeCursor.lastIndexOf('@');
-            const lastSlash = textBeforeCursor.lastIndexOf('/');
-            const lastTriggerIdx = Math.max(lastAt, lastSlash);
-
-            if (lastTriggerIdx !== -1) {
-                const potentialTrigger = textBeforeCursor[lastTriggerIdx];
-                // Check if trigger is at start or preceded by whitespace
-                const charBeforeTrigger = textBeforeCursor[lastTriggerIdx - 1];
-                if (!charBeforeTrigger || /\s/.test(charBeforeTrigger)) {
-                    autocompleteType = potentialTrigger;
-                    triggerQuery = textBeforeCursor.substring(lastTriggerIdx + 1);
-
-                    // Query shouldn't contain spaces (if it does, user moved past the command)
-                    if (!/\s/.test(triggerQuery)) {
-                        updateAutocompleteItems(triggerQuery);
-                        return;
-                    }
-                }
-            }
-
-            if (autocompleteActive) {
-                hideAutocomplete();
-            }
-        });
-
-        input.addEventListener("focusout", () => {
-            if (!input.textContent.trim().length) {
-                input.textContent = "";
-            }
-        });
-
-
-        input.addEventListener("paste", (event) => {
-            // 1. Stop all native pasting
-            event.preventDefault();
-            const clipboardData = event.clipboardData || window.clipboardData;
-
-            // 2. Handle images
-            if (clipboardData.files && clipboardData.files.length > 0) {
-                if (Array.from(clipboardData.files).some(file => file.type.startsWith('image/'))) {
-                    handleImageFiles(clipboardData.files, 'paste');
-                    return;
-                }
-            }
-
-            // 3. Handle Text
-            const text = clipboardData.getData('text/plain');
-            if (!text) { return; };
-
-            // #46: Detect if the pasted text is a URL
-            const urlPattern = /^https?:\/\/[^\s]+$/i;
-            if (urlPattern.test(text.trim())) {
-                const url = text.trim();
-                const urlId = 'url-' + Date.now();
-                const pill = `<span class="inline-attachment-pill url-pill" contenteditable="false" data-url="${url}" data-url-id="${urlId}" title="Click to scrape: ${url}" onclick="handleUrlScrape(this)">◆ ${new URL(url).hostname}${new URL(url).pathname.substring(0, 30)}</span>&nbsp;`;
-
-                // Wrap in setTimeout to avoid "execCommand() ... called recursively" error
-                setTimeout(() => {
-                    document.execCommand('insertHTML', false, pill);
-                    // URL stays as a clickable pill — user can click to scrape manually
-                }, 0);
-                return;
-            }
-
-            // 4. Escape the text for HTML
-            const escapedText = text
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;");
-            // Note: We don't replace \n with <br> because our CSS
-            // 'white-space: pre-wrap' already handles newlines correctly.
-
-            // 5. Use 'insertHTML'. This command inserts our plain, escaped text
-            //    and correctly adds the action to the undo/redo stack.
-            setTimeout(() => {
-                document.execCommand('insertHTML', false, escapedText);
-            }, 50);
-
-        });
-
-
-        imageUploadInput.addEventListener('change', (e) => {
-            if (e.target.files) {
-                handleImageFiles(e.target.files, 'upload');
-                e.target.value = null;
-            }
-        });
-
-
-        // --- End of Listeners ---
-
-        renderAttachments();
-        input.focus();
-
-        // Configure marked
-        marked.setOptions({
-            highlight: function (code, lang) {
-                if (lang && hljs.getLanguage(lang)) {
-                    return hljs.highlight(code, { language: lang }).value;
-                }
-                return hljs.highlightAuto(code).value;
-            },
-            langPrefix: 'hljs language-',
-            gfm: true,
-            breaks: true
-        });
-
-
-        // Toggle Menu
-        attachBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent immediate closing
-            contextMenu.classList.toggle('hidden');
-            if (modelOptionsMenu) modelOptionsMenu.classList.add('hidden');
-            if (permsOptionsMenu) permsOptionsMenu.classList.add('hidden');
-        });
-
-        // Close when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!contextMenu.contains(e.target) && e.target !== attachBtn) {
-                contextMenu.classList.add('hidden');
-            }
-
-            // Hide autocomplete if clicking outside
-            if (autocompleteActive && !autocompleteMenu.contains(e.target) && e.target !== input) {
-                hideAutocomplete();
-            }
-        });
-
-        // Handle Item Clicks
-        contextMenu.addEventListener('click', (e) => {
-            const item = e.target.closest('.context-item');
-            if (!item) {
-                return;
-            }
-
-            const type = item.dataset.type;
-
-            // 1. Media — open file picker (browser input)
-            if (type === 'media') {
-                imageUploadInput.click();
-            }
-            // 2. Mentions — insert @ into input to trigger autocomplete
-            else if (type === 'mentions') {
-                // Defer to avoid race with document click handler that closes autocomplete
-                setTimeout(() => {
-                    chatMessage.focus();
-                    document.execCommand('insertText', false, '@');
-                    // Directly trigger autocomplete logic
-                    autocompleteType = '@';
-                    triggerQuery = '';
-                    updateAutocompleteItems('');
-                }, 50);
-            }
-
-            // Close menu
-            contextMenu.classList.add('hidden');
+        dynamicAttachedImages.push({
+            name: name,
+            dataUrl: pill.dataset.url
         });
     });
 
-    /**
-     * Request the extension to open the image.
-     * @param {string} dateUrlOrPath 
-     */
-    function requestOpenImage(dateUrlOrPath) {
-        // If it's base64, we CAN now send it. The backend will save it to temp.
-        // if (dateUrlOrPath.startsWith('data:')) { ... }
-
-        sendMessage(CHAT_COMMANDS.OPEN_IMAGE, { path: dateUrlOrPath });
-    }
-
-    function requestOpenFile(fileId) {
+    const filePills = chatMessage.querySelectorAll('.inline-attachment-pill[data-file="true"]');
+    const dynamicAttachedFiles = [];
+    filePills.forEach(pill => {
+        const fileId = pill.dataset.fileId;
         const fileData = window.inlineFilesMap && window.inlineFilesMap[fileId];
         if (fileData) {
-            const isUrl = fileData.path && (fileData.path.startsWith('http://') || fileData.path.startsWith('https://'));
-            if (fileData.path && !isUrl) {
-                // Local file — open directly
-                sendMessage('openFile', { path: fileData.path });
-            } else if (isUrl && !fileData.content) {
-                // URL without content (old history) — open URL externally
-                sendMessage('openExternal', { url: fileData.path });
-            } else {
-                // URL with content or virtual file — show in editor
-                sendMessage('openVirtualFile', {
-                    name: fileData.name,
-                    text: fileData.content,
-                    language: fileData.language
-                });
-            }
+            dynamicAttachedFiles.push(fileData);
         }
+    });
+
+    const messageText = chatMessage.innerText.trim();
+
+    // Combine inline files and externally attached files (if any still use the old method)
+    const allFiles = attachedFiles.concat(dynamicAttachedFiles);
+
+    // Update Condition: Check for files too
+    if (messageText || dynamicAttachedImages.length > 0 || allFiles.length > 0) {
+
+        // --- PREPARE PAYLOAD ---
+        const payload = {
+            message: messageText,
+            images: dynamicAttachedImages,
+
+            // CRITICAL: Send the attached files to the backend
+            files: allFiles,
+
+            agentId: activeAgentId,
+
+            chat_id: chatLog.dataset.chatId,
+            timestamp: new Date().toISOString()
+        };
+
+        // --- SEND ---
+        sendMessage(CHAT_COMMANDS.CHAT_REQUEST, payload);
+
+        // --- UI CLEANUP ---
+        hideQuestionBanner(); // #48: Dismiss question banner on reply
+        showLoadingIndicator(); // Show dots while waiting for backend echo
+        toggleSendButton("disabled");
+
+        chatMessage.innerHTML = "";
+
+        // Clear files array
+        attachedFiles = [];
+        // No need to clear attachedImages since they are dynamically populated
+
+        renderAttachments(); // Removes the file pills from the screen
+    }
+});
+
+/**
+ * Parses raw message text to separate user message from file attachments.
+ * Returns HTML string with collapsible details.
+ */
+function processMessageContent(rawText) {
+    const splitMarker = "--- ATTACHED CONTEXT ---";
+
+    // 1. If no attachments, just return formatted text
+    if (!rawText.includes(splitMarker)) {
+        return escapeHtml(rawText).replace(/\n/g, "<br>");
     }
 
+    // 2. Split: [User Text, The Big Code Block]
+    const parts = rawText.split(splitMarker);
+    const userMessage = parts[0].trim();
+    const contextBlock = parts[1];
 
-    let activeStreamAccumulator = "";
-    let activeStreamNode = null;
+    // 3. Format User Message
+    let html = escapeHtml(userMessage).replace(/\n/g, "<br>");
 
-    // --- EVENT LISTENERS ---
-    window.addEventListener('message', event => {
-        const message = event.data;
-        switch (message.command) {
-            case 'focus':
-                // Only autofocus if the user isn't using another input (like search)
-                if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+    // 4. Return just the user message
+    return html;
+}
+
+
+window.addEventListener('DOMContentLoaded', () => {
+    sendMessage("ChatWebviewReady");
+    initGenerateButton();
+
+    const input = document.getElementById("messageInput");
+
+    input.addEventListener("keydown", (event) => {
+        if (autocompleteActive) {
+            if (event.key === "ArrowDown") {
+                event.preventDefault();
+                selectedIndex = (selectedIndex + 1) % filteredItems.length;
+                renderAutocomplete();
+                return;
+            }
+            if (event.key === "ArrowUp") {
+                event.preventDefault();
+                selectedIndex = (selectedIndex - 1 + filteredItems.length) % filteredItems.length;
+                renderAutocomplete();
+                return;
+            }
+            if (event.key === "Enter" || event.key === "Tab") {
+                event.preventDefault();
+                confirmAutocompleteSelection();
+                return;
+            }
+            if (event.key === "Escape") {
+                event.preventDefault();
+                hideAutocomplete();
+                return;
+            }
+        }
+
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            sendButton.click();
+        }
+    });
+
+    input.addEventListener("input", (event) => {
+        const text = input.innerText;
+        const cursorPosition = getCaretPosition(input);
+        const textBeforeCursor = text.substring(0, cursorPosition);
+
+        // Find the last trigger character before the cursor
+        const lastAt = textBeforeCursor.lastIndexOf('@');
+        const lastSlash = textBeforeCursor.lastIndexOf('/');
+        const lastTriggerIdx = Math.max(lastAt, lastSlash);
+
+        if (lastTriggerIdx !== -1) {
+            const potentialTrigger = textBeforeCursor[lastTriggerIdx];
+            // Check if trigger is at start or preceded by whitespace
+            const charBeforeTrigger = textBeforeCursor[lastTriggerIdx - 1];
+            if (!charBeforeTrigger || /\s/.test(charBeforeTrigger)) {
+                autocompleteType = potentialTrigger;
+                triggerQuery = textBeforeCursor.substring(lastTriggerIdx + 1);
+
+                // Query shouldn't contain spaces (if it does, user moved past the command)
+                if (!/\s/.test(triggerQuery)) {
+                    updateAutocompleteItems(triggerQuery);
+                    return;
+                }
+            }
+        }
+
+        if (autocompleteActive) {
+            hideAutocomplete();
+        }
+    });
+
+    input.addEventListener("focusout", () => {
+        if (!input.textContent.trim().length) {
+            input.textContent = "";
+        }
+    });
+
+
+    input.addEventListener("paste", (event) => {
+        // 1. Stop all native pasting
+        event.preventDefault();
+        const clipboardData = event.clipboardData || window.clipboardData;
+
+        // 2. Handle images
+        if (clipboardData.files && clipboardData.files.length > 0) {
+            if (Array.from(clipboardData.files).some(file => file.type.startsWith('image/'))) {
+                handleImageFiles(clipboardData.files, 'paste');
+                return;
+            }
+        }
+
+        // 3. Handle Text
+        const text = clipboardData.getData('text/plain');
+        if (!text) { return; };
+
+        // #46: Detect if the pasted text is a URL
+        const urlPattern = /^https?:\/\/[^\s]+$/i;
+        if (urlPattern.test(text.trim())) {
+            const url = text.trim();
+            const urlId = 'url-' + Date.now();
+            const pill = `<span class="inline-attachment-pill url-pill" contenteditable="false" data-url="${url}" data-url-id="${urlId}" title="Click to scrape: ${url}" onclick="handleUrlScrape(this)">◆ ${new URL(url).hostname}${new URL(url).pathname.substring(0, 30)}</span>&nbsp;`;
+
+            // Wrap in setTimeout to avoid "execCommand() ... called recursively" error
+            setTimeout(() => {
+                document.execCommand('insertHTML', false, pill);
+                // URL stays as a clickable pill — user can click to scrape manually
+            }, 0);
+            return;
+        }
+
+        // 4. Escape the text for HTML
+        const escapedText = text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        // Note: We don't replace \n with <br> because our CSS
+        // 'white-space: pre-wrap' already handles newlines correctly.
+
+        // 5. Use 'insertHTML'. This command inserts our plain, escaped text
+        //    and correctly adds the action to the undo/redo stack.
+        setTimeout(() => {
+            document.execCommand('insertHTML', false, escapedText);
+        }, 50);
+
+    });
+
+
+    imageUploadInput.addEventListener('change', (e) => {
+        if (e.target.files) {
+            handleImageFiles(e.target.files, 'upload');
+            e.target.value = null;
+        }
+    });
+
+
+    // --- End of Listeners ---
+
+    renderAttachments();
+    input.focus();
+
+    // Configure marked
+    marked.setOptions({
+        highlight: function (code, lang) {
+            if (lang && hljs.getLanguage(lang)) {
+                return hljs.highlight(code, { language: lang }).value;
+            }
+            return hljs.highlightAuto(code).value;
+        },
+        langPrefix: 'hljs language-',
+        gfm: true,
+        breaks: true
+    });
+
+
+    // Toggle Menu
+    attachBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent immediate closing
+        contextMenu.classList.toggle('hidden');
+        if (modelOptionsMenu) modelOptionsMenu.classList.add('hidden');
+        if (permsOptionsMenu) permsOptionsMenu.classList.add('hidden');
+    });
+
+    // Close when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!contextMenu.contains(e.target) && e.target !== attachBtn) {
+            contextMenu.classList.add('hidden');
+        }
+
+        // Hide autocomplete if clicking outside
+        if (autocompleteActive && !autocompleteMenu.contains(e.target) && e.target !== input) {
+            hideAutocomplete();
+        }
+    });
+
+    // Handle Item Clicks
+    contextMenu.addEventListener('click', (e) => {
+        const item = e.target.closest('.context-item');
+        if (!item) {
+            return;
+        }
+
+        const type = item.dataset.type;
+
+        // 1. Media — open file picker (browser input)
+        if (type === 'media') {
+            imageUploadInput.click();
+        }
+        // 2. Mentions — insert @ into input to trigger autocomplete
+        else if (type === 'mentions') {
+            // Defer to avoid race with document click handler that closes autocomplete
+            setTimeout(() => {
+                chatMessage.focus();
+                document.execCommand('insertText', false, '@');
+                // Directly trigger autocomplete logic
+                autocompleteType = '@';
+                triggerQuery = '';
+                updateAutocompleteItems('');
+            }, 50);
+        }
+
+        // Close menu
+        contextMenu.classList.add('hidden');
+    });
+});
+
+/**
+ * Request the extension to open the image.
+ * @param {string} dateUrlOrPath 
+ */
+function requestOpenImage(dateUrlOrPath) {
+    // If it's base64, we CAN now send it. The backend will save it to temp.
+    // if (dateUrlOrPath.startsWith('data:')) { ... }
+
+    sendMessage(CHAT_COMMANDS.OPEN_IMAGE, { path: dateUrlOrPath });
+}
+
+function requestOpenFile(fileId) {
+    const fileData = window.inlineFilesMap && window.inlineFilesMap[fileId];
+    if (fileData) {
+        const isUrl = fileData.path && (fileData.path.startsWith('http://') || fileData.path.startsWith('https://'));
+        if (fileData.path && !isUrl) {
+            // Local file — open directly
+            sendMessage('openFile', { path: fileData.path });
+        } else if (isUrl && !fileData.content) {
+            // URL without content (old history) — open URL externally
+            sendMessage('openExternal', { url: fileData.path });
+        } else {
+            // URL with content or virtual file — show in editor
+            sendMessage('openVirtualFile', {
+                name: fileData.name,
+                text: fileData.content,
+                language: fileData.language
+            });
+        }
+    }
+}
+
+
+let activeStreamAccumulator = "";
+let activeStreamNode = null;
+
+// --- EVENT LISTENERS ---
+window.addEventListener('message', event => {
+    const message = event.data;
+    switch (message.command) {
+        case 'focus':
+            // Only autofocus if the user isn't using another input (like search)
+            if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+                if (chatMessage && !chatMessage.disabled) {
+                    chatMessage.focus();
+                }
+                setTimeout(() => {
                     if (chatMessage && !chatMessage.disabled) {
                         chatMessage.focus();
                     }
-                    setTimeout(() => {
-                        if (chatMessage && !chatMessage.disabled) {
-                            chatMessage.focus();
-                        }
-                    }, 100);
-                }
-                break;
-            case 'searchFilesResult':
-                {
-                    if (autocompleteType !== '@') { break; }
-                    const fileResults = message.results || [];
-                    // Merge: keep any matched commands at the top, then add file results
-                    const commandMatches = filteredItems.filter(item => item.label && !item.path);
-                    filteredItems = [...commandMatches, ...fileResults];
-                    if (filteredItems.length === 0) {
-                        hideAutocomplete();
-                        break;
-                    }
-                    selectedIndex = 0;
-                    renderAutocomplete();
+                }, 100);
+            }
+            break;
+        case 'searchFilesResult':
+            {
+                if (autocompleteType !== '@') { break; }
+                const fileResults = message.results || [];
+                // Merge: keep any matched commands at the top, then add file results
+                const commandMatches = filteredItems.filter(item => item.label && !item.path);
+                filteredItems = [...commandMatches, ...fileResults];
+                if (filteredItems.length === 0) {
+                    hideAutocomplete();
                     break;
                 }
-            case CHAT_COMMANDS.CHAT_ID_UPDATE:
-                // When a new chat is started, backend replies with the assigned UUID
-                // We MUST set this immediately so if the user clicks "Stop Request"
-                // during the first turn, the abort command sends the correct ID.
-                chatLog.dataset.chatId = message.content.uid;
+                selectedIndex = 0;
+                renderAutocomplete();
                 break;
-            case CHAT_COMMANDS.CHAT_REQUEST:
-                hideLoadingIndicator();
-                if (message.role === ROLE.USER) {
-                    appendUserMessage(message.content, message.images, message.files);
-                    if (!message.isHistory) {
-                        showLoadingIndicator();
+            }
+        case CHAT_COMMANDS.CHAT_ID_UPDATE:
+            // When a new chat is started, backend replies with the assigned UUID
+            // We MUST set this immediately so if the user clicks "Stop Request"
+            // during the first turn, the abort command sends the correct ID.
+            chatLog.dataset.chatId = message.content.uid;
+            break;
+        case CHAT_COMMANDS.CHAT_REQUEST:
+            hideLoadingIndicator();
+            if (message.role === ROLE.USER) {
+                appendUserMessage(message.content, message.images, message.files);
+                if (!message.isHistory) {
+                    showLoadingIndicator();
+                }
+            } else {
+                if (message.agentSteps && message.agentSteps.length > 0) {
+                    for (const step of message.agentSteps) {
+                        // Tag steps so renderAgentStep knows to skip the live timer
+                        if (message.isHistory) { step._isHistory = true; }
+                        renderAgentStep(step);
                     }
-                } else {
-                    if (message.agentSteps && message.agentSteps.length > 0) {
-                        for (const step of message.agentSteps) {
-                            // Tag steps so renderAgentStep knows to skip the live timer
-                            if (message.isHistory) { step._isHistory = true; }
-                            renderAgentStep(step);
+
+                    // Finalize thinking blocks and groups
+                    document.querySelectorAll('.agent-thinking-block:not([data-finalized="true"])').forEach(thinkingBlock => {
+                        thinkingBlock.dataset.finalized = 'true';
+                        thinkingBlock.classList.remove('streaming');
+                        thinkingBlock.open = false;
+                        const label = thinkingBlock.querySelector('.thinking-label');
+                        if (label && !label.textContent.includes('Thought for')) {
+                            label.textContent = 'Thought process';
                         }
+                    });
 
-                        // Finalize thinking blocks and groups
-                        document.querySelectorAll('.agent-thinking-block:not([data-finalized="true"])').forEach(thinkingBlock => {
-                            thinkingBlock.dataset.finalized = 'true';
-                            thinkingBlock.classList.remove('streaming');
-                            thinkingBlock.open = false;
-                            const label = thinkingBlock.querySelector('.thinking-label');
-                            if (label && !label.textContent.includes('Thought for')) {
-                                label.textContent = 'Thought process';
-                            }
-                        });
-
-                        document.querySelectorAll('details.agent-steps-group:not([data-finalized="true"])').forEach(group => {
-                            if (group.dataset.timer) {
-                                clearInterval(parseInt(group.dataset.timer));
-                                delete group.dataset.timer;
-                            }
-                            const summaryText = group.querySelector('.summary-text');
-                            if (summaryText) {
-                                if (group.dataset.history) {
-                                    summaryText.textContent = 'Completed steps';
-                                } else {
-                                    const ms = Date.now() - parseInt(group.dataset.startTime);
-                                    const secs = Math.floor(ms / 1000);
-                                    summaryText.textContent = secs === 0 ? 'Completed steps' : `Worked for ${secs}s`;
-                                }
-                            }
-                            group.open = false;
-                            group.dataset.finalized = "true";
-                        });
-                    }
-                    if (message.content) {
-                        appendAIMessage(message.content);
-                    }
-                }
-                // Re-enable send button
-                toggleSendButton("off");
-                break;
-
-            case CHAT_COMMANDS.CHAT_STREAM_START:
-                isGenerating = true;
-                toggleSendButton("generating");
-                activeStreamAccumulator = "";
-                activeStreamNode = null;
-                break;
-
-            case CHAT_COMMANDS.CHAT_STREAM_CHUNK:
-                if (!activeStreamNode) {
-                    appendAIMessage(""); // Create empty blank message
-
-                    // Get reference to the newly created blank message
-                    const aiMessages = chatbox.querySelectorAll('.system-message .message-text');
-                    if (aiMessages.length > 0) {
-                        activeStreamNode = aiMessages[aiMessages.length - 1];
-                    }
-                }
-
-                if (activeStreamNode) {
-                    activeStreamAccumulator += message.content;
-
-                    // Batch markdown re-parse: only once per animation frame
-                    if (!activeStreamNode._renderPending) {
-                        activeStreamNode._renderPending = true;
-                        requestAnimationFrame(() => {
-                            if (activeStreamNode) {
-                                activeStreamNode.innerHTML = marked.parse(activeStreamAccumulator);
-                                activeStreamNode._renderPending = false;
-                                scrollToBottom();
-                            }
-                        });
-                    }
-                }
-
-                // ALWAYS send ACK back — even if rendering failed
-                // Without this, the backend hangs forever waiting for the ACK → deadlock
-                if (message.seq) {
-                    sendMessage(CHAT_COMMANDS.CHAT_CHUNK_ACK, { seq: message.seq });
-                }
-                break;
-
-            case CHAT_COMMANDS.CHAT_STREAM_END:
-                hideLoadingIndicator(); // Always hide loading, even if no chunks arrived
-                clearWaitingIndicator(); // Remove any between-step indicator
-
-                // Finalize open agent groups
-                document.querySelectorAll('details.agent-steps-group').forEach(group => {
-                    const stepsContainer = group.querySelector('.agent-steps-container');
-                    if (stepsContainer && stepsContainer.children.length === 0) {
-                        if (group.dataset.timer) {
-                            clearInterval(parseInt(group.dataset.timer));
-                        }
-                        group.remove();
-                    } else {
+                    document.querySelectorAll('details.agent-steps-group:not([data-finalized="true"])').forEach(group => {
                         if (group.dataset.timer) {
                             clearInterval(parseInt(group.dataset.timer));
                             delete group.dataset.timer;
-
-                            const ms = Date.now() - parseInt(group.dataset.startTime);
-                            const secs = Math.floor(ms / 1000);
-                            const summaryText = group.querySelector('.summary-text');
-                            if (summaryText) {
-                                if (secs === 0) {
-                                    summaryText.textContent = `Completed steps`;
-                                } else {
-                                    summaryText.textContent = `Worked for ${secs}s`;
-                                }
+                        }
+                        const summaryText = group.querySelector('.summary-text');
+                        if (summaryText) {
+                            if (group.dataset.history) {
+                                summaryText.textContent = 'Completed steps';
+                            } else {
+                                const ms = Date.now() - parseInt(group.dataset.startTime);
+                                const secs = Math.floor(ms / 1000);
+                                summaryText.textContent = secs === 0 ? 'Completed steps' : `Worked for ${secs}s`;
                             }
-                            group.open = false; // Close it to keep UI clean
                         }
+                        group.open = false;
                         group.dataset.finalized = "true";
-                    }
-                });
+                    });
+                }
+                if (message.content) {
+                    appendAIMessage(message.content);
+                }
+            }
+            // Re-enable send button
+            toggleSendButton("off");
+            break;
 
-                // #44: Finalize any open thinking blocks
-                document.querySelectorAll('.agent-thinking-block:not([data-finalized="true"])').forEach(thinkingBlock => {
-                    thinkingBlock.dataset.finalized = 'true';
-                    thinkingBlock.classList.remove('streaming');
-                    thinkingBlock.open = false;
+        case CHAT_COMMANDS.CHAT_STREAM_START:
+            isGenerating = true;
+            toggleSendButton("generating");
+            activeStreamAccumulator = "";
+            activeStreamNode = null;
+            break;
 
-                    // Stop elapsed timer
-                    if (thinkingBlock.dataset.thinkTimer) {
-                        clearInterval(parseInt(thinkingBlock.dataset.thinkTimer));
-                    }
+        case CHAT_COMMANDS.CHAT_STREAM_CHUNK:
+            if (!activeStreamNode) {
+                appendAIMessage(""); // Create empty blank message
 
-                    const label = thinkingBlock.querySelector('.thinking-label');
-                    const tokens = parseInt(thinkingBlock.dataset.tokens || '0', 10);
-                    const startTime = parseInt(thinkingBlock.dataset.thinkStart || '0', 10);
-                    const elapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+                // Get reference to the newly created blank message
+                const aiMessages = chatbox.querySelectorAll('.system-message .message-text');
+                if (aiMessages.length > 0) {
+                    activeStreamNode = aiMessages[aiMessages.length - 1];
+                }
+            }
 
-                    if (label) {
-                        let labelText = elapsed > 0 ? `Thought for ${elapsed}s` : 'Thought process';
-                        if (tokens > 0) {
-                            labelText += ` · ${tokens} tokens`;
+            if (activeStreamNode) {
+                activeStreamAccumulator += message.content;
+
+                // Batch markdown re-parse: only once per animation frame
+                if (!activeStreamNode._renderPending) {
+                    activeStreamNode._renderPending = true;
+                    const runShowLastChat = shouldAutoScroll();
+                    requestAnimationFrame(() => {
+                        if (activeStreamNode) {
+                            activeStreamNode.innerHTML = marked.parse(activeStreamAccumulator);
+                            activeStreamNode._renderPending = false;
+                            if (runShowLastChat) showLastChat();
                         }
-                        label.textContent = labelText;
-                    }
-                });
+                    });
+                }
+            }
 
-                if (activeStreamNode) {
-                    if (!activeStreamAccumulator) {
-                        const parentBubble = activeStreamNode.closest('.system-message');
-                        if (parentBubble) {
-                            parentBubble.remove();
-                        }
-                    } else {
-                        // Force a final synchronous render before clearing references
-                        activeStreamNode.innerHTML = marked.parse(activeStreamAccumulator);
-                        activeStreamNode._renderPending = false;
-                        setTimeout(() => {
-                            hljs.highlightAll();
-                            addAllCopyButtons();
-                            scrollToBottom(true);
-                        }, 0);
+            // ALWAYS send ACK back — even if rendering failed
+            // Without this, the backend hangs forever waiting for the ACK → deadlock
+            if (message.seq) {
+                sendMessage(CHAT_COMMANDS.CHAT_CHUNK_ACK, { seq: message.seq });
+            }
+            break;
+
+        case CHAT_COMMANDS.CHAT_STREAM_END:
+            hideLoadingIndicator(); // Always hide loading, even if no chunks arrived
+            clearWaitingIndicator(); // Remove any between-step indicator
+
+            // Finalize open agent groups
+            document.querySelectorAll('details.agent-steps-group').forEach(group => {
+                const stepsContainer = group.querySelector('.agent-steps-container');
+                if (stepsContainer && stepsContainer.children.length === 0) {
+                    if (group.dataset.timer) {
+                        clearInterval(parseInt(group.dataset.timer));
                     }
+                    group.remove();
+                } else {
+                    if (group.dataset.timer) {
+                        clearInterval(parseInt(group.dataset.timer));
+                        delete group.dataset.timer;
+
+                        const ms = Date.now() - parseInt(group.dataset.startTime);
+                        const secs = Math.floor(ms / 1000);
+                        const summaryText = group.querySelector('.summary-text');
+                        if (summaryText) {
+                            if (secs === 0) {
+                                summaryText.textContent = `Completed steps`;
+                            } else {
+                                summaryText.textContent = `Worked for ${secs}s`;
+                            }
+                        }
+                        group.open = false; // Close it to keep UI clean
+                    }
+                    group.dataset.finalized = "true";
+                }
+            });
+
+            // #44: Finalize any open thinking blocks
+            document.querySelectorAll('.agent-thinking-block:not([data-finalized="true"])').forEach(thinkingBlock => {
+                thinkingBlock.dataset.finalized = 'true';
+                thinkingBlock.classList.remove('streaming');
+                thinkingBlock.open = false;
+
+                // Stop elapsed timer
+                if (thinkingBlock.dataset.thinkTimer) {
+                    clearInterval(parseInt(thinkingBlock.dataset.thinkTimer));
                 }
 
-                // #48: Check if AI ended with a question
-                if (activeStreamAccumulator && detectsQuestion(activeStreamAccumulator)) {
-                    // Find active agent name
-                    const agentLabel = document.querySelector('.agent-selector-label');
-                    const agentName = agentLabel ? agentLabel.textContent.trim() : 'Agent';
-                    showQuestionBanner(agentName);
+                const label = thinkingBlock.querySelector('.thinking-label');
+                const tokens = parseInt(thinkingBlock.dataset.tokens || '0', 10);
+                const startTime = parseInt(thinkingBlock.dataset.thinkStart || '0', 10);
+                const elapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+
+                if (label) {
+                    let labelText = elapsed > 0 ? `Thought for ${elapsed}s` : 'Thought process';
+                    if (tokens > 0) {
+                        labelText += ` · ${tokens} tokens`;
+                    }
+                    label.textContent = labelText;
                 }
+            });
 
-                activeStreamNode = null;
-                activeStreamAccumulator = "";
-                isGenerating = false;
-                toggleSendButton("off");
-                break;
+            if (activeStreamNode) {
+                if (!activeStreamAccumulator) {
+                    const parentBubble = activeStreamNode.closest('.system-message');
+                    if (parentBubble) {
+                        parentBubble.remove();
+                    }
+                } else {
+                    // Force a final synchronous render before clearing references
+                    activeStreamNode.innerHTML = marked.parse(activeStreamAccumulator);
+                    activeStreamNode._renderPending = false;
+                    setTimeout(() => {
+                        hljs.highlightAll();
+                        addAllCopyButtons();
+                        scrollToBottom(true);
+                    }, 0);
+                }
+            }
 
-            case CHAT_COMMANDS.CHAT_CONTINUE_PROMPT:
-                {
-                    const { chatId, agentId, extraSteps, stepsUsed } = message.data;
-                    // Remove any existing continue banner
-                    document.querySelectorAll('.continue-banner').forEach(b => b.remove());
+            // #48: Check if AI ended with a question
+            if (activeStreamAccumulator && detectsQuestion(activeStreamAccumulator)) {
+                // Find active agent name
+                const agentLabel = document.querySelector('.agent-selector-label');
+                const agentName = agentLabel ? agentLabel.textContent.trim() : 'Agent';
+                showQuestionBanner(agentName);
+            }
 
-                    const banner = document.createElement('div');
-                    banner.className = 'continue-banner';
-                    banner.innerHTML = `
+            activeStreamNode = null;
+            activeStreamAccumulator = "";
+            isGenerating = false;
+            toggleSendButton("off");
+            break;
+
+        case CHAT_COMMANDS.CHAT_CONTINUE_PROMPT:
+            {
+                const { chatId, agentId, extraSteps, stepsUsed } = message.data;
+                // Remove any existing continue banner
+                document.querySelectorAll('.continue-banner').forEach(b => b.remove());
+
+                const banner = document.createElement('div');
+                banner.className = 'continue-banner';
+                banner.innerHTML = `
                     <div class="continue-banner-content">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
                         <span>Agent reached the step limit (${stepsUsed} steps). There may be more work to do.</span>
@@ -3110,358 +3176,345 @@ function renderAgentStep(step) {
                         <button class="continue-dismiss-btn" id="dismissContinueBtn">Dismiss</button>
                     </div>
                 `;
-                    document.getElementById('chatLog').appendChild(banner);
-                    scrollToBottom();
+                withAutoScroll(() => document.getElementById('chatLog').appendChild(banner));
 
-                    document.getElementById('continueAgentBtn').addEventListener('click', () => {
-                        banner.remove();
-                        showLoadingIndicator();
-                        isGenerating = true;
-                        toggleSendButton("on");
-                        sendMessage(CHAT_COMMANDS.CHAT_CONTINUE, {
-                            chatId,
-                            agentId
-                        });
+                document.getElementById('continueAgentBtn').addEventListener('click', () => {
+                    banner.remove();
+                    showLoadingIndicator();
+                    isGenerating = true;
+                    toggleSendButton("on");
+                    sendMessage(CHAT_COMMANDS.CHAT_CONTINUE, {
+                        chatId,
+                        agentId
                     });
+                });
 
-                    document.getElementById('dismissContinueBtn').addEventListener('click', () => {
-                        banner.remove();
-                    });
-                    break;
-                }
-
-            // Case: Resetting the view / New Chat
-            case CHAT_COMMANDS.CHAT_RESET:
-                resetChat(message.content);
+                document.getElementById('dismissContinueBtn').addEventListener('click', () => {
+                    banner.remove();
+                });
                 break;
+            }
 
-            // Backend asks frontend to initiate detach (from VS Code header button)
-            case 'requestDetach':
-                if (isGenerating) {
-                    // Show inline warning — can't detach during active generation
-                    const warnEl = document.createElement('div');
-                    warnEl.className = 'detach-warning';
-                    warnEl.textContent = 'Cannot detach while a request is in progress. Please wait or stop the request first.';
-                    warnEl.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);background:rgba(220,38,38,0.9);color:#fff;padding:8px 16px;border-radius:8px;font-size:0.82rem;z-index:9999;animation:fadeOut 3s forwards;';
-                    document.body.appendChild(warnEl);
-                    setTimeout(() => warnEl.remove(), 3000);
-                    break;
+        // Case: Resetting the view / New Chat
+        case CHAT_COMMANDS.CHAT_RESET:
+            resetChat(message.content);
+            break;
+
+        // Backend asks frontend to initiate detach (from VS Code header button)
+        case 'requestDetach':
+            if (isGenerating) {
+                // Show inline warning — can't detach during active generation
+                const warnEl = document.createElement('div');
+                warnEl.className = 'detach-warning';
+                warnEl.textContent = 'Cannot detach while a request is in progress. Please wait or stop the request first.';
+                warnEl.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);background:rgba(220,38,38,0.9);color:#fff;padding:8px 16px;border-radius:8px;font-size:0.82rem;z-index:9999;animation:fadeOut 3s forwards;';
+                document.body.appendChild(warnEl);
+                setTimeout(() => warnEl.remove(), 3000);
+                break;
+            }
+            {
+                const chatId = chatLog?.dataset?.chatId || '';
+                // Only detach if there's an actual conversation
+                if (chatId && chatMessages.children.length > 0) {
+                    sendMessage('detachChat', { chatId });
+                } else {
+                    // Nothing to detach — just open a blank popup
+                    sendMessage('detachChat', {});
                 }
-                {
-                    const chatId = chatLog?.dataset?.chatId || '';
-                    // Only detach if there's an actual conversation
-                    if (chatId && chatMessages.children.length > 0) {
-                        sendMessage('detachChat', { chatId });
-                    } else {
-                        // Nothing to detach — just open a blank popup
-                        sendMessage('detachChat', {});
+            }
+            break;
+
+        // Popup: load a conversation by emulating history click
+        case 'loadChatInPopup':
+            if (message.chatId) {
+                sendMessage(CHAT_COMMANDS.CHAT_LOAD, { chatId: message.chatId });
+            }
+            break;
+
+        case CHAT_COMMANDS.HISTORY_LOAD:
+            showHistoryView(message.content); // Call the global function
+            break;
+
+        // TODO: Implement file context handling
+        case CHAT_COMMANDS.FILE_CONTEXT_ADDED:
+            const fileData = message.content;
+            insertInlineFile(fileData.name, fileData.text, fileData.language, fileData.path);
+            break;
+
+        case CHAT_COMMANDS.IMAGE_CONTEXT_ADDED:
+            const imgData = message.content;
+            insertInlineImage(imgData.dataUrl, imgData.name);
+            break;
+
+        case CHAT_COMMANDS.PROBLEM_CONTEXT_ADDED:
+            const problemData = message.content;
+            insertInlineFile(problemData.name, problemData.text, problemData.language, problemData.path);
+            break;
+
+        case CHAT_COMMANDS.CHAT_AGENT_STEP:
+            renderAgentStep(message.content);
+            break;
+
+        case CHAT_COMMANDS.CHAT_APPROVAL_UPDATE:
+            {
+                const { toolCallId, approved } = message.data;
+                updateCardApproval(toolCallId, approved);
+                break;
+            }
+
+        case 'chatStagingUpdate':
+            updateStagingBar(message.content.stagedFilesCount);
+            // Update header pill
+            const reviewPill = document.getElementById('count-reviews');
+            if (reviewPill) {
+                reviewPill.textContent = message.content.stagedFilesCount;
+            }
+            break;
+
+        case 'chatUsageUpdate':
+            const tokenPill = document.getElementById('count-tokens');
+            if (tokenPill && message.usage) {
+                const total = message.usage.totalTokens || 0;
+                tokenPill.textContent = total > 1000 ? (total / 1000).toFixed(1) + 'k' : total;
+            }
+            break;
+
+        case 'reviewHunksData':
+            if (hunkReviewState) {
+                // Update state in place for real-time refresh
+                hunkReviewState.files = (message.content || []).map(f => ({
+                    ...f,
+                    hunks: (f.hunks || []).map(h => ({ ...h, accepted: true }))
+                }));
+                renderHunkReviewPanel();
+            } else if (message.openPanel && message.content && message.content.length > 0) {
+                // Explicit user request to open the panel
+                openHunkReviewPanel(message.content);
+            }
+            break;
+
+        case 'uiSettingsUpdate':
+            applyUISettings(message.ui);
+            break;
+
+        case 'improvedPrompt':
+            {
+                const generateBtn = document.getElementById('generateButton');
+                if (generateBtn) generateBtn.classList.remove('loading');
+
+                const input = document.getElementById('messageInput');
+                if (input && message.content) {
+                    input.focus();
+                    document.execCommand('selectAll', false, null);
+                    document.execCommand('insertText', false, message.content);
+                }
+            }
+            break;
+
+        case 'suggestPromptsResult':
+            {
+                const generateBtn = document.getElementById('generateButton');
+                if (generateBtn) generateBtn.classList.remove('loading');
+
+                const suggestions = message.suggestions || [];
+                if (suggestions.length > 0) {
+                    // Remove existing chips
+                    const existing = document.querySelector('.prompt-suggestion-chips');
+                    if (existing) existing.remove();
+
+                    const chipsContainer = document.createElement('div');
+                    chipsContainer.className = 'prompt-suggestion-chips';
+
+                    suggestions.forEach(text => {
+                        const chip = document.createElement('button');
+                        chip.className = 'suggestion-chip';
+                        chip.textContent = text;
+                        chip.addEventListener('click', () => {
+                            const input = document.getElementById('messageInput');
+                            if (input) {
+                                input.innerText = text;
+                                input.focus();
+                                const range = document.createRange();
+                                const sel = window.getSelection();
+                                range.selectNodeContents(input);
+                                range.collapse(false);
+                                sel.removeAllRanges();
+                                sel.addRange(range);
+                            }
+                            chipsContainer.remove();
+                        });
+                        chipsContainer.appendChild(chip);
+                    });
+
+                    // Insert chips above the input container
+                    const editorWrapper = document.querySelector('.editor-wrapper');
+                    if (editorWrapper) {
+                        editorWrapper.insertBefore(chipsContainer, editorWrapper.querySelector('.unified-input-container'));
                     }
                 }
-                break;
+            }
+            break;
 
-            // Popup: load a conversation by emulating history click
-            case 'loadChatInPopup':
-                if (message.chatId) {
-                    sendMessage(CHAT_COMMANDS.CHAT_LOAD, { chatId: message.chatId });
-                }
-                break;
-
-            case CHAT_COMMANDS.HISTORY_LOAD:
-                showHistoryView(message.content); // Call the global function
-                break;
-
-            // TODO: Implement file context handling
-            case CHAT_COMMANDS.FILE_CONTEXT_ADDED:
-                const fileData = message.content;
-                insertInlineFile(fileData.name, fileData.text, fileData.language, fileData.path);
-                break;
-
-            case CHAT_COMMANDS.IMAGE_CONTEXT_ADDED:
-                const imgData = message.content;
-                insertInlineImage(imgData.dataUrl, imgData.name);
-                break;
-
-            case CHAT_COMMANDS.PROBLEM_CONTEXT_ADDED:
-                const problemData = message.content;
-                insertInlineFile(problemData.name, problemData.text, problemData.language, problemData.path);
-                break;
-
-            case CHAT_COMMANDS.CHAT_AGENT_STEP:
-                renderAgentStep(message.content);
-                break;
-
-            case CHAT_COMMANDS.CHAT_APPROVAL_UPDATE:
-                {
-                    const { toolCallId, approved } = message.data;
-                    updateCardApproval(toolCallId, approved);
-                    break;
-                }
-
-            case 'chatStagingUpdate':
-                updateStagingBar(message.content.stagedFilesCount);
-                // Update header pill
-                const reviewPill = document.getElementById('count-reviews');
-                if (reviewPill) {
-                    reviewPill.textContent = message.content.stagedFilesCount;
-                }
-                break;
-
-            case 'chatUsageUpdate':
-                const tokenPill = document.getElementById('count-tokens');
-                if (tokenPill && message.usage) {
-                    const total = message.usage.totalTokens || 0;
-                    tokenPill.textContent = total > 1000 ? (total / 1000).toFixed(1) + 'k' : total;
-                }
-                break;
-
-            case 'reviewHunksData':
-                if (hunkReviewState) {
-                    // Update state in place for real-time refresh
-                    hunkReviewState.files = (message.content || []).map(f => ({
-                        ...f,
-                        hunks: (f.hunks || []).map(h => ({ ...h, accepted: true }))
-                    }));
+        case 'fileSaveStatus':
+            if (hunkReviewState && message.content) {
+                const file = hunkReviewState.files.find(f => f.uri === message.content.uri);
+                if (file) {
+                    file.savedByUser = true;
                     renderHunkReviewPanel();
-                } else if (message.openPanel && message.content && message.content.length > 0) {
-                    // Explicit user request to open the panel
-                    openHunkReviewPanel(message.content);
                 }
-                break;
+            }
+            break;
 
-            case 'uiSettingsUpdate':
-                applyUISettings(message.ui);
-                break;
-
-            case 'improvedPrompt':
-                {
-                    const generateBtn = document.getElementById('generateButton');
-                    if (generateBtn) generateBtn.classList.remove('loading');
-
-                    const input = document.getElementById('messageInput');
-                    if (input && message.content) {
-                        input.focus();
-                        document.execCommand('selectAll', false, null);
-                        document.execCommand('insertText', false, message.content);
+        case 'indexUpdate':
+            {
+                const indexPill = document.getElementById('count-index');
+                if (indexPill && message.content) {
+                    indexPill.textContent = message.content.fileCount || '0';
+                    const pillEl = document.getElementById('pill-index');
+                    if (pillEl) {
+                        pillEl.title = `Workspace Index: ${message.content.fileCount} files — Last updated: ${new Date(message.content.lastUpdated).toLocaleTimeString()} — Click to View`;
                     }
                 }
-                break;
-
-            case 'suggestPromptsResult':
-                {
-                    const generateBtn = document.getElementById('generateButton');
-                    if (generateBtn) generateBtn.classList.remove('loading');
-
-                    const suggestions = message.suggestions || [];
-                    if (suggestions.length > 0) {
-                        // Remove existing chips
-                        const existing = document.querySelector('.prompt-suggestion-chips');
-                        if (existing) existing.remove();
-
-                        const chipsContainer = document.createElement('div');
-                        chipsContainer.className = 'prompt-suggestion-chips';
-
-                        suggestions.forEach(text => {
-                            const chip = document.createElement('button');
-                            chip.className = 'suggestion-chip';
-                            chip.textContent = text;
-                            chip.addEventListener('click', () => {
-                                const input = document.getElementById('messageInput');
-                                if (input) {
-                                    input.innerText = text;
-                                    input.focus();
-                                    const range = document.createRange();
-                                    const sel = window.getSelection();
-                                    range.selectNodeContents(input);
-                                    range.collapse(false);
-                                    sel.removeAllRanges();
-                                    sel.addRange(range);
-                                }
-                                chipsContainer.remove();
-                            });
-                            chipsContainer.appendChild(chip);
-                        });
-
-                        // Insert chips above the input container
-                        const editorWrapper = document.querySelector('.editor-wrapper');
-                        if (editorWrapper) {
-                            editorWrapper.insertBefore(chipsContainer, editorWrapper.querySelector('.unified-input-container'));
-                        }
-                    }
+                // Store the file list for the viewer
+                if (message.content && message.content.fileList) {
+                    window._indexedFiles = message.content.fileList;
+                    window._indexLastUpdated = message.content.lastUpdated;
+                }
+                // Open the viewer if requested
+                if (message.content && message.content.showViewer) {
+                    openIndexViewer(message.content.fileList || [], message.content.fileCount, message.content.lastUpdated);
                 }
                 break;
+            }
 
-            case 'fileSaveStatus':
-                if (hunkReviewState && message.content) {
-                    const file = hunkReviewState.files.find(f => f.uri === message.content.uri);
-                    if (file) {
-                        file.savedByUser = true;
-                        renderHunkReviewPanel();
-                    }
+        case 'agentsUpdate':
+            if (window.VS_CONSTANTS) {
+                window.VS_CONSTANTS.AGENTS = message.agents;
+            }
+            renderAgentDropdown(message.agents);
+            // On first load, auto-select the first active agent instead of "Chat"
+            if (activeAgentId === 'default' && message.agents && message.agents.length > 0) {
+                const firstActive = message.agents.find(a => a.isActive);
+                if (firstActive) {
+                    activeAgentId = firstActive.id;
+                    persistAgentSelection();
                 }
-                break;
+            }
+            updateActiveAgentUI(activeAgentId, message.agents);
+            break;
 
-            case 'indexUpdate':
-                {
-                    const indexPill = document.getElementById('count-index');
-                    if (indexPill && message.content) {
-                        indexPill.textContent = message.content.fileCount || '0';
-                        const pillEl = document.getElementById('pill-index');
-                        if (pillEl) {
-                            pillEl.title = `Workspace Index: ${message.content.fileCount} files — Last updated: ${new Date(message.content.lastUpdated).toLocaleTimeString()} — Click to View`;
-                        }
-                    }
-                    // Store the file list for the viewer
-                    if (message.content && message.content.fileList) {
-                        window._indexedFiles = message.content.fileList;
-                        window._indexLastUpdated = message.content.lastUpdated;
-                    }
-                    // Open the viewer if requested
-                    if (message.content && message.content.showViewer) {
-                        openIndexViewer(message.content.fileList || [], message.content.fileCount, message.content.lastUpdated);
-                    }
-                    break;
-                }
-
-            case 'agentsUpdate':
+        case 'modelsUpdate':
+            if (message.models) {
                 if (window.VS_CONSTANTS) {
-                    window.VS_CONSTANTS.AGENTS = message.agents;
-                }
-                renderAgentDropdown(message.agents);
-                // On first load, auto-select the first active agent instead of "Chat"
-                if (activeAgentId === 'default' && message.agents && message.agents.length > 0) {
-                    const firstActive = message.agents.find(a => a.isActive);
-                    if (firstActive) {
-                        activeAgentId = firstActive.id;
-                        persistAgentSelection();
+                    window.VS_CONSTANTS.MODELS = message.models;
+                    if (message.customModels) {
+                        window.VS_CONSTANTS.CUSTOM_MODELS = message.customModels;
+                    }
+                    if (message.availableModels) {
+                        window.VS_CONSTANTS.AVAILABLE_MODELS = message.availableModels;
                     }
                 }
-                updateActiveAgentUI(activeAgentId, message.agents);
-                break;
+                MODELS = message.models;
+                initModelDropdown();
+            }
+            break;
 
-            case 'modelsUpdate':
-                if (message.models) {
+        case CHAT_COMMANDS.CHAT_STATE_REHYDRATE:
+            rehydrateState(message.content);
+            break;
+
+        // Live settings sync — apply all changes immediately from settings panel
+        case 'settingsChanged':
+            {
+                const s = message.settings;
+                if (!s) break;
+
+                // 1. Models + Custom Models
+                if (s.models) {
+                    MODELS = s.models;
                     if (window.VS_CONSTANTS) {
-                        window.VS_CONSTANTS.MODELS = message.models;
-                        if (message.customModels) {
-                            window.VS_CONSTANTS.CUSTOM_MODELS = message.customModels;
-                        }
-                        if (message.availableModels) {
-                            window.VS_CONSTANTS.AVAILABLE_MODELS = message.availableModels;
-                        }
+                        window.VS_CONSTANTS.MODELS = s.models;
                     }
-                    MODELS = message.models;
+                }
+                // Always sync customModels (deletions, additions, active toggles)
+                if (window.VS_CONSTANTS) {
+                    window.VS_CONSTANTS.CUSTOM_MODELS = s.customModels || [];
+                }
+                // Refresh model dropdown if we have model data
+                if (s.models) {
                     initModelDropdown();
                 }
-                break;
 
-            case CHAT_COMMANDS.CHAT_STATE_REHYDRATE:
-                rehydrateState(message.content);
-                break;
-
-            // Live settings sync — apply all changes immediately from settings panel
-            case 'settingsChanged':
-                {
-                    const s = message.settings;
-                    if (!s) break;
-
-                    // 1. Models + Custom Models
-                    if (s.models) {
-                        MODELS = s.models;
-                        if (window.VS_CONSTANTS) {
-                            window.VS_CONSTANTS.MODELS = s.models;
-                        }
+                // 2. Permissions
+                if (s.permissions) {
+                    PERMISSIONS = s.permissions;
+                    if (window.VS_CONSTANTS) window.VS_CONSTANTS.PERMISSIONS = s.permissions;
+                    // Refresh permission UI
+                    const isAP = s.permissions.alwaysProceed === true;
+                    if (tbAlwaysProceed) tbAlwaysProceed.checked = isAP;
+                    if (tbReadPerm) {
+                        tbReadPerm.value = isAP ? 'auto' : (s.permissions.readFilesConfirmation ? 'ask' : 'auto');
+                        tbReadPerm.disabled = isAP;
+                        tbReadPerm.style.opacity = isAP ? '0.4' : '1';
                     }
-                    // Always sync customModels (deletions, additions, active toggles)
-                    if (window.VS_CONSTANTS) {
-                        window.VS_CONSTANTS.CUSTOM_MODELS = s.customModels || [];
+                    if (tbWritePerm) {
+                        tbWritePerm.value = isAP ? 'auto' : (s.permissions.writeFilesConfirmation ? 'ask' : 'auto');
+                        tbWritePerm.disabled = isAP;
+                        tbWritePerm.style.opacity = isAP ? '0.4' : '1';
                     }
-                    // Refresh model dropdown if we have model data
-                    if (s.models) {
-                        initModelDropdown();
-                    }
-
-                    // 2. Permissions
-                    if (s.permissions) {
-                        PERMISSIONS = s.permissions;
-                        if (window.VS_CONSTANTS) window.VS_CONSTANTS.PERMISSIONS = s.permissions;
-                        // Refresh permission UI
-                        const isAP = s.permissions.alwaysProceed === true;
-                        if (tbAlwaysProceed) tbAlwaysProceed.checked = isAP;
-                        if (tbReadPerm) {
-                            tbReadPerm.value = isAP ? 'auto' : (s.permissions.readFilesConfirmation ? 'ask' : 'auto');
-                            tbReadPerm.disabled = isAP;
-                            tbReadPerm.style.opacity = isAP ? '0.4' : '1';
-                        }
-                        if (tbWritePerm) {
-                            tbWritePerm.value = isAP ? 'auto' : (s.permissions.writeFilesConfirmation ? 'ask' : 'auto');
-                            tbWritePerm.disabled = isAP;
-                            tbWritePerm.style.opacity = isAP ? '0.4' : '1';
-                        }
-                        if (tbCmdPerm) {
-                            tbCmdPerm.value = isAP ? 'auto' : (s.permissions.runCommandsConfirmation ? 'ask' : 'auto');
-                            tbCmdPerm.disabled = isAP;
-                            tbCmdPerm.style.opacity = isAP ? '0.4' : '1';
-                        }
-                    }
-
-                    // 3. Agents
-                    if (s.prompts) {
-                        if (window.VS_CONSTANTS) window.VS_CONSTANTS.AGENTS = s.prompts;
-                        renderAgentDropdown(s.prompts);
-                        updateActiveAgentUI(activeAgentId, s.prompts);
-                    }
-
-                    // 4. UI (CSS + allowExternalMedia)
-                    if (s.ui) {
-                        applyUISettings(s.ui);
-                        applyExternalMediaSetting(s.ui.allowExternalMedia);
+                    if (tbCmdPerm) {
+                        tbCmdPerm.value = isAP ? 'auto' : (s.permissions.runCommandsConfirmation ? 'ask' : 'auto');
+                        tbCmdPerm.disabled = isAP;
+                        tbCmdPerm.style.opacity = isAP ? '0.4' : '1';
                     }
                 }
-                break;
 
-            default:
-                console.error('Unknown command:', message.command);
-        }
-    });
-
-    function rehydrateState(data) {
-        const { chatId, messages, stagedFilesCount, agentId } = data;
-
-        // 1. Reset the UI for the chat ID
-        resetChat({ uid: chatId, agentId: agentId });
-
-        // 2. Add all messages
-        if (messages && Array.isArray(messages)) {
-            messages.forEach(msg => {
-                if (msg.role === ROLE.USER) {
-                    appendUserMessage(msg.message, msg.images || [], []);
-                } else {
-                    appendAIMessage(msg.message);
+                // 3. Agents
+                if (s.prompts) {
+                    if (window.VS_CONSTANTS) window.VS_CONSTANTS.AGENTS = s.prompts;
+                    renderAgentDropdown(s.prompts);
+                    updateActiveAgentUI(activeAgentId, s.prompts);
                 }
-            });
-        }
 
-        // 3. Update staging bar
-        updateStagingBar(stagedFilesCount);
-
-        // 4. Highlight code
-        setTimeout(() => {
-            if (typeof hljs !== 'undefined') hljs.highlightAll();
-            addAllCopyButtons();
-
-            // Force scroll to bottom when loading history
-            isAtBottom = true;
-            scrollToBottom(true);
-
-            // Double-check after layout shifts (images, code blocks)
-            let scrollAttempts = 0;
-            const scrollInterval = setInterval(() => {
-                isAtBottom = true;
-                scrollToBottom(true);
-                scrollAttempts++;
-                if (scrollAttempts >= 5) {
-                    clearInterval(scrollInterval);
+                // 4. UI (CSS + allowExternalMedia)
+                if (s.ui) {
+                    applyUISettings(s.ui);
+                    applyExternalMediaSetting(s.ui.allowExternalMedia);
                 }
-            }, 100);
-        }, 50);
+            }
+            break;
+
+        default:
+            console.error('Unknown command:', message.command);
     }
+});
+
+function rehydrateState(data) {
+    const { chatId, messages, stagedFilesCount, agentId } = data;
+
+    // 1. Reset the UI for the chat ID
+    resetChat({ uid: chatId, agentId: agentId });
+
+    // 2. Add all messages
+    if (messages && Array.isArray(messages)) {
+        messages.forEach(msg => {
+            if (msg.role === ROLE.USER) {
+                appendUserMessage(msg.message, msg.images || [], [], true);
+            } else {
+                appendAIMessage(msg.message);
+            }
+        });
+    }
+
+    // 3. Update staging bar
+    updateStagingBar(stagedFilesCount);
+
+    // 4. Highlight code
+    setTimeout(() => {
+        if (typeof hljs !== 'undefined') hljs.highlightAll();
+        addAllCopyButtons();
+
+        // Force scroll to bottom when loading history
+        scrollToBottom(true);
+    }, 50);
+}

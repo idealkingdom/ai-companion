@@ -1,0 +1,587 @@
+/* --- INPUT AREA --- */
+
+.editor-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  padding-top: 0.5rem;
+  background: var(--app-bg);
+  border-top: 1px solid var(--border-color);
+  gap: 8px;
+  box-sizing: border-box;
+  transition: margin-bottom 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+    max-width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-radius 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+#attachments-preview-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 0 4px;
+}
+
+.attachment-pill {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--system-msg-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  color: var(--text-color);
+  max-width: 150px;
+}
+
+
+.attachment-image {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+  border-radius: 3px;
+}
+
+.attachment-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-ui);
+}
+
+.remove-attachment {
+  background: none;
+  border: none;
+  color: var(--text-color);
+  opacity: 0.7;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.remove-attachment:hover {
+  opacity: 1;
+}
+
+
+.message-images-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+.chat-bubble-image {
+  max-width: 250px;
+  /* Limit width */
+  max-height: 200px;
+  /* Limit height */
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  object-fit: contain;
+  background-color: rgba(0, 0, 0, 0.1);
+  /* Placeholder bg */
+  transition: transform 0.2s;
+  cursor: zoom-in;
+  /* Hint that it could be viewed */
+}
+
+.chat-bubble-image:hover {
+  transform: scale(1.02);
+  border-color: var(--input-focus-border);
+}
+
+
+.input-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 90%;
+  padding: 0 4px;
+
+}
+
+
+/* --- CONTEXT MENU WRAPPER --- */
+.context-menu-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* --- THE POPOVER --- */
+.context-menu {
+  position: absolute;
+  bottom: 100%;
+  /* Sits exactly on top of the button */
+  left: 0;
+  margin-bottom: 6px;
+  /* A tiny bit of breathing room */
+
+  width: 180px;
+  /* Compact width */
+  background: var(--vscode-menu-background, #252526);
+  border: 1px solid var(--vscode-menu-border, #454545);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  padding: 4px;
+
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+
+  /* Animation Origin */
+  transform-origin: bottom left;
+}
+
+/* Hidden State */
+.context-menu.hidden {
+  display: none;
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+/* Animation */
+.context-menu:not(.hidden) {
+  animation: popIn 0.1s cubic-bezier(0, 0, 0.2, 1) forwards;
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* --- HEADERS --- */
+.context-header {
+  font-size: 8px;
+  font-weight: 700;
+  opacity: 0.5;
+  padding: 6px 8px 4px 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--vscode-menu-foreground);
+  pointer-events: none;
+}
+
+/* --- ITEMS --- */
+.context-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+
+  color: var(--vscode-menu-foreground, #cccccc);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  /* Small, clean font */
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.context-item:hover {
+  background: var(--vscode-menu-selectionBackground, #094771);
+  color: var(--vscode-menu-selectionForeground, #ffffff);
+}
+
+.ctx-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.8;
+}
+
+.context-item:hover .ctx-icon {
+  opacity: 1;
+}
+
+/* --- DIVIDER --- */
+.context-divider {
+  height: 1px;
+  background: var(--vscode-menu-separatorBackground, #454545);
+  margin: 4px 0;
+  opacity: 0.5;
+}
+
+.toolbar-btn {
+  background: var(--system-msg-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  font-family: var(--font-ui);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.8;
+  transition: opacity 0.2s, background 0.2s;
+}
+
+.toolbar-btn:hover {
+  opacity: 1;
+  background: var(--vscode-list-hoverBackground, #e0e0e0);
+}
+
+/* Add this new rule to style the SVG inside the toolbar button */
+.toolbar-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.input-area-container {
+  position: relative;
+  width: 100%;
+  display: flex;
+}
+
+#messageInput {
+  display: block;
+  min-height: 48px;
+  max-height: 40vh;
+  width: 100% !important;
+  box-sizing: border-box;
+  background: transparent;
+  color: var(--input-fg);
+  font-size: 0.82rem;
+  font-family: var(--font-editor);
+  border: none;
+  padding: 10px 16px;
+  line-height: 1.5;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  white-space: pre-wrap;
+}
+
+#messageInput:focus {
+  outline: none;
+}
+
+.textarea[contenteditable]:empty::before {
+  content: attr(data-placeholder);
+  pointer-events: none;
+  color: var(--input-placeholder);
+  opacity: 0.8;
+}
+
+.textarea[contenteditable]:empty:focus::before {
+  content: "";
+}
+
+/* chat-tools removed */
+
+.hidden {
+  display: none;
+}
+
+.disabled {
+  pointer-events: none;
+  opacity: 0.5;
+  filter: grayscale(100%);
+}
+
+/* NEW: Loading Indicator Styles 
+*/
+@keyframes pulse {
+  0% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.4;
+  }
+}
+
+.loading-indicator {
+  /* Mimic a system message */
+  align-self: flex-start;
+  max-width: 90%;
+  width: auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.loading-indicator .message-content {
+  background-color: var(--system-msg-bg);
+  color: var(--system-msg-fg);
+  border: 1px solid var(--border-color);
+  align-items: flex-start;
+  display: flex;
+  flex-direction: row;
+  /* Align icon and dots */
+  align-items: center;
+  gap: 12px;
+}
+
+.generating-text {
+  font-size: 0.9em;
+  color: var(--system-msg-fg);
+  opacity: 0.8;
+  font-style: italic;
+  animation: pulse-text 1.5s infinite alternate;
+}
+
+@keyframes pulse-text {
+  0% {
+    opacity: 0.5;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+
+/* --- COLLAPSIBLE FILE ATTACHMENTS --- */
+
+/* The wrapper for all attachments */
+.attachments-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 8px;
+}
+
+/* The individual file item (Native <details> tag) */
+details.file-attachment {
+  background: var(--system-msg-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* The "Pill" Header (Always visible) */
+summary.file-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: var(--font-ui);
+  list-style: none;
+  /* Hide default triangle */
+  transition: background 0.2s;
+  user-select: none;
+}
+
+/* Remove default marker in some browsers */
+summary.file-summary::-webkit-details-marker {
+  display: none;
+}
+
+summary.file-summary:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+/* The arrow icon */
+.file-arrow {
+  transition: transform 0.2s;
+  width: 16px;
+  height: 16px;
+  opacity: 0.7;
+}
+
+/* Rotate arrow when open */
+details[open] summary .file-arrow {
+  transform: rotate(90deg);
+}
+
+/* The File Icon */
+.file-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--vscode-textLink-foreground);
+}
+
+/* The Content (Hidden by default) */
+.file-code-block {
+  padding: 0;
+  margin: 0;
+  border-top: 1px solid var(--border-color);
+  background: var(--code-bg);
+}
+
+/* Override default pre margins inside the attachment */
+.file-code-block pre {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+}
+
+
+
+/* Centering for New Chat transition wrapper */
+.chat-container.new-chat .editor-wrapper {
+  margin-bottom: 30vh;
+  max-width: 800px;
+  background: var(--app-bg);
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.1));
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.inline-attachment-pill {
+  display: inline;
+  color: var(--vscode-textLink-foreground, #3794ff);
+  text-decoration: underline;
+  user-select: none;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.inline-attachment-pill:hover {
+  color: var(--vscode-textLink-activeForeground, #55aaff);
+}
+
+/* #46: URL pill — pasted URLs */
+.url-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 8px;
+  background: rgba(0, 150, 255, 0.1);
+  border: 1px solid rgba(0, 150, 255, 0.25);
+  border-radius: 10px;
+  font-size: 0.78rem;
+  text-decoration: none;
+  color: #64b5f6;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.url-pill:hover {
+  background: rgba(0, 150, 255, 0.2);
+  border-color: rgba(0, 150, 255, 0.4);
+  color: #90caf9;
+}
+
+.url-pill.scraped {
+  border-color: rgba(102, 187, 106, 0.3);
+  color: #81c784;
+  background: rgba(102, 187, 106, 0.08);
+}
+
+/* --- AUTOCOMPLETE MENU --- */
+.autocomplete-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--vscode-menu-background, #1e1e1e);
+  border: 1px solid color-mix(in srgb, var(--text-color) 12%, transparent);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  padding: 4px;
+  animation: slideUp 0.12s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.autocomplete-menu.hidden {
+  display: none;
+}
+
+.autocomplete-hint {
+  padding: 6px 12px;
+  font-size: 0.7rem;
+  font-family: var(--font-editor);
+  color: var(--text-color);
+  opacity: 0.4;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  border-bottom: 1px solid color-mix(in srgb, var(--text-color) 6%, transparent);
+  margin-bottom: 2px;
+}
+
+.autocomplete-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  border-radius: 5px;
+  margin: 1px 0;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.selected {
+  background: color-mix(in srgb, var(--text-color) 8%, transparent);
+}
+
+.autocomplete-item .ac-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--text-color);
+  opacity: 0.5;
+}
+
+.autocomplete-label {
+  font-weight: 600;
+  font-size: 0.82rem;
+  font-family: var(--font-editor);
+  color: var(--text-color);
+  opacity: 0.9;
+}
+
+.autocomplete-description {
+  font-size: 0.72rem;
+  font-family: var(--font-editor);
+  opacity: 0.4;
+  color: var(--text-color);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
