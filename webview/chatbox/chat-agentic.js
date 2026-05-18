@@ -405,7 +405,7 @@ function renderAgentStep(step) {
                 `;
                 // Ensure the card is open so the terminal snippet is visible
                 targetCard.open = true;
-                
+
                 // Clear any inline styles that might hide the details content
                 if (targetCard.style.display === 'none') {
                     targetCard.style.display = '';
@@ -422,7 +422,7 @@ function renderAgentStep(step) {
                 const safeSearch = escapeHtml(step.args?.search);
                 const searchArg = safeSearch ? ` | grep -i &quot;${safeSearch}&quot;` : '';
                 const linesArg = step.args?.lines || 50;
-                
+
                 const terminalSnippet = document.createElement('div');
                 terminalSnippet.className = 'terminal-snippet';
                 terminalSnippet.style.borderLeft = '2px solid var(--vscode-focusBorder)';
@@ -443,7 +443,7 @@ function renderAgentStep(step) {
                     </div>
                     <div class="terminal-output" style="color: var(--vscode-terminal-ansiBrightWhite, #ffffff); opacity: 0.9;">${escapedOutput}</div>
                 `;
-                
+
                 // Style the parent card
                 targetCard.style.borderLeft = '3px solid var(--vscode-focusBorder)';
                 const header = targetCard.querySelector('.step-header');

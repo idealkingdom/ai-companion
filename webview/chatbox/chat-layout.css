@@ -170,7 +170,7 @@ span.logo svg {
 
 /* #42: Agentic AI user message — inline task prompt */
 .user-message-wrapper {
-  padding: 0 16px 12px 16px;
+  padding: 12px 16px;
   width: 100%;
   box-sizing: border-box;
   position: sticky;
