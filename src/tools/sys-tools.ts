@@ -51,18 +51,183 @@ function getOrCreateAITerminal(cwd: string): vscode.Terminal {
 /**
  * Wait for a file to appear on disk (polling).
  */
-function waitForFile(filePath: string, timeoutMs: number): Promise<boolean> {
+// ─── Smart Command Completion Detection ────────────────────────────────
+// Instead of a dumb 30s wall-clock timeout, this monitors BOTH the exit
+// file (command finished) AND the output file (is it still producing data?).
+// If output stops growing for STALL_THRESHOLD_MS, we check for known
+// patterns (watch mode, interactive prompts) and return early with
+// actionable context instead of wasting the full timeout.
+
+const STALL_THRESHOLD_MS = 8000;  // 8s of no new output → stalled
+const MAX_ACTIVE_TIMEOUT_MS = 120000; // 120s max if output is still flowing
+const DEFAULT_TIMEOUT_MS = 30000; // 30s base timeout
+
+/** Known patterns that indicate a command finished its useful work but the process stays alive */
+const STALL_PATTERNS: { pattern: RegExp; type: 'watch_mode' | 'interactive' | 'confirm'; tool: string | null; recovery: string }[] = [
+    // Test runners in watch mode
+    { pattern: /waiting for file changes/i,         type: 'watch_mode',  tool: 'vitest/jest',  recovery: "Send 'q' via terminal_send_input to exit watch mode." },
+    { pattern: /press h to show help.*press q/i,    type: 'watch_mode',  tool: 'vitest',       recovery: "Send 'q' via terminal_send_input to exit watch mode." },
+    { pattern: /press.*to quit/i,                   type: 'watch_mode',  tool: 'vitest/jest',  recovery: "Send 'q' via terminal_send_input to exit watch mode." },
+    { pattern: /watching for file changes/i,        type: 'watch_mode',  tool: 'nodemon',      recovery: 'Use terminal_send_input with { send_ctrl_c: true } to stop.' },
+    { pattern: /webpack.*compiled\s+(success|with)/i, type: 'watch_mode', tool: 'webpack',     recovery: 'Use terminal_send_input with { send_ctrl_c: true } to stop.' },
+    { pattern: /watching\s+for\s+changes/i,         type: 'watch_mode',  tool: 'tsc',          recovery: 'Use terminal_send_input with { send_ctrl_c: true } to stop.' },
+    // Interactive prompts
+    { pattern: /\?\s*(y\/n|yes\/no)\s*:?\s*$/im,    type: 'interactive', tool: null,            recovery: "Use terminal_send_input with { text: 'y\\n' } or { text: 'n\\n' } to respond." },
+    { pattern: /\(y\/N\)\s*$/im,                    type: 'confirm',     tool: 'npm',           recovery: "Use terminal_send_input with { text: 'y\\n' } to confirm or { text: 'n\\n' } to decline." },
+    { pattern: /password\s*:\s*$/im,                type: 'interactive', tool: null,            recovery: 'The command is waiting for a password. Use terminal_send_input to provide it.' },
+    { pattern: /enter\s+.*:\s*$/im,                 type: 'interactive', tool: null,            recovery: 'The command is waiting for input. Use terminal_send_input to provide it.' },
+];
+
+/** Patterns to infer exit code from test output (when the process didn't actually exit) */
+const TEST_PASS_PATTERNS = [/tests?\s+\d+\s+passed/i, /\d+\s+passing/i, /all tests passed/i, /\bPASS\b/];
+const TEST_FAIL_PATTERNS = [/tests?\s+\d+\s+failed/i, /\bFAIL\b\s/i, /failures?:\s*[1-9]/i, /AssertionError/i];
+
+interface CommandCompletionResult {
+    completed: boolean;
+    partialOutput: string;
+    stallDetected: boolean;
+    stallPattern: typeof STALL_PATTERNS[0] | null;
+    inferredExitCode: number | null;
+    elapsedMs: number;
+}
+
+function waitForCommandCompletion(
+    exitFile: string,
+    outFile: string,
+    outputChannel: vscode.OutputChannel
+): Promise<CommandCompletionResult> {
     return new Promise((resolve) => {
         const start = Date.now();
+        let lastSize = 0;
+        let stallStart = 0;
+        let lastActiveTime = start;
+
         const interval = setInterval(() => {
-            if (fs.existsSync(filePath)) {
+            const elapsed = Date.now() - start;
+
+            // ── Check 1: Did the command exit normally? ──
+            if (fs.existsSync(exitFile)) {
                 clearInterval(interval);
-                resolve(true);
-            } else if (Date.now() - start > timeoutMs) {
-                clearInterval(interval);
-                resolve(false);
+                resolve({
+                    completed: true,
+                    partialOutput: '',
+                    stallDetected: false,
+                    stallPattern: null,
+                    inferredExitCode: null,
+                    elapsedMs: elapsed
+                });
+                return;
             }
-        }, 250);
+
+            // ── Check 2: Monitor output file growth ──
+            let currentSize = 0;
+            try {
+                if (fs.existsSync(outFile)) {
+                    currentSize = fs.statSync(outFile).size;
+                }
+            } catch {}
+
+            if (currentSize > lastSize) {
+                // Output is still flowing — command is working
+                lastSize = currentSize;
+                stallStart = 0;
+                lastActiveTime = Date.now();
+            } else if (currentSize > 0 && !stallStart) {
+                // Output just stopped growing — start the stall timer
+                stallStart = Date.now();
+            }
+
+            // ── Check 3: Stall detection ──
+            // If output has been captured but stopped growing for STALL_THRESHOLD_MS,
+            // read the tail and check for known patterns
+            if (stallStart && (Date.now() - stallStart > STALL_THRESHOLD_MS)) {
+                clearInterval(interval);
+
+                let partialOutput = '';
+                try {
+                    if (fs.existsSync(outFile)) {
+                        partialOutput = fs.readFileSync(outFile, 'utf-8').trim();
+                    }
+                } catch {}
+
+                // Check tail for known patterns
+                const tail = partialOutput.slice(-1000); // Last 1000 chars
+                let matchedPattern: typeof STALL_PATTERNS[0] | null = null;
+                for (const sp of STALL_PATTERNS) {
+                    if (sp.pattern.test(tail)) {
+                        matchedPattern = sp;
+                        break;
+                    }
+                }
+
+                // Infer exit code from test output
+                let inferredExitCode: number | null = null;
+                if (TEST_PASS_PATTERNS.some(p => p.test(partialOutput))) {
+                    inferredExitCode = 0;
+                } else if (TEST_FAIL_PATTERNS.some(p => p.test(partialOutput))) {
+                    inferredExitCode = 1;
+                }
+
+                outputChannel.appendLine(`[run_command] Output stalled after ${elapsed}ms (stall: ${Date.now() - stallStart}ms). Pattern: ${matchedPattern?.type || 'none'}. Inferred exit: ${inferredExitCode}`);
+
+                resolve({
+                    completed: false,
+                    partialOutput,
+                    stallDetected: true,
+                    stallPattern: matchedPattern,
+                    inferredExitCode,
+                    elapsedMs: elapsed
+                });
+                return;
+            }
+
+            // ── Check 4: Adaptive timeout ──
+            // If output is actively growing, allow up to MAX_ACTIVE_TIMEOUT_MS
+            // If output never appeared or stalled without patterns, use DEFAULT_TIMEOUT_MS
+            const effectiveTimeout = (lastSize > 0 && Date.now() - lastActiveTime < STALL_THRESHOLD_MS)
+                ? MAX_ACTIVE_TIMEOUT_MS
+                : DEFAULT_TIMEOUT_MS;
+
+            if (elapsed > effectiveTimeout) {
+                clearInterval(interval);
+
+                let partialOutput = '';
+                try {
+                    if (fs.existsSync(outFile)) {
+                        partialOutput = fs.readFileSync(outFile, 'utf-8').trim();
+                    }
+                } catch {}
+
+                // One last pattern check on hard timeout
+                const tail = partialOutput.slice(-1000);
+                let matchedPattern: typeof STALL_PATTERNS[0] | null = null;
+                for (const sp of STALL_PATTERNS) {
+                    if (sp.pattern.test(tail)) {
+                        matchedPattern = sp;
+                        break;
+                    }
+                }
+
+                let inferredExitCode: number | null = null;
+                if (TEST_PASS_PATTERNS.some(p => p.test(partialOutput))) {
+                    inferredExitCode = 0;
+                } else if (TEST_FAIL_PATTERNS.some(p => p.test(partialOutput))) {
+                    inferredExitCode = 1;
+                }
+
+                outputChannel.appendLine(`[run_command] Hard timeout after ${elapsed}ms. Output size: ${lastSize}. Pattern: ${matchedPattern?.type || 'none'}`);
+
+                resolve({
+                    completed: false,
+                    partialOutput,
+                    stallDetected: false,
+                    stallPattern: matchedPattern,
+                    inferredExitCode,
+                    elapsedMs: elapsed
+                });
+                return;
+            }
+        }, 300); // Poll every 300ms
     });
 }
 
@@ -523,11 +688,11 @@ export function createSysTools(chatId?: string) {
             try {
                 terminal.sendText(`${cdCmd} && ${runCmd}`, true);
 
-                // Wait for exit file to appear (command completed)
-                const completed = await waitForFile(exitFile, 30000);
+                // ── Smart wait: monitors both exit file AND output activity ──
+                const result = await waitForCommandCompletion(exitFile, outFile, outputChannel);
 
-                if (completed) {
-                    // Reset timeout count on success
+                if (result.completed) {
+                    // ── NORMAL COMPLETION: command exited cleanly ──
                     (ReviewManager.getInstance() as any)._timeoutCount = 0;
                     
                     // Small delay to ensure file is fully written
@@ -540,45 +705,54 @@ export function createSysTools(chatId?: string) {
                     } catch (e) {
                         output = `(failed to read output: ${e})`;
                     }
+                } else if (result.stallDetected && result.stallPattern) {
+                    // ── STALL WITH KNOWN PATTERN: watch mode or interactive prompt ──
+                    (ReviewManager.getInstance() as any)._timeoutCount = 0; // Not a real timeout
+
+                    output = result.partialOutput || '(no output)';
+
+                    // Use inferred exit code if available, otherwise 124
+                    exitCode = result.inferredExitCode ?? 124;
+
+                    // Append structured recovery guidance
+                    const sp = result.stallPattern;
+                    const stallNote = sp.type === 'watch_mode'
+                        ? `\n\n⏸ Process is in ${sp.tool ? sp.tool + ' ' : ''}watch mode (output stalled after ${Math.round(result.elapsedMs / 1000)}s). ${sp.recovery}`
+                        : sp.type === 'interactive' || sp.type === 'confirm'
+                        ? `\n\n⏳ Process is waiting for input (output stalled after ${Math.round(result.elapsedMs / 1000)}s). ${sp.recovery}`
+                        : '';
+                    if (stallNote) {
+                        output += stallNote;
+                    }
                 } else {
+                    // ── HARD TIMEOUT or STALL WITHOUT KNOWN PATTERN ──
                     const failCount = (ReviewManager.getInstance() as any)._timeoutCount || 0;
                     (ReviewManager.getInstance() as any)._timeoutCount = failCount + 1;
 
-                    // ── CRITICAL: Read partial output before declaring timeout ──
-                    // The tee file may already contain useful output (e.g., test results
-                    // from vitest/jest in watch mode). Reading it lets the AI see what
-                    // actually happened instead of getting a blind timeout message.
-                    let partialOutput = '';
-                    try {
-                        if (fs.existsSync(outFile)) {
-                            partialOutput = fs.readFileSync(outFile, 'utf-8').trim();
-                        }
-                    } catch {}
+                    // Use inferred exit code if available
+                    exitCode = result.inferredExitCode ?? 124;
 
                     let timeoutMsg: string;
                     if (failCount >= 2) {
                         timeoutMsg = `(command timed out for the ${failCount + 1}th time. The terminal is unresponsive — likely a stuck process or system resource issue. STOP trying commands and report this to the user.)`;
                     } else if (failCount >= 1) {
-                        timeoutMsg = '(command timed out AGAIN after 30s. The background process is stubbornly blocking the terminal. Use terminal_send_input with { send_ctrl_c: true } to recover the terminal. If you already tried that and it is still stuck, STOP and ask the user to manually kill the process or restart the server.)';
+                        timeoutMsg = '(command timed out AGAIN. The background process is stubbornly blocking the terminal. Use terminal_send_input with { send_ctrl_c: true } to recover the terminal. If you already tried that and it is still stuck, STOP and ask the user to manually kill the process or restart the server.)';
                     } else {
-                        timeoutMsg = '(command timed out after 30s — it may still be running in the terminal. If the terminal is stuck or swallowed by a background process, use the terminal_send_input tool with { send_ctrl_c: true } to recover the terminal before running more commands.)';
+                        timeoutMsg = `(command did not exit after ${Math.round(result.elapsedMs / 1000)}s — it may still be running in the terminal. ${result.stallPattern?.recovery || 'Use terminal_send_input with { send_ctrl_c: true } to recover the terminal before running more commands.'})`;
                     }
 
-                    // If we captured partial output, prepend it so the AI can see
-                    // test results / server logs even though the process didn't exit.
-                    if (partialOutput) {
-                        output = partialOutput + '\n\n' + timeoutMsg;
+                    if (result.partialOutput) {
+                        output = result.partialOutput + '\n\n' + timeoutMsg;
                     } else {
                         output = timeoutMsg;
                     }
-                    exitCode = 124;
                 }
 
                 // Cleanup temp files
                 try { fs.unlinkSync(outFile); } catch {}
                 try { fs.unlinkSync(exitFile); } catch {}
 
-                outputChannel.appendLine(`[run_command] exit code: ${exitCode}`);
+                outputChannel.appendLine(`[run_command] exit code: ${exitCode} (elapsed: ${result.elapsedMs}ms, stall: ${result.stallDetected}, pattern: ${result.stallPattern?.type || 'none'})`);
             } finally {
                 // Allow a small delay for FS watchers to fire
                 setTimeout(() => ReviewManager.getInstance().setTerminalRunning(false), 500);
