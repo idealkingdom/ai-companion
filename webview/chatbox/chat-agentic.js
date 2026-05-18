@@ -368,11 +368,10 @@ function renderAgentStep(step) {
 
             // Special styling for manage_artifact result
             if (targetCard && step.toolName === 'manage_artifact' && step.result && step.result._artifactManaged) {
-                targetCard.style.borderLeft = '3px solid #8e44ad';
-                targetCard.style.background = 'rgba(142, 68, 173, 0.05)';
+                targetCard.style.borderLeft = '3px solid var(--vscode-focusBorder)';
                 const header = targetCard.querySelector('.step-header');
                 if (header) {
-                    header.style.color = '#9b59b6';
+                    header.style.color = 'var(--vscode-focusBorder)';
                 }
                 const argsPreview = targetCard.querySelector('.step-args');
                 if (argsPreview) {
@@ -416,7 +415,7 @@ function renderAgentStep(step) {
                 contentDiv.appendChild(terminalSnippet);
             }
 
-            // get_background_output: render a terminal log snippet exactly matched to run_command styling
+            // get_background_output: render a premium purple-themed terminal log snippet
             if (targetCard && step.toolName === 'get_background_output' && step.result && typeof step.result.output === 'string') {
                 const escapeHtml = (s) => s ? s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : '';
                 const safeLabel = escapeHtml(step.result.label || 'unknown');
@@ -426,6 +425,7 @@ function renderAgentStep(step) {
                 
                 const terminalSnippet = document.createElement('div');
                 terminalSnippet.className = 'terminal-snippet';
+                terminalSnippet.style.borderLeft = '2px solid var(--vscode-focusBorder)';
 
                 let outputText = step.result.output.trim();
                 if (outputText.length > 2000) {
@@ -438,12 +438,19 @@ function renderAgentStep(step) {
                 const escapedOutput = outputText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
                 terminalSnippet.innerHTML = `
-                    <div class="terminal-prompt">
-                        <span class="terminal-cwd">[Logs: ${safeLabel}]</span> $ tail -n ${linesArg}${searchArg}
+                    <div class="terminal-prompt" style="color: var(--vscode-focusBorder); font-weight: 500;">
+                        <span class="terminal-cwd" style="color: var(--vscode-focusBorder);">[Logs: ${safeLabel}]</span> $ tail -n ${linesArg}${searchArg}
                     </div>
-                    <div class="terminal-output">${escapedOutput}</div>
+                    <div class="terminal-output" style="color: var(--vscode-terminal-ansiBrightWhite, #ffffff); opacity: 0.9;">${escapedOutput}</div>
                 `;
                 
+                // Style the parent card
+                targetCard.style.borderLeft = '3px solid var(--vscode-focusBorder)';
+                const header = targetCard.querySelector('.step-header');
+                if (header) {
+                    header.style.color = 'var(--vscode-focusBorder)';
+                }
+
                 targetCard.open = true;
                 if (targetCard.style.display === 'none') {
                     targetCard.style.display = '';
