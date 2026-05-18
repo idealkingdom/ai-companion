@@ -416,7 +416,7 @@ function renderAgentStep(step) {
                 contentDiv.appendChild(terminalSnippet);
             }
 
-            // get_background_output: render a premium purple-themed terminal log snippet
+            // get_background_output: render a terminal log snippet exactly matched to run_command styling
             if (targetCard && step.toolName === 'get_background_output' && step.result && typeof step.result.output === 'string') {
                 const escapeHtml = (s) => s ? s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : '';
                 const safeLabel = escapeHtml(step.result.label || 'unknown');
@@ -426,7 +426,6 @@ function renderAgentStep(step) {
                 
                 const terminalSnippet = document.createElement('div');
                 terminalSnippet.className = 'terminal-snippet';
-                terminalSnippet.style.borderLeft = '2px solid var(--vscode-charts-purple, #8e44ad)';
 
                 let outputText = step.result.output.trim();
                 if (outputText.length > 2000) {
@@ -439,20 +438,12 @@ function renderAgentStep(step) {
                 const escapedOutput = outputText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
                 terminalSnippet.innerHTML = `
-                    <div class="terminal-prompt" style="color: var(--vscode-charts-purple, #8e44ad); font-weight: 500;">
-                        <span class="terminal-cwd" style="color: var(--vscode-charts-purple, #8e44ad);">[Logs: ${safeLabel}]</span> $ tail -n ${linesArg}${searchArg}
+                    <div class="terminal-prompt">
+                        <span class="terminal-cwd">[Logs: ${safeLabel}]</span> $ tail -n ${linesArg}${searchArg}
                     </div>
-                    <div class="terminal-output" style="color: var(--vscode-terminal-ansiBrightWhite, #ffffff); opacity: 0.9;">${escapedOutput}</div>
+                    <div class="terminal-output">${escapedOutput}</div>
                 `;
                 
-                // Style the parent card
-                targetCard.style.borderLeft = '3px solid var(--vscode-charts-purple, #8e44ad)';
-                targetCard.style.background = 'rgba(142, 68, 173, 0.03)';
-                const header = targetCard.querySelector('.step-header');
-                if (header) {
-                    header.style.color = 'var(--vscode-charts-purple, #8e44ad)';
-                }
-
                 targetCard.open = true;
                 if (targetCard.style.display === 'none') {
                     targetCard.style.display = '';
