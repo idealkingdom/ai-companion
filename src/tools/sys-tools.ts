@@ -74,13 +74,27 @@ const STALL_PATTERNS: { pattern: RegExp; type: 'watch_mode' | 'interactive' | 'c
     // Interactive prompts
     { pattern: /\?\s*(y\/n|yes\/no)\s*:?\s*$/im,    type: 'interactive', tool: null,            recovery: "Use terminal_send_input with { text: 'y\\n' } or { text: 'n\\n' } to respond." },
     { pattern: /\(y\/N\)\s*$/im,                    type: 'confirm',     tool: 'npm',           recovery: "Use terminal_send_input with { text: 'y\\n' } to confirm or { text: 'n\\n' } to decline." },
-    { pattern: /password\s*:\s*$/im,                type: 'interactive', tool: null,            recovery: 'The command is waiting for a password. Use terminal_send_input to provide it.' },
+    { pattern: /password.*:\s*$/im,                 type: 'interactive', tool: null,            recovery: 'The command is waiting for a password. Use terminal_send_input to provide it.' },
     { pattern: /enter\s+.*:\s*$/im,                 type: 'interactive', tool: null,            recovery: 'The command is waiting for input. Use terminal_send_input to provide it.' },
 ];
 
 /** Patterns to infer exit code from test output (when the process didn't actually exit) */
-const TEST_PASS_PATTERNS = [/tests?\s+\d+\s+passed/i, /\d+\s+passing/i, /all tests passed/i, /\bPASS\b/];
-const TEST_FAIL_PATTERNS = [/tests?\s+\d+\s+failed/i, /\bFAIL\b\s/i, /failures?:\s*[1-9]/i, /AssertionError/i];
+const TEST_PASS_PATTERNS = [/tests?\s+\d+\s+passed/i, /\d+\s+passing/i, /all tests passed/i, /\bPASS\b\s+\S/];
+const TEST_FAIL_PATTERNS = [/tests?\s+\d+\s+failed/i, /\d+\s+failed/i, /\bFAIL\b\s/i, /failures?:\s*[1-9]/i, /AssertionError/i];
+
+/** Analyze partial output: detect stall patterns and infer exit code from test output */
+function analyzeOutput(partialOutput: string): { stallPattern: typeof STALL_PATTERNS[0] | null; inferredExitCode: number | null } {
+    const tail = partialOutput.slice(-1000);
+    const stallPattern = STALL_PATTERNS.find(sp => sp.pattern.test(tail)) || null;
+
+    // IMPORTANT: Check fail BEFORE pass. Mixed results ("5 passed, 2 failed")
+    // must infer exitCode=1 — fail always wins over pass.
+    const hasFail = TEST_FAIL_PATTERNS.some(p => p.test(partialOutput));
+    const hasPass = TEST_PASS_PATTERNS.some(p => p.test(partialOutput));
+    const inferredExitCode = hasFail ? 1 : hasPass ? 0 : null;
+
+    return { stallPattern, inferredExitCode };
+}
 
 interface CommandCompletionResult {
     completed: boolean;
@@ -150,32 +164,15 @@ function waitForCommandCompletion(
                     }
                 } catch {}
 
-                // Check tail for known patterns
-                const tail = partialOutput.slice(-1000); // Last 1000 chars
-                let matchedPattern: typeof STALL_PATTERNS[0] | null = null;
-                for (const sp of STALL_PATTERNS) {
-                    if (sp.pattern.test(tail)) {
-                        matchedPattern = sp;
-                        break;
-                    }
-                }
-
-                // Infer exit code from test output
-                let inferredExitCode: number | null = null;
-                if (TEST_PASS_PATTERNS.some(p => p.test(partialOutput))) {
-                    inferredExitCode = 0;
-                } else if (TEST_FAIL_PATTERNS.some(p => p.test(partialOutput))) {
-                    inferredExitCode = 1;
-                }
-
-                outputChannel.appendLine(`[run_command] Output stalled after ${elapsed}ms (stall: ${Date.now() - stallStart}ms). Pattern: ${matchedPattern?.type || 'none'}. Inferred exit: ${inferredExitCode}`);
+                const analysis = analyzeOutput(partialOutput);
+                outputChannel.appendLine(`[run_command] Output stalled after ${elapsed}ms (stall: ${Date.now() - stallStart}ms). Pattern: ${analysis.stallPattern?.type || 'none'}. Inferred exit: ${analysis.inferredExitCode}`);
 
                 resolve({
                     completed: false,
                     partialOutput,
                     stallDetected: true,
-                    stallPattern: matchedPattern,
-                    inferredExitCode,
+                    stallPattern: analysis.stallPattern,
+                    inferredExitCode: analysis.inferredExitCode,
                     elapsedMs: elapsed
                 });
                 return;
@@ -198,31 +195,15 @@ function waitForCommandCompletion(
                     }
                 } catch {}
 
-                // One last pattern check on hard timeout
-                const tail = partialOutput.slice(-1000);
-                let matchedPattern: typeof STALL_PATTERNS[0] | null = null;
-                for (const sp of STALL_PATTERNS) {
-                    if (sp.pattern.test(tail)) {
-                        matchedPattern = sp;
-                        break;
-                    }
-                }
-
-                let inferredExitCode: number | null = null;
-                if (TEST_PASS_PATTERNS.some(p => p.test(partialOutput))) {
-                    inferredExitCode = 0;
-                } else if (TEST_FAIL_PATTERNS.some(p => p.test(partialOutput))) {
-                    inferredExitCode = 1;
-                }
-
-                outputChannel.appendLine(`[run_command] Hard timeout after ${elapsed}ms. Output size: ${lastSize}. Pattern: ${matchedPattern?.type || 'none'}`);
+                const analysis = analyzeOutput(partialOutput);
+                outputChannel.appendLine(`[run_command] Hard timeout after ${elapsed}ms. Output size: ${lastSize}. Pattern: ${analysis.stallPattern?.type || 'none'}`);
 
                 resolve({
                     completed: false,
                     partialOutput,
                     stallDetected: false,
-                    stallPattern: matchedPattern,
-                    inferredExitCode,
+                    stallPattern: analysis.stallPattern,
+                    inferredExitCode: analysis.inferredExitCode,
                     elapsedMs: elapsed
                 });
                 return;
