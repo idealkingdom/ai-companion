@@ -543,13 +543,33 @@ export function createSysTools(chatId?: string) {
                 } else {
                     const failCount = (ReviewManager.getInstance() as any)._timeoutCount || 0;
                     (ReviewManager.getInstance() as any)._timeoutCount = failCount + 1;
-                    
+
+                    // ── CRITICAL: Read partial output before declaring timeout ──
+                    // The tee file may already contain useful output (e.g., test results
+                    // from vitest/jest in watch mode). Reading it lets the AI see what
+                    // actually happened instead of getting a blind timeout message.
+                    let partialOutput = '';
+                    try {
+                        if (fs.existsSync(outFile)) {
+                            partialOutput = fs.readFileSync(outFile, 'utf-8').trim();
+                        }
+                    } catch {}
+
+                    let timeoutMsg: string;
                     if (failCount >= 2) {
-                        output = `(command timed out for the ${failCount + 1}th time. The terminal is unresponsive — likely a stuck process or system resource issue. STOP trying commands and report this to the user.)`;
+                        timeoutMsg = `(command timed out for the ${failCount + 1}th time. The terminal is unresponsive — likely a stuck process or system resource issue. STOP trying commands and report this to the user.)`;
                     } else if (failCount >= 1) {
-                        output = '(command timed out AGAIN after 30s. The background process is stubbornly blocking the terminal. Use terminal_send_input with { send_ctrl_c: true } to recover the terminal. If you already tried that and it is still stuck, STOP and ask the user to manually kill the process or restart the server.)';
+                        timeoutMsg = '(command timed out AGAIN after 30s. The background process is stubbornly blocking the terminal. Use terminal_send_input with { send_ctrl_c: true } to recover the terminal. If you already tried that and it is still stuck, STOP and ask the user to manually kill the process or restart the server.)';
                     } else {
-                        output = '(command timed out after 30s — it may still be running in the terminal. If the terminal is stuck or swallowed by a background process, use the terminal_send_input tool with { send_ctrl_c: true } to recover the terminal before running more commands.)';
+                        timeoutMsg = '(command timed out after 30s — it may still be running in the terminal. If the terminal is stuck or swallowed by a background process, use the terminal_send_input tool with { send_ctrl_c: true } to recover the terminal before running more commands.)';
+                    }
+
+                    // If we captured partial output, prepend it so the AI can see
+                    // test results / server logs even though the process didn't exit.
+                    if (partialOutput) {
+                        output = partialOutput + '\n\n' + timeoutMsg;
+                    } else {
+                        output = timeoutMsg;
                     }
                     exitCode = 124;
                 }
