@@ -356,7 +356,7 @@ function renderAgentStep(step) {
             }
         }
 
-        const statusEl = (targetCard || stepsContainer).querySelector('.step-status.running');
+        const statusEl = (targetCard || stepsContainer).querySelector('.step-status');
         if (statusEl) {
             const isStaged = step.result && (typeof step.result.message === 'string' && step.result.message.includes('staged'));
             if (isStaged) statusEl.textContent = 'Staged';
