@@ -143,35 +143,47 @@ function renderHunkReviewPanel() {
     overlay.id = 'hunk-review-overlay';
     overlay.className = 'hunk-review-overlay';
 
+    // Calculate total additions/deletions for header
+    let additions = 0;
+    let deletions = 0;
+    hunkReviewState.files.forEach(file => {
+        file.hunks.forEach(hunk => {
+            hunk.lines.forEach(line => {
+                if (line.startsWith('+')) additions++;
+                else if (line.startsWith('-')) deletions++;
+            });
+        });
+    });
+
     const bodyContent = hunkReviewState.files.length === 0
-        ? `<div class="hunk-empty-state" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; opacity:0.6; padding-top: 40px;">
-             <div class="empty-icon" style="font-size: 48px; margin-bottom: 16px;">✓</div>
-             <div class="empty-text" style="font-size: 1.1rem; font-weight: 600;">No pending changes</div>
-             <div class="empty-subtext" style="font-size: 0.85rem;">All changes have been accepted or reverted.</div>
+        ? `<div class="hunk-empty-state">
+             <div class="empty-icon">✓</div>
+             <div class="empty-text">No pending changes</div>
+             <div class="empty-subtext">All changes have been accepted or reverted.</div>
            </div>`
         : hunkReviewState.files.map((file, fileIdx) => renderFileSection(file, fileIdx)).join('');
 
     overlay.innerHTML = `
         <div class="hunk-review-header">
-            <button class="back-btn" onclick="closeHunkReviewPanel()" title="Back to Chat">←</button>
-            <h2>Review Changes (${hunkReviewState.files.length} file${hunkReviewState.files.length !== 1 ? 's' : ''})</h2>
+            <button class="back-btn" onclick="closeHunkReviewPanel()" title="Back to Chat">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <h2>
+                Review Changes 
+                <span class="index-count" style="font-family: var(--font-editor); margin-left: 4px;">(${hunkReviewState.files.length} file${hunkReviewState.files.length !== 1 ? 's' : ''})</span>
+                <span class="diff-stat" style="margin-left: 8px;">
+                    <span class="add">+${additions}</span>
+                    <span class="del">-${deletions}</span>
+                </span>
+            </h2>
             ${hunkReviewState.files.length > 0 ? renderNavigator() : ''}
+            <div class="header-actions">
+                <button class="mono-btn" onclick="discardAllHunks()" ${hunkReviewState.files.length === 0 ? 'disabled' : ''}>Reject All</button>
+                <button class="mono-btn primary" onclick="commitSelectedHunks()" ${hunkReviewState.files.length === 0 ? 'disabled' : ''}>Commit</button>
+            </div>
         </div>
         <div class="hunk-review-body" id="hunk-review-body">
             ${bodyContent}
-        </div>
-        <div class="hunk-review-actions">
-            <div class="hunk-action-info">
-                ${hunkReviewState.files.length} file(s) with pending changes
-            </div>
-            <div class="hunk-action-buttons">
-                <button class="hunk-action-btn discard" onclick="discardAllHunks()" ${hunkReviewState.files.length === 0 ? 'disabled' : ''}>
-                    ✕ Reject All Files
-                </button>
-                <button class="hunk-action-btn commit" onclick="commitSelectedHunks()" ${hunkReviewState.files.length === 0 ? 'disabled' : ''}>
-                    ✓ Accept All Files
-                </button>
-            </div>
         </div>
     `;
 
@@ -186,13 +198,13 @@ function renderNavigator() {
     const current = hunkReviewState.currentNavIndex || 0;
 
     return `
-        <div class="hunk-navigator" style="display:flex; align-items:center; gap:10px; background: transparent; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--vscode-widget-border);">
-            <button class="nav-btn" onclick="navigateHunk(-1)" ${current <= 0 ? 'disabled' : ''} style="background:none; border:none; color:inherit; cursor:pointer; font-size:11px; opacity:${current <= 0 ? '0.3' : '1'};">
-                ↑ Prev
+        <div class="hunk-navigator" style="display:flex; align-items:center; gap:8px; padding: 4px 8px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent);">
+            <button class="nav-btn" onclick="navigateHunk(-1)" ${current <= 0 ? 'disabled' : ''} style="background:none; border:none; color:inherit; cursor:pointer; font-size:11px; opacity:${current <= 0 ? '0.35' : '0.85'}; display:flex; align-items:center;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5"/></svg>
             </button>
-            <span class="nav-counter" style="font-size:11px; font-weight:600; font-family:var(--font-mono); opacity:0.8;">${current + 1} / ${total}</span>
-            <button class="nav-btn" onclick="navigateHunk(1)" ${current >= total - 1 ? 'disabled' : ''} style="background:none; border:none; color:inherit; cursor:pointer; font-size:11px; opacity:${current >= total - 1 ? '0.3' : '1'};">
-                ↓ Next
+            <span class="nav-counter" style="font-size:11px; font-weight:500; font-family:var(--font-editor, monospace); opacity:0.75;">${current + 1} / ${total}</span>
+            <button class="nav-btn" onclick="navigateHunk(1)" ${current >= total - 1 ? 'disabled' : ''} style="background:none; border:none; color:inherit; cursor:pointer; font-size:11px; opacity:${current >= total - 1 ? '0.35' : '0.85'}; display:flex; align-items:center;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
             </button>
         </div>
     `;
@@ -221,35 +233,41 @@ function navigateHunk(direction) {
     // Update current section highlights
     document.querySelectorAll('.hunk-file-section').forEach((s, i) => {
         const isCurrent = i === idx;
-        s.style.borderColor = isCurrent ? 'var(--vscode-focusBorder)' : 'var(--vscode-widget-border)';
-        s.querySelector('.hunk-file-header').style.background = isCurrent ? 'var(--vscode-list-activeSelectionBackground)' : 'transparent';
+        s.classList.toggle('current', isCurrent);
     });
 }
 
 function renderFileSection(file, fileIdx) {
-    const badge = file.isNewFile
-        ? '<span class="hunk-file-badge new-file" style="border: 1px solid var(--vscode-foreground); padding: 1px 4px; font-size: 9px; opacity: 0.7;">NEW</span>'
-        : '<span class="hunk-file-badge modified" style="border: 1px solid var(--vscode-foreground); padding: 1px 4px; font-size: 9px; opacity: 0.7;">MODIFIED</span>';
+    let fileAdditions = 0;
+    let fileDeletions = 0;
+    file.hunks.forEach(hunk => {
+        hunk.lines.forEach(line => {
+            if (line.startsWith('+')) fileAdditions++;
+            else if (line.startsWith('-')) fileDeletions++;
+        });
+    });
 
     const isCurrent = hunkReviewState.currentNavIndex === fileIdx;
 
     return `
-        <div class="hunk-file-section ${isCurrent ? 'current' : ''}" data-file-idx="${fileIdx}" style="margin-bottom:16px; border:1px solid ${isCurrent ? 'var(--vscode-focusBorder)' : 'var(--vscode-widget-border)'}; border-radius:4px; overflow:hidden;">
-            <div class="hunk-file-header" onclick="toggleFileSection(${fileIdx})" style="cursor: pointer; display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background: ${isCurrent ? 'var(--vscode-list-activeSelectionBackground)' : 'transparent'}; border-bottom: 1px solid var(--vscode-widget-border);">
-                <div class="hunk-file-name" style="display:flex; align-items:center; gap:8px; font-family:var(--font-editor); font-size:0.82rem; font-weight:400;" title="Click to expand/collapse">
-                    <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition: transform 0.2s; transform: rotate(90deg);"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                    ${badge}
+        <div class="hunk-file-section ${isCurrent ? 'current' : ''}" data-file-idx="${fileIdx}">
+            <div class="hunk-file-header" onclick="toggleFileSection(${fileIdx})">
+                <div class="hunk-file-name" title="Click to expand/collapse">
+                    <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transition: transform 0.2s; transform: rotate(90deg);"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     <span>${escapeHtml(file.fileName)}</span>
-                    <span style="opacity:0.4; font-size:0.75rem;">(${file.hunks.length} hunk${file.hunks.length !== 1 ? 's' : ''})</span>
-                    ${file.savedByUser ? '<span style="font-size: 0.65rem; border: 1px solid var(--vscode-foreground); opacity: 0.7; padding: 1px 6px;">SAVED</span>' : ''}
+                    <span class="diff-stat">
+                        <span class="add">+${fileAdditions}</span>
+                        <span class="del">-${fileDeletions}</span>
+                    </span>
+                    ${file.savedByUser ? '<span style="font-size: 0.65rem; border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 20%, transparent); opacity: 0.6; padding: 1px 6px; border-radius: 3px;">SAVED</span>' : ''}
                 </div>
-                <div style="display:flex; gap:8px; align-items:center;" onclick="event.stopPropagation()">
-                    <button class="hunk-toggle-btn" style="border:1px solid var(--vscode-foreground); background:transparent; color:var(--vscode-foreground); cursor: pointer; padding: 2px 8px; font-size: 0.7rem; opacity: 0.8;" onclick="sendMessage('chatOpenFile', { uri: '${file.uri}' })" title="Open file in editor">Open</button>
-                    <button class="hunk-toggle-btn" style="border:1px solid var(--vscode-foreground); background:transparent; color:var(--vscode-foreground); cursor: pointer; padding: 2px 8px; font-size: 0.7rem; opacity: 0.8;" onclick="sendMessage('rejectFile', { uri: '${file.uri}' })" title="Reject all changes">Reject All</button>
-                    <button class="hunk-toggle-btn" style="border:1px solid var(--vscode-foreground); background:var(--vscode-foreground); color:var(--vscode-editor-background); cursor: pointer; padding: 2px 8px; font-size: 0.7rem;" onclick="sendMessage('acceptFile', { uri: '${file.uri}' })" title="Accept all changes">Accept All</button>
+                <div class="file-action-buttons" onclick="event.stopPropagation()">
+                    <button class="mono-file-btn" onclick="sendMessage('chatOpenFile', { uri: '${file.uri}' })" title="Open File">Open</button>
+                    <button class="mono-icon-btn reject" onclick="sendMessage('rejectFile', { uri: '${file.uri}' })" title="Reject File Changes">✕</button>
+                    <button class="mono-icon-btn accept" onclick="sendMessage('acceptFile', { uri: '${file.uri}' })" title="Accept File Changes">✓</button>
                 </div>
             </div>
-            <div class="hunk-file-content" style="padding: 10px;">
+            <div class="hunk-file-content">
                 ${(file.hunks || []).map((hunk, hunkIdx) => renderHunkCard(hunk, fileIdx, hunkIdx)).join('')}
             </div>
         </div>
@@ -288,8 +306,8 @@ function renderHunkCard(hunk, fileIdx, hunkIdx) {
             <div class="hunk-card-header">
                 <span>${location}</span>
                 <div class="hunk-card-actions">
-                    <button class="hunk-toggle-btn accept-btn ${isAccepted ? 'active' : ''}" onclick="toggleHunk(${fileIdx}, ${hunkIdx}, true)">✓ Keep</button>
-                    <button class="hunk-toggle-btn reject-btn ${!isAccepted ? 'active' : ''}" onclick="toggleHunk(${fileIdx}, ${hunkIdx}, false)">✕ Skip</button>
+                    <button class="mono-toggle-btn accept ${isAccepted ? 'active' : ''}" onclick="toggleHunk(${fileIdx}, ${hunkIdx}, true)">Keep</button>
+                    <button class="mono-toggle-btn reject ${!isAccepted ? 'active' : ''}" onclick="toggleHunk(${fileIdx}, ${hunkIdx}, false)">Skip</button>
                 </div>
             </div>
             <div class="hunk-diff-lines">
@@ -305,7 +323,7 @@ function toggleFileSection(fileIdx) {
         section.classList.toggle('collapsed');
         const content = section.querySelector('.hunk-file-content');
         if (content) {
-            content.style.display = section.classList.contains('collapsed') ? 'none' : 'block';
+            content.style.display = section.classList.contains('collapsed') ? 'none' : 'flex';
         }
         const chevron = section.querySelector('.chevron');
         if (chevron) {

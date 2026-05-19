@@ -412,8 +412,9 @@ window.addEventListener('message', event => {
                     window._indexedFiles = message.content.fileList;
                     window._indexLastUpdated = message.content.lastUpdated;
                 }
-                // Open the viewer if requested
-                if (message.content && message.content.showViewer) {
+                // Open the viewer if requested, or update it in place if it's already open
+                const isViewerOpen = !!document.getElementById('index-viewer-overlay');
+                if (message.content && (message.content.showViewer || isViewerOpen)) {
                     openIndexViewer(message.content.fileList || [], message.content.fileCount, message.content.lastUpdated);
                 }
                 break;

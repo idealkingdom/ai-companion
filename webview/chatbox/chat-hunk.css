@@ -5,54 +5,58 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: var(--app-bg, #1e1e1e);
+  background: var(--vscode-editor-background, #1e1e1e);
   z-index: 500;
   display: flex;
   flex-direction: column;
-  animation: slideUp 0.25s ease-out;
+  animation: slideUp 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  color: var(--vscode-editor-foreground, #cccccc);
 }
 
 @keyframes slideUp {
   from {
-    transform: translateY(20px);
+    transform: translateY(12px);
     opacity: 0;
   }
-
   to {
     transform: translateY(0);
     opacity: 1;
   }
 }
 
+/* Header */
 .hunk-review-header {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.2);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 14px 20px;
+  background: var(--vscode-editor-background, #1e1e1e);
+  border-bottom: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
   flex-shrink: 0;
   gap: 12px;
 }
 
 .hunk-review-header h2 {
   margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  opacity: 0.9;
-  font-family: var(--font-ui);
+  font-size: 0.88rem;
+  font-weight: 500;
+  font-family: var(--font-editor, monospace);
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--vscode-editor-foreground, #cccccc);
 }
 
 .hunk-review-header .back-btn {
   background: transparent;
   border: none;
-  color: var(--text-color);
-  opacity: 0.7;
+  color: var(--vscode-editor-foreground);
+  opacity: 0.5;
   cursor: pointer;
   font-size: 1.1rem;
-  padding: 4px 8px;
+  padding: 4px 6px;
   border-radius: 4px;
-  transition: all 0.2s;
+  transition: opacity 0.2s, background 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -60,21 +64,79 @@
 
 .hunk-review-header .back-btn:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--vscode-editor-foreground) 6%, transparent);
 }
 
+/* Diff Stats */
+.diff-stat {
+  display: inline-flex;
+  gap: 6px;
+  font-family: var(--font-editor, monospace);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.diff-stat .add {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81c784);
+}
+
+.diff-stat .del {
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #e57373);
+}
+
+/* Header Buttons */
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mono-btn {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 15%, transparent);
+  color: var(--vscode-editor-foreground);
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-family: var(--font-editor, monospace);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mono-btn:hover {
+  background: color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
+  border-color: color-mix(in srgb, var(--vscode-editor-foreground) 30%, transparent);
+}
+
+.mono-btn.primary {
+  background: var(--vscode-editor-foreground);
+  color: var(--vscode-editor-background);
+  border-color: var(--vscode-editor-foreground);
+}
+
+.mono-btn.primary:hover {
+  opacity: 0.9;
+}
+
+/* Body */
 .hunk-review-body {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 16px;
+  padding: 20px;
 }
 
-/* File Section */
+/* File Section Card */
 .hunk-file-section {
-  margin-bottom: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
+  margin-bottom: 24px;
+  border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 8%, transparent);
+  border-radius: 6px;
   overflow: hidden;
+  background: color-mix(in srgb, var(--vscode-editor-foreground) 1%, transparent);
+  transition: border-color 0.2s;
+}
+
+.hunk-file-section.current {
+  border-color: color-mix(in srgb, var(--vscode-editor-foreground) 25%, transparent);
 }
 
 .hunk-file-header {
@@ -82,72 +144,110 @@
   justify-content: space-between;
   align-items: center;
   padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.03);
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.15s;
+  background: color-mix(in srgb, var(--vscode-editor-foreground) 2%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 6%, transparent);
+  transition: background 0.2s;
 }
 
 .hunk-file-header:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--vscode-editor-foreground) 4%, transparent);
 }
 
 .hunk-file-name {
-  font-family: var(--font-editor);
+  font-family: var(--font-editor, monospace);
   font-size: 0.82rem;
-  font-weight: 600;
+  font-weight: 500;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  color: var(--vscode-editor-foreground);
 }
 
-.hunk-file-badge {
-  font-size: 0.68rem;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 500;
-}
-
-.hunk-file-badge.new-file {
-  background: rgba(76, 175, 80, 0.15);
-  color: #66bb6a;
-}
-
-.hunk-file-badge.modified {
-  background: rgba(79, 195, 247, 0.15);
-  color: #4fc3f7;
-}
-
-.hunk-file-toggle {
-  font-size: 0.75rem;
+.hunk-file-name .chevron {
   opacity: 0.5;
   transition: transform 0.2s;
 }
 
-.hunk-file-section.collapsed .hunk-file-toggle {
-  transform: rotate(-90deg);
+.hunk-file-section.collapsed .hunk-file-name .chevron {
+  transform: rotate(-90deg) !important;
 }
 
-.hunk-file-section.collapsed .hunk-file-body {
-  display: none;
+/* File specific action buttons */
+.file-action-buttons {
+  display: flex;
+  gap: 6px;
+  align-items: center;
 }
 
-.hunk-file-body {
-  padding: 8px;
+.mono-file-btn {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent);
+  color: var(--vscode-editor-foreground);
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-family: var(--font-editor, monospace);
+  cursor: pointer;
+  transition: all 0.15s;
+  opacity: 0.7;
 }
 
-/* Individual Hunk Card */
+.mono-file-btn:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--vscode-editor-foreground) 6%, transparent);
+}
+
+.mono-icon-btn {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent);
+  color: var(--vscode-editor-foreground);
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  opacity: 0.6;
+}
+
+.mono-icon-btn:hover {
+  opacity: 1;
+}
+
+.mono-icon-btn.reject:hover {
+  border-color: var(--vscode-gitDecoration-deletedResourceForeground, #e57373);
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #e57373);
+  background: color-mix(in srgb, var(--vscode-gitDecoration-deletedResourceForeground, #e57373) 8%, transparent);
+}
+
+.mono-icon-btn.accept:hover {
+  border-color: var(--vscode-gitDecoration-addedResourceForeground, #81c784);
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81c784);
+  background: color-mix(in srgb, var(--vscode-gitDecoration-addedResourceForeground, #81c784) 8%, transparent);
+}
+
+/* Hunk Cards */
+.hunk-file-content {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .hunk-card {
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 6px;
-  margin-bottom: 8px;
+  border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 6%, transparent);
+  border-radius: 4px;
   overflow: hidden;
-  transition: all 0.2s;
+  background: var(--vscode-editor-background);
+  transition: opacity 0.2s, border-color 0.2s;
 }
 
 .hunk-card.rejected {
-  opacity: 0.4;
-  border-color: rgba(244, 67, 54, 0.3);
+  opacity: 0.35;
+  border-color: color-mix(in srgb, var(--vscode-gitDecoration-deletedResourceForeground, #e57373) 20%, transparent);
 }
 
 .hunk-card-header {
@@ -155,10 +255,12 @@
   justify-content: space-between;
   align-items: center;
   padding: 6px 10px;
-  background: rgba(0, 0, 0, 0.15);
-  font-size: 0.72rem;
-  font-family: var(--font-editor);
-  opacity: 0.7;
+  background: color-mix(in srgb, var(--vscode-editor-foreground) 3%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 5%, transparent);
+  font-size: 0.7rem;
+  font-family: var(--font-editor, monospace);
+  color: var(--vscode-editor-foreground);
+  opacity: 0.6;
 }
 
 .hunk-card-actions {
@@ -166,71 +268,60 @@
   gap: 4px;
 }
 
-.hunk-toggle-btn {
+.mono-toggle-btn {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--text-color);
+  border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 10%, transparent);
+  color: var(--vscode-editor-foreground);
   padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.68rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-family: var(--font-editor, monospace);
   cursor: pointer;
   transition: all 0.15s;
+  opacity: 0.6;
 }
 
-.hunk-toggle-btn.accept-btn {
-  color: #66bb6a;
-  border-color: rgba(76, 175, 80, 0.3);
+.mono-toggle-btn:hover {
+  opacity: 0.9;
+  background: color-mix(in srgb, var(--vscode-editor-foreground) 4%, transparent);
 }
 
-.hunk-toggle-btn.accept-btn:hover {
-  background: rgba(76, 175, 80, 0.15);
+.mono-toggle-btn.accept.active {
+  opacity: 1;
+  background: color-mix(in srgb, var(--vscode-gitDecoration-addedResourceForeground, #81c784) 12%, transparent);
+  border-color: var(--vscode-gitDecoration-addedResourceForeground, #81c784);
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81c784);
 }
 
-.hunk-toggle-btn.reject-btn {
-  color: #f44336;
-  border-color: rgba(244, 67, 54, 0.3);
+.mono-toggle-btn.reject.active {
+  opacity: 1;
+  background: color-mix(in srgb, var(--vscode-gitDecoration-deletedResourceForeground, #e57373) 12%, transparent);
+  border-color: var(--vscode-gitDecoration-deletedResourceForeground, #e57373);
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #e57373);
 }
 
-.hunk-toggle-btn.reject-btn:hover {
-  background: rgba(244, 67, 54, 0.15);
-}
-
-.hunk-toggle-btn.active {
-  font-weight: 700;
-}
-
-.hunk-toggle-btn.accept-btn.active {
-  background: rgba(76, 175, 80, 0.2);
-  border-color: #66bb6a;
-}
-
-.hunk-toggle-btn.reject-btn.active {
-  background: rgba(244, 67, 54, 0.2);
-  border-color: #f44336;
-}
-
-/* Diff Lines */
+/* Diff Line Highlighting */
 .hunk-diff-lines {
-  font-family: var(--font-editor);
-  font-size: 0.78rem;
-  line-height: 1.5;
+  font-family: var(--font-editor, monospace);
+  font-size: 0.76rem;
+  line-height: 1.55;
   overflow-x: auto;
   padding: 8px 0;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--vscode-editor-background);
 }
 
 .hunk-diff-line {
   display: flex;
-  padding: 0 16px;
+  padding: 0 14px;
   min-height: 1.5em;
-  color: var(--text-color);
+  color: var(--vscode-editor-foreground);
 }
 
 .diff-prefix {
   display: inline-block;
-  width: 20px;
+  width: 18px;
   flex-shrink: 0;
-  opacity: 0.45;
+  opacity: 0.4;
   user-select: none;
   font-weight: 500;
 }
@@ -241,97 +332,56 @@
 }
 
 .hunk-diff-line.added {
-  background: rgba(46, 160, 67, 0.15);
-  color: #7ee787;
+  background: rgba(46, 160, 67, 0.12);
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81c784);
 }
 
 .hunk-diff-line.added .diff-prefix {
-  color: #7ee787;
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81c784);
 }
 
 .hunk-diff-line.removed {
-  background: rgba(248, 81, 73, 0.15);
-  color: #ffa198;
+  background: rgba(248, 81, 73, 0.12);
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #e57373);
 }
 
 .hunk-diff-line.removed .diff-prefix {
-  color: #ffa198;
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #e57373);
 }
 
 .hunk-diff-line.context {
-  opacity: 0.75;
+  opacity: 0.65;
 }
 
-/* Bottom Action Bar */
-.hunk-review-actions {
+/* Empty State */
+.hunk-empty-state {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.25);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  flex-shrink: 0;
+  justify-content: center;
+  height: 80%;
+  opacity: 0.5;
 }
 
-.hunk-action-info {
+.hunk-empty-state .empty-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+  font-family: var(--font-editor, monospace);
+}
+
+.hunk-empty-state .empty-text {
+  font-family: var(--font-editor, monospace);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.hunk-empty-state .empty-subtext {
+  font-family: var(--font-editor, monospace);
   font-size: 0.78rem;
-  opacity: 0.6;
-  font-family: var(--font-editor);
+  margin-top: 4px;
 }
 
-.hunk-action-buttons {
-  display: flex;
-  gap: 8px;
-}
-
-.hunk-action-btn {
-  padding: 6px 16px;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: all 0.2s;
-}
-
-.hunk-action-btn.commit {
-  background: rgba(76, 175, 80, 0.2);
-  color: #66bb6a;
-  border-color: rgba(76, 175, 80, 0.3);
-}
-
-.hunk-action-btn.commit:hover {
-  background: rgba(76, 175, 80, 0.35);
-  border-color: #66bb6a;
-}
-
-.hunk-action-btn.discard {
-  background: rgba(244, 67, 54, 0.1);
-  color: #ef5350;
-  border-color: rgba(244, 67, 54, 0.2);
-}
-
-.hunk-action-btn.discard:hover {
-  background: rgba(244, 67, 54, 0.25);
-  border-color: #ef5350;
-}
-
-.hunk-action-btn.undo {
-  background: rgba(128, 128, 128, 0.1);
-  color: var(--text-color);
-  border-color: rgba(128, 128, 128, 0.2);
-  opacity: 0.7;
-}
-
-.hunk-action-btn.undo:hover {
-  opacity: 1;
-  background: rgba(128, 128, 128, 0.2);
-}
-
-/* ═══════════════════════════════════════════════════════════
-   #48 — AGENT QUESTION STICKY BANNER
-   ═══════════════════════════════════════════════════════════ */
-
+/* ─── AGENT QUESTION STICKY BANNER ─── */
 .agent-question-banner {
   position: sticky;
   top: 0;
@@ -380,10 +430,8 @@
     opacity: 0;
     transform: translateY(-100%);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
-

@@ -77,6 +77,15 @@
   background: color-mix(in srgb, var(--text-color) 10%, transparent);
 }
 
+.index-viewer-header .refresh-btn svg.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .index-viewer-search {
   padding: 8px 16px;
   border-bottom: 1px solid color-mix(in srgb, var(--text-color) 6%, transparent);
