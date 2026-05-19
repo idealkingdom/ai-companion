@@ -425,10 +425,28 @@ export function createSysTools(chatId?: string) {
             label: z.string().optional().describe('Optional label for background processes (e.g., "frontend", "backend", "database"). Auto-generated if not provided. Used to identify the process in list_background_processes and stop_background_process.')
         }),
         execute: async (params: { command: string; cwd?: string; background?: boolean; label?: string }, { toolCallId }: any) => {
-            // Sanitize command: remove trailing & which breaks the output wrapper pipeline
+            // Sanitize command: strip patterns that break the output capture pipeline.
+            // The wrapper appends `2>&1 | tee <file>` — a trailing `&` forks before
+            // the pipe, and manual redirections (`> log.txt`) divert stdout away from it.
             let sanitizedCommand = params.command.trim();
-            if (sanitizedCommand.endsWith('&')) {
+            const originalCommand = sanitizedCommand;
+
+            // 1. Strip trailing background operator `&` (but not `&&`)
+            if (sanitizedCommand.endsWith('&') && !sanitizedCommand.endsWith('&&')) {
                 sanitizedCommand = sanitizedCommand.slice(0, -1).trim();
+            }
+
+            // 2. Strip manual stdout/stderr file redirections that bypass the tee wrapper
+            //    Matches: > file, >> file, 1> file, 2> file, &> file, 2>&1 (with optional quotes)
+            //    Applied in a loop to handle chained redirections (e.g. > log.txt 2>&1)
+            let prev = '';
+            while (prev !== sanitizedCommand) {
+                prev = sanitizedCommand;
+                sanitizedCommand = sanitizedCommand.replace(/\s*(?:\d|&)?>{1,2}\s*(?:"[^"]*"|'[^']*'|&?\d|\S+)\s*$/g, '').trim();
+            }
+
+            if (sanitizedCommand !== originalCommand) {
+                outputChannel.appendLine(`[run_command] ⚠️ Sanitized command: "${originalCommand}" → "${sanitizedCommand}"`);
             }
             params.command = sanitizedCommand;
 
