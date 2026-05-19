@@ -170,16 +170,22 @@ span.logo svg {
 
 /* #42: Agentic AI user message — inline task prompt */
 .user-message-wrapper {
-  padding: 12px 16px;
   width: 100%;
   box-sizing: border-box;
   position: sticky;
-  top: 0;
+  top: -1rem;
   z-index: 10;
   background-color: var(--chat-bg);
-  /* Match scroll container background */
   box-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.1);
-  /* Subtle separation when sticking */
+  
+  /* Bleed into the .chat-log padding (1rem = 16px) */
+  margin-top: -1rem;
+  margin-left: -1rem;
+  margin-right: -1rem;
+  width: calc(100% + 2rem);
+  
+  /* Add the padding back inside so the bubble aligns properly */
+  padding: 1rem 1rem 12px 1rem;
 }
 
 .user-message {
@@ -275,6 +281,15 @@ span.logo svg {
 @media (max-width: 600px) {
   .chat-log {
     padding: 0.5rem;
+  }
+
+  .user-message-wrapper {
+    margin-top: -0.5rem;
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+    width: calc(100% + 1rem);
+    padding: 0.5rem 0.5rem 12px 0.5rem;
+    top: -0.5rem;
   }
 
   .message-content,
