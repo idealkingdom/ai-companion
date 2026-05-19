@@ -417,7 +417,7 @@ export function createSysTools(chatId?: string) {
 
     // ─── TOOL: run_command ──────────────────────────────────────────────
     const run_command = tool({
-        description: 'Execute a shell command in the workspace directory. Output is capped at 3000 characters. Use for: running tests, installing packages, checking git status, building projects. IMPORTANT: For long-running processes (dev servers, watchers, DB servers like `npm run dev`, `vite`, `mongod`, `redis-server`), set background=true so it runs in a separate terminal without blocking. You can run up to 5 background processes simultaneously. Use list_background_processes to see what is running.',
+        description: 'Execute a shell command in the workspace directory. Output is capped at 3000 characters. Use for: running tests, installing packages, checking git status, building projects. IMPORTANT: For long-running processes (dev servers, watchers, DB servers like `npm run dev`, `vite`, `mongod`, `redis-server`), set background=true so it runs in a separate terminal without blocking. DO NOT append `&` or redirect output (e.g. `> log.txt`) manually; the tool automatically captures and manages output. You can run up to 5 background processes simultaneously. Use list_background_processes to see what is running.',
         inputSchema: z.object({
             command: z.string().describe('The shell command to execute'),
             cwd: z.string().optional().describe('Working directory (defaults to workspace root)'),
@@ -425,6 +425,13 @@ export function createSysTools(chatId?: string) {
             label: z.string().optional().describe('Optional label for background processes (e.g., "frontend", "backend", "database"). Auto-generated if not provided. Used to identify the process in list_background_processes and stop_background_process.')
         }),
         execute: async (params: { command: string; cwd?: string; background?: boolean; label?: string }, { toolCallId }: any) => {
+            // Sanitize command: remove trailing & which breaks the output wrapper pipeline
+            let sanitizedCommand = params.command.trim();
+            if (sanitizedCommand.endsWith('&')) {
+                sanitizedCommand = sanitizedCommand.slice(0, -1).trim();
+            }
+            params.command = sanitizedCommand;
+
             const execCwd = params.cwd || workspaceRoot;
             const risk = classifyCommandRisk(params.command);
 
