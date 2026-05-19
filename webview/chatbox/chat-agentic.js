@@ -1,5 +1,11 @@
 let _waitingIndicatorTimer = null;
 
+/** Strip ANSI escape sequences from terminal output for clean rendering */
+function stripAnsi(str) {
+    if (!str) { return ''; }
+    return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+}
+
 function clearWaitingIndicator() {
     if (_waitingIndicatorTimer) {
         clearTimeout(_waitingIndicatorTimer);
@@ -388,7 +394,7 @@ function renderAgentStep(step) {
                 const terminalSnippet = document.createElement('div');
                 terminalSnippet.className = 'terminal-snippet';
 
-                let outputText = step.result.output.trim();
+                let outputText = stripAnsi(step.result.output).trim();
                 if (outputText.length > 2000) {
                     outputText = outputText.substring(0, 2000) + '\n... (output truncated)';
                 }
@@ -427,7 +433,7 @@ function renderAgentStep(step) {
                 terminalSnippet.className = 'terminal-snippet';
                 terminalSnippet.style.borderLeft = '2px solid var(--vscode-focusBorder)';
 
-                let outputText = step.result.output.trim();
+                let outputText = stripAnsi(step.result.output).trim();
                 if (outputText.length > 2000) {
                     outputText = outputText.substring(0, 2000) + '\n... (output truncated)';
                 }
