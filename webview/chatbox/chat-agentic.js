@@ -103,7 +103,7 @@ function renderAgentStep(step) {
                     <span class="step-tool-name">${step.text}</span>
                 </div>
             `;
-            withAutoScroll(() => chatbox.appendChild(thinkingEl));
+            withAutoScroll(() => getActiveTurn().appendChild(thinkingEl));
             return;
         }
 

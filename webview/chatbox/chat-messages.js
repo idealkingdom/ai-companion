@@ -20,7 +20,7 @@ function showLoadingIndicator() {
     const loadingDiv = document.createElement('div');
     loadingDiv.className = 'loading-indicator';
     loadingDiv.innerHTML = `<div class="generating-text" style="opacity: 0.5; font-size: 0.9em; margin-bottom: 8px;">Generating...</div>`;
-    withAutoScroll(() => chatLog.appendChild(loadingDiv));
+    withAutoScroll(() => getActiveTurn().appendChild(loadingDiv));
 }
 
 

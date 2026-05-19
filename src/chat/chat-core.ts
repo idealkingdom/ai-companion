@@ -1169,13 +1169,8 @@ CONTEXT PRIORITY:
                 }
             }
 
-            // Send completion step event
-            if (onAgentStep) {
-                onAgentStep({
-                    type: 'thinking',
-                    text: `Agent completed in ${stepCount} steps.`
-                });
-            }
+            // Removed the redundant "Agent completed in X steps" status message
+            // because the UI already shows "Completed steps" in the agent UI group.
 
             // Detect if the model hit the step limit while still wanting to work
             const hitStepLimit = stepCount >= maxSteps && lastStepHadToolCalls;
