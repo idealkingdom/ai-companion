@@ -50,36 +50,7 @@ window.addEventListener('message', event => {
                         if (message.isHistory) { step._isHistory = true; }
                         renderAgentStep(step);
                     }
-
-                    // Finalize thinking blocks and groups
-                    document.querySelectorAll('.agent-thinking-block:not([data-finalized="true"])').forEach(thinkingBlock => {
-                        thinkingBlock.dataset.finalized = 'true';
-                        thinkingBlock.classList.remove('streaming');
-                        thinkingBlock.open = false;
-                        const label = thinkingBlock.querySelector('.thinking-label');
-                        if (label && !label.textContent.includes('Thought for')) {
-                            label.textContent = 'Thought process';
-                        }
-                    });
-
-                    document.querySelectorAll('details.agent-steps-group:not([data-finalized="true"])').forEach(group => {
-                        if (group.dataset.timer) {
-                            clearInterval(parseInt(group.dataset.timer));
-                            delete group.dataset.timer;
-                        }
-                        const summaryText = group.querySelector('.summary-text');
-                        if (summaryText) {
-                            if (group.dataset.history) {
-                                summaryText.textContent = 'Completed steps';
-                            } else {
-                                const ms = Date.now() - parseInt(group.dataset.startTime);
-                                const secs = Math.floor(ms / 1000);
-                                summaryText.textContent = secs === 0 ? 'Completed steps' : `Worked for ${secs}s`;
-                            }
-                        }
-                        group.open = false;
-                        group.dataset.finalized = "true";
-                    });
+                    finalizeAgentStepsForHistory();
                 }
                 if (message.content) {
                     appendAIMessage(message.content);
@@ -560,37 +531,14 @@ function rehydrateState(data) {
     if (messages && Array.isArray(messages)) {
         messages.forEach(msg => {
             if (msg.role === ROLE.USER) {
-                appendUserMessage(msg.message, msg.images || [], [], true);
+                appendUserMessage(msg.message, msg.images || [], msg.files || [], true);
             } else {
                 if (msg.agentSteps && msg.agentSteps.length > 0) {
                     for (const step of msg.agentSteps) {
                         step._isHistory = true;
                         renderAgentStep(step);
                     }
-
-                    // Finalize thinking blocks and groups
-                    document.querySelectorAll('.agent-thinking-block:not([data-finalized="true"])').forEach(thinkingBlock => {
-                        thinkingBlock.dataset.finalized = 'true';
-                        thinkingBlock.classList.remove('streaming');
-                        thinkingBlock.open = false;
-                        const label = thinkingBlock.querySelector('.thinking-label');
-                        if (label && !label.textContent.includes('Thought for')) {
-                            label.textContent = 'Thought process';
-                        }
-                    });
-
-                    document.querySelectorAll('details.agent-steps-group:not([data-finalized="true"])').forEach(group => {
-                        if (group.dataset.timer) {
-                            clearInterval(parseInt(group.dataset.timer));
-                            delete group.dataset.timer;
-                        }
-                        const summaryText = group.querySelector('.summary-text');
-                        if (summaryText) {
-                            summaryText.textContent = 'Completed steps';
-                        }
-                        group.open = false;
-                        group.dataset.finalized = "true";
-                    });
+                    finalizeAgentStepsForHistory();
                 }
                 
                 if (msg.message || !msg.agentSteps || msg.agentSteps.length === 0) {
@@ -611,4 +559,33 @@ function rehydrateState(data) {
         // Force scroll to bottom when loading history
         scrollToBottom(true);
     }, 50);
+}
+
+// ─── SHARED FINALIZATION HELPER ─────────────────────────────────────────────
+// Finalizes any open thinking blocks and agent step groups for history rendering.
+// Used by both the CHAT_REQUEST (history load) and rehydrateState (VS Code reload) paths.
+// NOTE: CHAT_STREAM_END has its own version with live-timer elapsed-time logic.
+function finalizeAgentStepsForHistory() {
+    document.querySelectorAll('.agent-thinking-block:not([data-finalized="true"])').forEach(thinkingBlock => {
+        thinkingBlock.dataset.finalized = 'true';
+        thinkingBlock.classList.remove('streaming');
+        thinkingBlock.open = false;
+        const label = thinkingBlock.querySelector('.thinking-label');
+        if (label && !label.textContent.includes('Thought for')) {
+            label.textContent = 'Thought process';
+        }
+    });
+
+    document.querySelectorAll('details.agent-steps-group:not([data-finalized="true"])').forEach(group => {
+        if (group.dataset.timer) {
+            clearInterval(parseInt(group.dataset.timer));
+            delete group.dataset.timer;
+        }
+        const summaryText = group.querySelector('.summary-text');
+        if (summaryText) {
+            summaryText.textContent = 'Completed steps';
+        }
+        group.open = false;
+        group.dataset.finalized = "true";
+    });
 }
