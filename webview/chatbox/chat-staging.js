@@ -264,9 +264,23 @@ function renderHunkCard(hunk, fileIdx, hunkIdx) {
     const linesHtml = hunk.lines.map(line => {
         const prefix = line.charAt(0);
         let lineClass = 'context';
-        if (prefix === '+') { lineClass = 'added'; }
-        else if (prefix === '-') { lineClass = 'removed'; }
-        return `<div class="hunk-diff-line ${lineClass}">${escapeHtml(line)}</div>`;
+        let prefixChar = ' ';
+        let contentStr = line;
+
+        if (prefix === '+') {
+            lineClass = 'added';
+            prefixChar = '+';
+            contentStr = line.substring(1);
+        } else if (prefix === '-') {
+            lineClass = 'removed';
+            prefixChar = '-';
+            contentStr = line.substring(1);
+        } else if (prefix === ' ') {
+            prefixChar = ' ';
+            contentStr = line.substring(1);
+        }
+
+        return `<div class="hunk-diff-line ${lineClass}"><span class="diff-prefix">${prefixChar}</span><span class="diff-content">${escapeHtml(contentStr)}</span></div>`;
     }).join('');
 
     return `

@@ -213,28 +213,53 @@
 .hunk-diff-lines {
   font-family: var(--font-editor);
   font-size: 0.78rem;
-  line-height: 1.55;
+  line-height: 1.5;
   overflow-x: auto;
+  padding: 8px 0;
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .hunk-diff-line {
-  padding: 0 10px;
+  display: flex;
+  padding: 0 16px;
+  min-height: 1.5em;
+  color: var(--text-color);
+}
+
+.diff-prefix {
+  display: inline-block;
+  width: 20px;
+  flex-shrink: 0;
+  opacity: 0.45;
+  user-select: none;
+  font-weight: 500;
+}
+
+.diff-content {
   white-space: pre;
-  min-height: 1.55em;
+  flex: 1;
 }
 
 .hunk-diff-line.added {
-  background: rgba(76, 175, 80, 0.08);
-  color: #a5d6a7;
+  background: rgba(46, 160, 67, 0.15);
+  color: #7ee787;
+}
+
+.hunk-diff-line.added .diff-prefix {
+  color: #7ee787;
 }
 
 .hunk-diff-line.removed {
-  background: rgba(244, 67, 54, 0.08);
-  color: #ef9a9a;
+  background: rgba(248, 81, 73, 0.15);
+  color: #ffa198;
+}
+
+.hunk-diff-line.removed .diff-prefix {
+  color: #ffa198;
 }
 
 .hunk-diff-line.context {
-  opacity: 0.5;
+  opacity: 0.75;
 }
 
 /* Bottom Action Bar */
