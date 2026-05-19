@@ -32,6 +32,14 @@ const bgTerminals = new Map<string, BgTerminalEntry>();
 const MAX_BG_TERMINALS = 5;
 const MAX_BG_OUTPUT_BYTES = 512 * 1024; // 512 KB cap per background output file
 
+/**
+ * Strips ANSI escape sequences (colors, font weights, etc.) from terminal outputs.
+ */
+function stripAnsi(str: string): string {
+    if (!str) { return ''; }
+    return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+}
+
 function getOrCreateAITerminal(cwd: string): vscode.Terminal {
     // If the terminal was closed by the user, recreate it
     if (aiTerminal && aiTerminal.exitStatus !== undefined) {
@@ -627,6 +635,7 @@ export function createSysTools(chatId?: string) {
                 try {
                     if (fs.existsSync(outFile)) {
                         output = fs.readFileSync(outFile, 'utf-8') || '(no output yet)';
+                        output = stripAnsi(output);
                     }
                 } catch {}
 
@@ -763,6 +772,8 @@ export function createSysTools(chatId?: string) {
                 // Allow a small delay for FS watchers to fire
                 setTimeout(() => ReviewManager.getInstance().setTerminalRunning(false), 500);
             }
+
+            output = stripAnsi(output);
 
             if (output.length > 3000) {
                 output = output.substring(0, 3000) + '\n... [output truncated at 3000 chars]';
@@ -1095,7 +1106,8 @@ You have ${MAX_TEST_RETRIES - tracker.count} retries remaining. Do NOT skip the 
             let output = '';
             try {
                 if (fs.existsSync(entry.outFile)) {
-                    const full = fs.readFileSync(entry.outFile, 'utf-8');
+                    let full = fs.readFileSync(entry.outFile, 'utf-8');
+                    full = stripAnsi(full);
                     let allLines = full.split('\n');
 
                     // Apply search filter if provided
