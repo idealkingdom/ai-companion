@@ -352,8 +352,8 @@ function toggleHunk(fileIdx, hunkIdx, accepted) {
     // Sync with backend
     sendMessage('chatToggleHunk', { uri: file.uri, index: hunk.index, accepted });
 
-    // Re-render efficiently (just update the card + footer)
-    renderHunkReviewPanel();
+    // Update UI in place to prevent flickering
+    updateHunkCardUI(fileIdx, hunkIdx, accepted);
 }
 
 function undoHunkToggle() {
@@ -365,10 +365,26 @@ function undoHunkToggle() {
         const hunk = file.hunks[last.hunkIdx];
         if (hunk) {
             hunk.accepted = last.prevState;
+            updateHunkCardUI(last.fileIdx, last.hunkIdx, last.prevState);
         }
     }
+}
 
-    renderHunkReviewPanel();
+function updateHunkCardUI(fileIdx, hunkIdx, accepted) {
+    const card = document.querySelector(`.hunk-card[data-file-idx="${fileIdx}"][data-hunk-idx="${hunkIdx}"]`);
+    if (!card) return;
+
+    if (accepted) {
+        card.classList.remove('rejected');
+    } else {
+        card.classList.add('rejected');
+    }
+
+    const acceptBtn = card.querySelector('.mono-toggle-btn.accept');
+    const rejectBtn = card.querySelector('.mono-toggle-btn.reject');
+
+    if (acceptBtn) acceptBtn.classList.toggle('active', accepted);
+    if (rejectBtn) rejectBtn.classList.toggle('active', !accepted);
 }
 
 function commitSelectedHunks() {
